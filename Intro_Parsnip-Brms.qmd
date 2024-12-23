@@ -1,0 +1,107 @@
+---
+bibliography: references.bib
+---
+
+# Introduction to parsnip and brms {#sec-intro_parsnip_brms}
+
+The statistical modeling tools we use play a pivotal role in how efficiently and effectively we can model our research data. Here, we will use two powerful R tools, `parsnip` and `brms` to work seamlessly with statistical modeling.
+Both tools support theoretically motivated modeling and robust parameter estimation, making them ideal for the complex and often noisy datasets typical of neuroscience.
+
+The `parsnip` package [@parsnip] is part of the tidymodels ecosystem [@kuhn2020], designed to unify the process of model specification, fitting, and prediction. This package is valuable for its simplicity and flexibility. In principle, researchers can define models without committing to a specific computational engine at the outset. For instance, a linear regression model can be fitted using a variety of methods, such as lm or glmnet for penalized regression. This allow us to experiment with diverse algorithms without having to rewrite the underlying model code.
+
+To explore how these packages work, let's start by simulating a dataset:
+
+```{r}
+library(gt)
+
+set.seed(123)  # For reproducibility
+n <- 100  # Number of observations
+
+# We define parameters
+beta_0 <- 20   # Baseline marker intensity
+beta_1 <- 15   # Effect of treatment in dose
+sigma <- 5     # Standard deviation of noise
+
+# Generate data
+treatment_dose <- rep(0:2, length.out = n)  # 3 dose levels
+marker_intensity <- beta_0 + beta_1 * treatment_dose + rnorm(n, mean = 0, sd = sigma)
+
+# Create data frame
+cell_data <- data.frame(treatment_dose = treatment_dose, marker_intensity = marker_intensity)
+
+# View the first few rows
+gt(head(cell_data))
+```
+
+This simulated dataset mimics a scenario in basic, cellular neuroscience where a treatment influences the intensity of a marker associated with oxidative stress. We modeled a baseline intensity of 20 units, and stipulated that each unit increase in dose raises the marker intensity by 15 units on average. We then added some noise ($\sigma = 5$) to account for  biological variability.
+
+Now, let's use `Parsnip` and `brms` to fit a simple linear model and appreciate the machinery of these packages.
+
+::: panel-tabset
+### Parsnip
+
+```{r}
+library(parsnip)
+
+parsnip_model <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(marker_intensity ~ treatment_dose, data = cell_data)
+
+```
+
+
+### BRMS
+
+```{r}
+library(brms)
+
+brms_model <- brm(
+  marker_intensity ~ treatment_dose,
+  data = cell_data,
+  seed = 123,
+  file = "models/Intro_brms_models_Fit1.rds",
+  file_refit = "never"
+)
+```
+
+:::
+
+## An overview of parameter interpretation
+
+In both cases, we fitted the same model (marker_intensity ~ treatment_dose) aiming to investigate the distribution of marker intensity conditioning on the treatment dose. Now, let's see the model results. We need to use a different strategy for both packages:
+
+::: panel-tabset
+### Parsnip
+
+```{r}
+library(broom)
+
+tidy(parsnip_model, conf.int = TRUE)
+
+glance(parsnip_model)
+```
+
+### BRMS
+
+```{r}
+library(brms)
+
+summary(brms_model)
+```
+:::
+
+We can see that the parameters for the `intercept` and the `treatment_dose` are similar for both models. The intercept ( 20.9131) reflects the baseline measurement. Of course, we know this value already because it was one of the parameters we used to do our simulation. This means that the marker intensity is 20.9 when the treatment dose is at its minimum. On the other hand, the parameter for treatment dose indicates us an increase of 14.5. For the `parsnip` model, the 95% confidence intervals are specified in the `conf.low` and `conf.high` columns, whereas for `brms` thew credible intervals are specified under the columns `l-95% CI` and `u-95% CI`. Finally, the `sigma` parameter in a linear regression model (obtained for the `parsnip` model  using `glance`) specifies the residual standard error. This encompasses an estimation of of the standard deviation of the residuals (errors), representing the differences between the observed values and the values predicted by the model. Smaller the sigma, less the distance between the observations (your data) and the values predicted by your model.  
+
+The interpretation of the parameters is a fundamental aspect of statistical modelling and inference, and we will explore the many nuances of this throughout the book. 
+
+## References
+
+::: {#refs}
+:::
+
+
+
+
+
+
+
