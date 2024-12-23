@@ -1,0 +1,94 @@
+# Introduction to Statistical Modeling in Neuroscience {#sec-Intro_StatModeling}
+
+Statistical models are more than just mathematical tools; they are frameworks that allow us to explore, understand, and sometimes even predict the complex processes that occur within the nervous system.
+Whether we’re studying the firing of individual neurons, the number of cell in specific brain regions, or the expression of extracellular matrix molecules, statistical modeling give shape to our scientific inferences.
+Think about that the models we build enable us to transform raw data into interpretable patterns and understand the variability of biological data.
+
+I invite you to think of statistical modeling as apprehend that our data is not merely a collection of disconnected points or values, but rather the result of an underlying process, that us, scientist, want to bring to light.
+I argue that embracing this perspective is crucial to understand the job we do as researchers.
+We are not here to calculate p-values and state that "there is a significant difference".
+We are here to unveil which process could have plausibly generated our the data or observations we have in our hands.
+
+Please allow me to make emphasis on the preceding.
+When we measure cell counts in a proliferation assay or assess marker intensity to understand protein expression, we are observing outcomes that emerge from a biological mechanism we are trying to describe using a statistical model.
+Newton let us know that the force of gravity decreases as the square of the distance.
+Thank goodness he didn't just tell us that the Sun exerts a ‘significantly greater’ force on the Earth than on Mars.
+That would certainly not have helped us to explore the red planet.
+The mathematical model he built did.
+
+::: callout-tip
+### Building theoretically motivated models
+
+Statistical modeling is a tool for finding patterns in the data as a way to capture the processes that could have plausibly generated it.
+By grounding our models in theoretical considerations, we move from simply describing associations to actively exploring mechanisms underlying neurological responses.
+:::
+
+Now, our modelling strategy must be theoretically motivated.
+This means that we do not want simply capture trends in the data, but generate a hypothesis about the data’s origin.
+For example, if we are examining the effect of a new drug on cell proliferation, our model might incorporate assumptions about how cells respond to the drug over time, or it might take into account baseline differences in cell health or type.
+These theoretical considerations, as obvious as they may seem to some, are not just add-ons; they shape the model’s structure and guide the interpretation of its parameters.
+Rather than only describing associations or making void statements as "significantly different" based on uninformative metrics, a well-conceived statistical model attempts to approximate the biological system itself, translating our scientific questions into quantifiable, testable components.Of course, all models are wrong, no model can capture reality as it is, but some models are extremely useful for understanding neurobiology, while others are not.
+
+The process of building these theoretically-motivated models in neuroscience involves several steps, from defining hypotheses, stating assumptions, and selecting variables to fitting models and interpreting results.
+Our model acts as a bridge between our data and the biological phenomena we seek to understand.
+In this chapter, we will touch the surface of statistical modeling to familiarize ourselves with general steps and tools to do so in the R ecosystem.
+We will rely on some common data types like cell counts, marker intensities, and morphological measurements.
+
+## Why statistical modeling is the way?
+
+![](images/Modeling_way.png)
+
+Neuroscience, and in particular basic neuroscience research, is a field awash with complex and diverse data, including cell counts, fluorescence intensities, area measurements and morphological features.
+All of these have a rich potential to provide insights into the mechanisms that govern the dynamics of the nervous system.
+However, as rich and diverse as these data are, they do not speak for themselves.
+We have to bear in mind that the data are shaped by complex biological processes, experimental conditions and an overlay of noise and variability that is difficult to track and control.
+This is where scientists themselves are the most important actors in the research landscape.
+
+The most powerful tool scientists have to uncover the processes behind the data is statistical modelling.
+As I mentioned earlier, a statistical model is essentially a simplified mathematical representation of reality.
+For example, consider a study investigating the effect of a neuroprotective compound on cell viability.
+The data might include cell counts from control and treated samples, and even repeated measurements of the same cells.
+By modelling, scientists can quantify how the treatment changes cell viability, taking into account covariates and the inherent variability of the experiment.
+From this perspective, we are not interested in putting asterisks on our graphs, but in obtaining and understanding the parameters that describe the data-generating process.
+
+Remember that beyond quantifying cells or proteins that reflect cell viability, statistical modelling embodies a theoretical proposition: that the compound affects cell viability in a predictable way; that we can uncover parameters that allow us to predict an effect size based on specific inputs.
+Unlike current statistical practice, where scientists use unfounded statistical tests that do not answer scientific questions, building theoretically motivated models is essential.
+Without it, statistical analysis remains a mere exercise in pattern recognition, adorned with asterisks and meaningless p-values, and disconnected from the scientific questions that drive research.
+Statistical modelling provides a framework for intertwining data with neurobiological theory, and below I briefly mention some of the issues or questions that a well-founded statistical model can answer.
+
+-   **Biological variability:** Consider two identically treated cell cultures of astrocytes (my favourite cell type).
+    Even under controlled conditions, these cells may show differences in cell proliferation due to subtle variations in cell populations or intrinsic randomness in biological processes.
+    These are aspects that scientists cannot control, but that a robust statistical model can take into account.
+
+-   **Experimental/technical noise:** Measurement processes themselves introduce noise.
+    Consider that the fluorescence intensity of a marker may vary depending on imaging conditions or instrument calibration.
+    Statistical modelling can provide estimates for these sources of noise.
+
+-   **Confounding factors:** In many experiments, we can identify additional variables, such as the duration of cell culture, or tiny differences in cell line batches or passages, that can affect the research results in undefined ways.A well-motivated statistical model can account for the effects of these factors and ensure that the observed changes are truly due to the variables or treatments of interest.
+
+## Fitting and interpreting models: an overview
+
+To get started, we can say that fitting a statistical model starts with a clear question: what process might explain the data we observe?
+In neuroscience, this often involves relating biological mechanisms to measurable outcomes.
+The model you choose as a scientist reflects your theoretical understanding of the underlying system, including how the variables contribute individually or jointly to the observed results.
+We will explore this aspect in more detail in Chapter XXX. For now, let's consider a scenario that most neuroscientists have encountered: examining the intensity of a protein after fluorescent staining.
+Let’s consider marker intensity ($y_i$) as a response to a treatment we are testing ($x_i$).
+A simple linear model can posit the following relationship:
+
+$$
+y_i = \beta_0 + \beta_1 x_i + \epsilon_i
+$$
+
+In this example, $\beta_0$ represents the baseline marker intensity in the absence of treatment, while $\beta_1$ quantifies the rate at which marker intensity increases with treatment dose ($x_i$).
+In addition, the term $\epsilon_i$ in the notation captures random variation.
+Also known as error, this variation acknowledges that our experimental approaches and measurements are hardly deterministic.
+
+This initial foundation is the guiding principle for ideating a model structure that reflects our understanding of the biology behind our experiments and informs us about the parameters or coefficients we need to interpret.
+After fitting the model, we will obtain coefficient estimates with their associated uncertainty.
+In each case, whether we use frequentist or Bayesian methods, we are estimating $\beta_0$ and $\beta_1$ parameters based on observed data.
+I hope, dear fellow, that up to this point the matter is being stimulating.
+
+## References
+
+::: {#refs}
+:::

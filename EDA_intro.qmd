@@ -1,0 +1,53 @@
+---
+title: Exploratory data analysis
+bibliography: references.bib
+---
+
+Data in neuroscience is often messy, overwhelming, and initially unstructured. A single dataset may encompass measurements as diverse as marker intensities, structural brain metrics, electrophysiological recordings, or cell counts obtained through techniques like fluorescence-activated cell sorting (FACS). This diversity, coupled with the vast array of experimental conditions and study designs, creates a complex analytical landscape. 
+
+Most of the time, it is tempting for researchers to bypass the foundational steps of data exploration and leap directly into statistical modeling or hypothesis testing to present these results at the lab meeting or the next research center seminar. However, neglecting exploratory data analysis (EDA) and data visualization can lead to [oversights]{style="color:red;"} with far-reaching consequences.
+
+EDA is more than a preliminary step. It is the [bedrock of a robust analysis workflow]{style="text-decoration: underline;"}. Through techniques like plotting distributions, scatterplots, and correlation matrices, we begin to uncover [patterns, relationships, and anomalies within the data]{style="color:green;"}. For instance, subtle biases in marker intensity distributions or unexpected clusters in cell count data may reveal important biological insights or warn of technical artifacts. Without EDA, such aspects of our data could be lost, leading us to misinterpretations or erroneous conclusions. Moreover, I argue that EDA provides us with an intuitive sense of their [data’s structure]{style="text-decoration: underline;"} and helps to [refine research questions]{style="text-decoration: underline;"} and [guide subsequent statistical modeling]{style="text-decoration: underline;"}.
+
+## What is EDA?
+
+EDA can be defined as the process of summarizing and visualizing data to gain a [comprehensive understanding]{style="color:green;"} of its [structure]{style="text-decoration: underline;"}, uncover [potential patterns]{style="text-decoration: underline;"}, and detect issues such as [missing values]{style="text-decoration: underline;"}, [extreme values]{style="text-decoration: underline;"} (commonly referred to as outliers), or [outright errors]{style="text-decoration: underline;"}. Think about EDA as the foundation for a robust analytical workflow, a tool that enable you to assess the quality and integrity of your data while identifying key features that can influence the subsequent steps in the analysis. By engaging in EDA at the onset of our analysis pipeline, we not only reduce the risk of downstream errors but also glean insights that inform our decisions, ranging from data preprocessing and transformation to model selection and interpretation of research findings.
+
+A cornerstone of EDA is data [visualization]{style="color:green;"}, which offers a compelling and intuitive way to undertsand our. Indeed, we can argue that human perception is naturally inclined toward visual interpretation. Our brains are remarkably adept at recognizing patterns, trends, and anomalies in graphs, far more effectively than through numerical summaries alone. For instance, a scatterplot can reveal nonlinear relationships between variables that might be obscured in tabular statistics, while boxplots can highlight extreme values or variability across experimental conditions at a glance.
+
+> EDA is not a formal process with a strict set of rules.
+> More than anything, EDA is a state of mind.
+> During the initial phases of EDA you should feel free to investigate every idea that occurs to you.
+> Some of these ideas will pan out, and some will be dead ends.
+> As your exploration continues, you will home in on a few particularly productive insights that you’ll eventually write up and communicate to others.
+> [@wickham2023]
+
+::: callout-tip
+A good analysis workflow begins with [systematic]{style="color:green;"} and [intentional]{style="color:green;"} EDA.
+:::
+
+## Performing exploratory data analysis
+
+I invite you to think about EDA as a [dynamic and iterative process]{style="color:green;"} of posing preliminary questions to your data and answering them through visualizations and basic analyses. That is, getting to know your data intimately before proceeding with more complex analyses. Imagine a study investigating the effect of ischemic stroke on the reactivity of cells forming the glial scar. Our dataset might include fluorescence intensity measurements for PDGFR-β (a marker for pericytes) and GFAP (a marker for astrocytes and other astroglial lineage cells) at various time points. Without first examining the data, we might [naively assume]{style="color:red;"} that fluorescence intensity values are normally distributed—a common assumption among researchers—and proceed with modeling methods or statistical tests that rely heavily on this assumption. However, EDA often tells a different story.
+
+For example, when we visualize the fluorescence intensity [distributions]{style="color:green;"} using histograms or density plots, we might uncover that the data are [highly skewed]{style="text-decoration: underline;"} or display a [bimodal distribution]{style="text-decoration: underline;"}. These patterns are not just statistical curiosities; they provide vital insights that guide our modeling choices. A bimodal distribution, for instance, might suggest the presence of distinct cell populations or different experimental conditions influencing the measurements. This ensure that our approaches are tailored to the actual data, rather than relying on potentially [flawed assumptions]{style="color:red;"}.
+
+Beyond univariate distributions, EDA can explore [relationships between variables]{style="color:green;"}. Scatter plots, for instance, might reveal whether the size of the ischemic area correlates with PDGFR-β or GFAP intensity, suggesting potential [confounding factors]{style="text-decoration: underline;"} that need to be addressed in the model. Grouped box plots or violin plots offer additional layers of insight by displaying differences and [variability]{style="color:green;"} across experimental groups or time points. For instance, a violin plot might highlight unexpected [heterogeneity]{style="color:green;"} in marker intensity between early and late time points, prompting new hypotheses about the temporal evolution of the glial scar response. These visualizations are not mere "decorations" for publication, adorned with asterisks and p-values. Instead, they are invaluable tools for exploratory analysis, helping us to formulate [meaningful questions]{style="color:green;"} and [refine our analytical strategy]{style="color:green;"}.
+
+On the other hand, a critical function of EDA is [identifying anomalies]{style="color:green;"} or [extreme values]{style="color:green;"}—data points that deviate significantly from the rest of the dataset. Consider a scenario where a few measurements of GFAP intensity are extraordinarily high. These could indicate rare biological events, such as a pronounced astrocytic response in a subset of samples, or more commonly, they might point to [measurement errors]{style="color:red;"}. Identifying such anomalies early in the analysis workflow prevents [biased modeling]{style="color:red;"} and [spurious conclusions]{style="color:red;"}. Indeed, if you examine the scientific literature, you may find instances of "significant" results driven entirely by a single outlier. This type of bias not only undermines the validity of the research but also hinders scientific progress.
+
+::: callout-tip
+### Exploratory data analysis in action
+
+In summary, EDA provides initial insights for modeling your data, including:
+
+-   **Discover unusual distributions:** [Histograms or density plots]{style="color:green;"} may show that the control group is clustered tightly around the mean, while the treatment group has a bimodal distribution or an extremely long tail. This suggests that the treatment may be affecting only a subset of animals, which is worthy of further investigation.
+
+-   **Identifying confounding relationships:** A [scatter plot]{style="color:green;"} of PDGFR-β intensity versus tissue area may reveal a strong positive correlation, providing us with valuable information about [highly correlated variables]{style="text-decoration: underline;"} that, when used together as predictors, may strongly bias our modeling strategy and conclusions.
+
+-   **Detecting anomalies:** A [raincloud]{style="color:green;"} plot of marker intensity may highlight one or a few [extreme points]{style="text-decoration: underline;"} that significantly skew the distribution of the data and allow us to consider them for model diagnostics.
+:::
+
+## Take home message
+
+It is essential to recognize that EDA is not merely a preliminary or optional step in the analysis workflow—it is a foundational procedure that underpins the entire analytical process. By systematically exploring the data, we not only identify trends, patterns, and anomalies but also clarify the assumptions that will guide subsequent analyses. Incorporating EDA into our workflow ensures that our analyses are robust, reliable, and, crucially, reproducible. 

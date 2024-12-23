@@ -1,0 +1,82 @@
+---
+bibliography: references.bib
+---
+
+# What is linear regression? {#sec-linear-regression-what}
+
+```{r}
+#| include: false
+
+library(ggplot2)
+
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
+```
+
+
+## What is Linear Regression?
+
+Let's introduce linear regression as a statistical approach to [modelling and analysing relationships between variables]{style="color:green;"}.
+In one of his lectures, Richard McElreath succinctly captures the essence of linear regression with this question:
+
+::: {style="text-align: center"}
+***What's the value of knowing A if I know B?***
+:::
+
+In essence, linear regression focuses on understanding how changes in one or more independent variables (predictors or explanatory variables) relate to changes in a dependent variable (response).
+It provides a powerfull framework for [describing and predicting responses]{style="color:green;"} from datasets.
+
+At its heart, linear regression assumes that the relationship between variables can be [approximated]{style="text-decoration: underline;"} by a **straight line** (or a hyperplane in cases with multiple predictors). This offers researchers and data analysts several capabilities:
+
+-   **Identify relationships and patterns** between variables, offering insights into underlying trends.
+
+-   **Make predictions** for unknown values on known relationships in the data.
+
+-   **Test scientific hypotheses** quantifying the  strength of associations between responses and predictors.
+
+
+:::callout-tip
+### Why Use Linear Regression?
+Regression allows researchers to answer questions about the influence of specific predictors on the response. Whether you’re exploring how a treatment impacts a biological marker, understanding trends over time, or predicting outcomes based on multiple variables, linear regression serves as a foundational tool in statistical modeling.
+:::
+
+## The Linear Regression Equation
+
+Linear regression, in its simplest version, relies on a consise mathematical model to represent the relationship between a response and its predictors. The [most basic linear regression model]{style="text-decoration: underline;"} is expressed as:
+
+$$
+y = \beta_0 + \beta_1x + \epsilon
+$$ {#eq-linear-regression-simple}
+
+Let's explore the components of this equation:
+
+-   $y$ represents the [outcome]{style="color:green;"}we want to explain or predict based on the predictors. In neuroscience, the response could be the **number of cells**, the **size of an affected area**, the **proportion of dead cells**, or any other variable of interest.
+
+-   $x$ the [predictor(s)]{style="color:green;"}, are the factors we believe influence the response variable $y$.Predictors could include **days after injury**, **treatment type**, **drug dosage**, **experimental group**, or any other variable that might explain the variability in $y$.
+
+Both the response and predictors come directly from our dataset, allowing us to explore them during EDA before applying linear regression. The true power of linear regression lies in the coefficients:
+
+-   $\beta_0$ ([Intercept]{style="color:green;"}) represents the value of the response $y$ when the predictor $x$ is at its baseline level. - If $x$ is a **categorical variable**, $\beta_0$ corresponds to the value of $y$ for the reference category of $x$. Otherwise, if $x$ is **numeric**, $\beta_0$ represents the value of $y$ when $x = 0$. For example, if we’re predicting cognitive performance based on reaction time, $\beta_0$ would reflect the [predicted cognitive score]{style="text-decoration: underline;"} for someone with a (theoretical) reaction time of zero.
+
+-   $\beta_1$ is know as the [slope]{style="color:green;"}.
+    indicates how much the response $y$ changes with a one-unit change in the predictor $x$. - For **categorical variables**, $\beta_1$ reflects the difference in $y$ between the base category and another category of $x$. - For **numeric variables**, $\beta_1$ represents how much $y$ changes for a **one-unit increase** in $x$. Using the same example, $\beta_1$ tells us how much the **predicted cognitive score** changes **per second of reaction time**, assuming $x$ is measured in seconds.
+
+In the simplest cases, these two coefficients are the most important elements we need to know in order to make strong scientific inferences, and we will continue to explore them as we progress through this book. Surprisingly, you can be confident that the intercept and slope are more informative than the [lowest p-value]{style="color:red;"}. you have ever seen in your life, or the graph with the most asterisks, which are not at all useful for statistical inference.
+
+-   Finally, $\epsilon$, the [error term]{style="color:green;"}, accounts for the [variability]{style="color:green;"}. in $y$ that cannot be explained by the predictors. It captures factors such as measurement noise, unknown influences, and random fluctuations.
+
+:::callout-tip
+By interpreting the **intercept** ($\beta_0$) and **slope** ($\beta_1$), we can gain insights into **baseline values** and **changes** in the response to make predictions.
+:::
+
+What happens when we have multiple predictors, such as reaction time and treatment? In that case, the @eq-linear-regression-simple generalizes to:
+
+$$
+y = \beta_0 + \beta_1x_1 + \beta_2x_2 + \dots + \beta_kx_k + \epsilon
+$$ {#eq-linear-regression-multiple} 
+
+In this case, $x_1$, $x_2$ + $\dots$ are the additional predictors (independent variables). A linear regression enable us to [**investigate how multiple factors or conditions simultaneously influence the response variable**]{style="color:green;"}.Moreover, it allows us to control for the effects of other predictors, isolating the independent contribution of each factor to the outcome. This means we can understand how each predictor affects the response on its own, even in the presence of other variable.
+
+Frankly, I’m still struck by how underutilized these approaches are in neuroscience, as well as by the limited understanding many neuroscientists have of them. For instance, the statistical training in our field often emphasizes ritualistic tests like t-tests and ANOVAs. In reality, t-tests and ANOVAs are simply special cases of linear models that, from my perspective, are rarely useful in neuroscience because of the type of data we work with. I invite you to open the doors to more flexible, robust, and nuanced approaches to understanding and learning from our data.
+
+

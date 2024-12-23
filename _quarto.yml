@@ -1,0 +1,54 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Data analysis for Neuroscientists"
+  reader-mode: true
+
+  page-footer:
+    left: |
+      Data analysis for Neuroscientists was written by Daniel Manrique-Castano (https://orcid.org/0000-0002-1912-1764).
+    right: |
+      This book was created with <a href="https://quarto.org/">Quarto</a>.
+  #cover-image: cover.png
+  #favicon: cover.png
+  #site-url: https://quarto-tdg.org/
+  repo-url: https://github.com/daniel-manrique/Book_DataAnalysis_Neuroscience
+  repo-branch: main
+  repo-actions: [edit, issue]
+  chapters:
+    - index.qmd
+
+    - part: introduction.qmd
+      chapters:
+        - Intro_StatModeling.qmd
+        - Intro_Parsnip-Brms.qmd 
+
+    - part: EDA_intro.qmd
+      chapters:
+        - EDA_ggplot.qmd
+        - EDA_gwalkr.qmd
+        - EDA_ggpairs.qmd
+        - EDA_summary.qmd
+        
+    - part: linearModels-Intro.qmd
+      chapters:
+        - linear-regression-what.qmd
+        - linear-regression-assumptions.qmd
+
+format:
+  html:
+    theme:
+      - cosmo
+      - quarto-tdg.scss
+    author-meta: "Daniel Manrique-Castano"
+    callout-appearance: simple
+    highlight-style: a11y
+
+editor: visual
+
+execute:
+  freeze: auto
+  warning: false
+  message: false

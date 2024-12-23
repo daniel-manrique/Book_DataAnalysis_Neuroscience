@@ -1,0 +1,77 @@
+Descriptive Statistics and Visualization
+
+Summarizing neural data: means, variances, and distributions
+Exploratory visualizations: histograms, density plots, scatter plots, and violin plots
+Practical example: comparing group means in a neuroscience dataset
+Descriptive modeling with parsnip and brms
+Linear Models for Neuroscience Data
+
+Introduction to linear regression and its assumptions
+Modeling continuous outcomes (One predictor).
+Using parsnip and brms for fitting linear models
+Interpreting model parameters and confidence intervals.
+Multiple linear regression (two or more predictors).
+
+Model diagnostics and selection
+
+
+
+
+Generalized Linear Models (GLMs) for Diverse Neural Data
+
+Extending linear models to non-normal data: logistic, Poisson, and negative binomial regression
+Practical examples: binary outcomes (e.g., stimulus response) and count data (e.g., spike counts)
+Model fitting and validation with parsnip and brms
+Interpreting and visualizing GLM outputs in the context of neuroscience
+Hierarchical and Multilevel Models for Nested Data
+
+Understanding hierarchical structure in neuroscience (e.g., trials within subjects)
+Modeling random effects for individual differences
+Implementing multilevel models with parsnip and brms
+Practical case study: analyzing repeated measures from EEG or fMRI data
+Time-Series Analysis for Neural Signals
+
+Basics of time-series analysis and its importance in neuroscience
+Modeling neural oscillations and event-related potentials (ERPs)
+Techniques in parsnip and brms for time-series data
+Case study: analyzing EEG data over time to detect patterns
+Causal Inference in Neuroscience: A Practical Approach
+
+Understanding causality and its applications in neuroscientific research
+Directed Acyclic Graphs (DAGs) for causal reasoning
+Applying causal inference methods: matching, instrumental variables, and regression discontinuity
+Implementing causal models with parsnip and brms
+Dimensionality Reduction and Feature Selection
+
+The challenge of high-dimensional data in neuroscience
+Techniques: PCA, t-SNE, and UMAP for feature reduction
+Using parsnip to streamline data for modeling
+Example applications: reducing complexity in fMRI data and multi-channel EEG
+Machine Learning Applications in Neuroscience
+
+Supervised learning with parsnip for classification and regression
+Neural decoding: predicting behavior from neural features
+Model tuning and evaluation with cross-validation and hyperparameter optimization
+Interpreting machine learning model outputs for neuroscientific insights
+Model Validation and Diagnostics
+
+Cross-validation techniques to prevent overfitting
+Model diagnostics and goodness-of-fit metrics in parsnip and brms
+Using residual analysis and posterior predictive checks
+Case example: evaluating model fit on neural data with new observations
+Advanced Bayesian Modeling Techniques
+
+Defining and incorporating priors in Bayesian models with brms
+Advanced techniques: mixture models, latent variable analysis, and hierarchical priors
+Applying nonparametric methods in complex neural data scenarios
+Example analysis: fitting a latent variable model for cognitive processing in fMRI data
+Ethical Considerations and Reproducibility in Neuroscience Analysis
+
+The importance of reproducibility in neuroscience research
+Data sharing, pre-registration, and adherence to open science principles
+Ethical considerations in modeling and interpreting neuroscience data
+Appendices
+
+Detailed guide to setting up R, parsnip, and brms
+Additional resources for GitHub project management and version control
+Example datasets and additional code snippets for hands-on practice

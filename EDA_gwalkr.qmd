@@ -1,0 +1,11 @@
+# EDA using GwalkR {#sec-EDA_gwalkr}
+
+
+```{r}
+library(GWalkR)
+library(here)
+
+cell_data <- read.csv(here("data/Cells_Gfap-Pdgfrb.csv"))
+
+gwalkr(cell_data)
+```
