@@ -14,30 +14,57 @@ Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 ```
 
+Linear regression is one of the most powerful and versatile statistical tools available for research, prediction, and hypothesis evaluation.
+However, the [validity]{style="text-decoration: underline;"} and [reliability]{style="text-decoration: underline;"} of a linear regression model are heavily dependent on several [key assumptions]{style="color:green;"} that form the foundation of its mathematical framework.
+When these assumptions are met, the model's [coefficients]{style="text-decoration: underline;"}, [predictions]{style="text-decoration: underline;"}, and [statistical inferences]{style="text-decoration: underline;"} are [trustworthy]{style="text-decoration: underline;"}.
+If these assumptions are violated, however, the conclusions drawn from the model can become [biased]{style="color:red;"}, [inefficient]{style="color:red;"}, or outright [misleading]{style="color:green;"}.
 
-Linear regression is one of the most powerful and versatile statistical tools available for research, prediction, and hypothesis evaluation. However, the [validity]{style="text-decoration: underline;"} and [reliability]{style="text-decoration: underline;"} of a linear regression model are heavily dependent on several [key assumptions]{style="color:green;"} that form the foundation of its mathematical framework. When these assumptions are met, the model's [coefficients]{style="text-decoration: underline;"}, [predictions]{style="text-decoration: underline;"}, and [statistical inferences]{style="text-decoration: underline;"} are [trustworthy]{style="text-decoration: underline;"}. If these assumptions are violated, however, the conclusions drawn from the model can become [biased]{style="color:red;"}, [inefficient]{style="color:red;"}, or outright [misleading]{style="color:green;"}.
-
-The critical issue here is that your computer won’t warn you if the assumptions are violated. The model will happily compute coefficients and output results regardless of whether the assumptions hold. Your PC follows your instructions—it has no way of assessing the validity of the assumptions underpinning your analysis. This responsibility falls squarely on you, the scientist, as an expert in both the data and the subject matter. This is not just a technical formality or a check box to be ticked when submitting research papers, but a step towards ensuring that the insights and predictions derived from the model are both accurate and meaningful. Treat it as a professional responsibility.
-
+The critical issue here is that your computer won’t warn you if the assumptions are violated.
+The model will happily compute coefficients and output results regardless of whether the assumptions hold.
+Your PC follows your instructions—it has no way of assessing the validity of the assumptions underpinning your analysis.
+This responsibility falls squarely on you, the scientist, as an expert in both the data and the subject matter.
+This is not just a technical formality or a check box to be ticked when submitting research papers, but a step towards ensuring that the insights and predictions derived from the model are both accurate and meaningful.
+Treat it as a professional responsibility.
 
 ::: callout-warning
-Assessing whether your proposed modelling strategy [fulfils its assumptions]{style="text-decoration: underline;"} is one of your tasks as a scientist. Neither R, SPSS nor STATA will display a warning window if assumptions are not met.
+Assessing whether your proposed modelling strategy [fulfils its assumptions]{style="text-decoration: underline;"} is one of your tasks as a scientist.
+Neither R, SPSS nor STATA will display a warning window if assumptions are not met.
 :::
 
-Please keep in mind that every statistical model is an [extreme simplification of reality]{style="text-decoration: underline;"}. Think of models as lenses through which we interpret complex relationships in data, using the best tools at our disposal to generate estimates and predictions. Importantly, violating a model’s assumptions doesn’t necessarily invalidate the model outright. However, it does raise critical questions about the model’s appropriateness for the data and the reliability of its conclusions.
+Please keep in mind that every statistical model is an [extreme simplification of reality]{style="text-decoration: underline;"}.
+Think of models as lenses through which we interpret complex relationships in data, using the best tools at our disposal to generate estimates and predictions.
+Importantly, violating a model’s assumptions doesn’t necessarily invalidate the model outright.
+However, it does raise critical questions about the model’s appropriateness for the data and the reliability of its conclusions.
 
-In this section, we will explore five fundamental assumptions of linear regression: linearity, independence, homoscedasticity, normality (of residuals) and no multicollinearity.   
+In this section, we will explore five fundamental assumptions of linear regression: linearity, independence, homoscedasticity, normality (of residuals) and no multicollinearity.
 
+::: callout-tip
+## Assumptions of linear regression
+
+- Linearity 
+- Independence
+- Homoscedasticity
+- Normality 
+- No multicollinearity
+:::
 
 ## Linearity
 
-The assumption of linearity is perhaps the most foundational aspect of linear regression—it’s even in the name! This assumption states that the relationship between the predictor(s) and the response variable is linear, meaning that [changes in the predictor lead to proportional changes in the response]{style="color:green;"}. this relationship is described by @eq-linear-regression-simple.
+The assumption of linearity is perhaps the most foundational aspect of linear regression—it’s even in the name!
+This assumption states that the relationship between the predictor(s) and the response variable is linear, meaning that [changes in the predictor lead to proportional changes in the response]{style="color:green;"}.
+this relationship is described by @eq-linear-regression-simple.
 
-If the assumption of linearity is [violated]{style="color:red;"}, the model may fail to capture the true nature and magnitude of the relationship, leading to biased estimates and poor predictive performance. As a neuroscientist, it is your responsibility—not the computer’s—to determine whether the relationship between your variables is likely to be linear. This judgment is informed by Exploratory Data Analysis (EDA), where you visualize and assess the nature of the data relationships. Your expertise and understanding of the biological context play a pivotal role in this step.
+If the assumption of linearity is [violated]{style="color:red;"}, the model may fail to capture the true nature and magnitude of the relationship, leading to biased estimates and poor predictive performance.
+As a neuroscientist, it is your responsibility—not the computer’s—to determine whether the relationship between your variables is likely to be linear.
+This judgment is informed by Exploratory Data Analysis (EDA), where you visualize and assess the nature of the data relationships.
+Your expertise and understanding of the biological context play a pivotal role in this step.
 
-The importance of linearity lies in the goal of linear regression: to estimate the [best-fit line]{style="color:green;"}, —the line that [minimizes the error]{style="text-decoration: underline;"} between observed and predicted values. If the relationship is far from linear, the regression coeficcients $\beta_0$ and $\beta_1$ will be heavily biased and the predictions will deviate significantly from the actual values or those you can gather in future experiments. Let's explore two basic tools to asses linearity in a regression model.
+The importance of linearity lies in the goal of linear regression: to estimate the [best-fit line]{style="color:green;"}, —the line that [minimizes the error]{style="text-decoration: underline;"} between observed and predicted values.
+If the relationship is far from linear, the regression coeficcients $\beta_0$ and $\beta_1$ will be heavily biased and the predictions will deviate significantly from the actual values or those you can gather in future experiments.
+Let's explore two basic tools to asses linearity in a regression model.
 
-To ensure that linearity holds, we need to evaluate the relationship between predictors and the response variable. In the following section, we will explore two basic tools for assessing linearity in a regression model. 
+To ensure that linearity holds, we need to evaluate the relationship between predictors and the response variable.
+In the following section, we will explore two basic tools for assessing linearity in a regression model.
 
 The first and simplest way to assess linearity is to visualize the relationship between the predictor and response using a scatter plot, as demonstrated earlier in @fig-cell_data_scatter_EDA.
 
@@ -79,20 +106,34 @@ ggplot(data, aes(x = x, y = y)) +
 
 ```
 
-In @fig-assumptions_linearity_scatter, we compare a linear relationship (left) and a nonlinear relationship (right). The graph on the left shows a linear trend where the best-fit line closely captures the observations across the range of the predictor. The graph on the right, however, illustrates a nonlinear relationship. The fitted line misses the lower values near the intercept ($0$) and over- or underestimates the upper values near $100$.
+In @fig-assumptions_linearity_scatter, we compare a linear relationship (left) and a nonlinear relationship (right).
+The graph on the left shows a linear trend where the best-fit line closely captures the observations across the range of the predictor.
+The graph on the right, however, illustrates a nonlinear relationship.
+The fitted line misses the lower values near the intercept ($0$) and over- or underestimates the upper values near $100$.
 
-Does this mean you’ll get an error message if you attempt to fit a linear model to the second dataset? Not at all. The computer will faithfully do what you ask it to do—fit a line to the data. But that doesn’t mean the results will be meaningful. In this case, we can be confident that: The model’s estimates will be biased; and that both the intercept ($\beta_0$) and slope ($\beta_1$) will fail to reflect the true trend in the data.
+Does this mean you’ll get an error message if you attempt to fit a linear model to the second dataset?
+Not at all.
+The computer will faithfully do what you ask it to do—fit a line to the data.
+But that doesn’t mean the results will be meaningful.
+In this case, we can be confident that: The model’s estimates will be biased; and that both the intercept ($\beta_0$) and slope ($\beta_1$) will fail to reflect the true trend in the data.
 
-This underscores a crucial point: a computer cannot replace your expertise or critical thinking. Recognizing whether a relationship is likely to be linear is your responsibility as a researcher and domain expert.
+This underscores a crucial point: a computer cannot replace your expertise or critical thinking.
+Recognizing whether a relationship is likely to be linear is your responsibility as a researcher and domain expert.
 
-Keep in mind that many relationships in nature are not linear. Let’s take a simple, everyday example: weight and age. During childhood, there might be a roughly linear relationship between weight and age, as growth occurs at a steady pace. However, as you reach adolescence and adulthood, weight becomes influenced by many other factors (diet, activity level, metabolism, etc.), making age a much weaker predictor. Over time, weight does not continue to increase linearly—it might plateau, fluctuate, or even decrease depending on the individual and their circumstances.
+Keep in mind that many relationships in nature are not linear.
+Let’s take a simple, everyday example: weight and age.
+During childhood, there might be a roughly linear relationship between weight and age, as growth occurs at a steady pace.
+However, as you reach adolescence and adulthood, weight becomes influenced by many other factors (diet, activity level, metabolism, etc.), making age a much weaker predictor.
+Over time, weight does not continue to increase linearly—it might plateau, fluctuate, or even decrease depending on the individual and their circumstances.
 
 ::: callout-tip
 It is essential considering biological and contextual knowledge when evaluating the assumptions of your model.
 :::
 
-Another effective way to assess linearity is through [residual plots]{style="color:green;"}, which we will explore in greater detail later in this book. Residual plots allow you to visualize the [difference]{style="text-decoration: underline;"} between [observed and predicted values]{style="color:green;"},highlighting patterns that may indicate a poor fit. If the relationship between variables is truly linear, the residuals should be [randomly distributed around zero]{style="color:green;"}. In contrast, the presence of
-[strong or recognizable patterns]{style="color:red;"}, such as curves or systematic trends, is a clear sign of nonlinearity. 
+Another effective way to assess linearity is through [residual plots]{style="color:green;"}, which we will explore in greater detail later in this book.
+Residual plots allow you to visualize the [difference]{style="text-decoration: underline;"} between [observed and predicted values]{style="color:green;"},highlighting patterns that may indicate a poor fit.
+If the relationship between variables is truly linear, the residuals should be [randomly distributed around zero]{style="color:green;"}.
+In contrast, the presence of [strong or recognizable patterns]{style="color:red;"}, such as curves or systematic trends, is a clear sign of nonlinearity.
 
 ```{r}
 #| label: fig-assumptions_linearity_residuals
@@ -127,22 +168,35 @@ ggplot(data_residuals, aes(x = x, y = residuals)) +
 
 ```
 
-@fig-assumptions_linearity_residuals illustrates non-linearity, though it’s worth noting that real-world data often doesn’t display such obvious deviations. As we progress through this book, we’ll encounter examples and exercises that reflect the complexities of working with real data.
+@fig-assumptions_linearity_residuals illustrates non-linearity, though it’s worth noting that real-world data often doesn’t display such obvious deviations.
+As we progress through this book, we’ll encounter examples and exercises that reflect the complexities of working with real data.
 
-I bet you have seen that many books and tutorials recommend applying data transformations, such as logarithms or square roots, to linearize relationships that appear nonlinear. While these transformations can sometimes help, they often come at the cost of interpretability and biological meaning. On this topic, I align with the perspective of Pablo Inchausti [@inchausti2023], who refers to such transformations as "esoteric transformations." Inchausti argues that these are often unnecessary, particularly when we now have access to a wide range of advanced statistical modeling tools that can handle nonlinear relationships more directly and intuitively. Instead of forcing data into a linear framework, we can leverage these tools to model the data as it is, preserving its natural structure and meaning.
+I bet you have seen that many books and tutorials recommend applying data transformations, such as logarithms or square roots, to linearize relationships that appear nonlinear.
+While these transformations can sometimes help, they often come at the cost of interpretability and biological meaning.
+On this topic, I align with the perspective of Pablo Inchausti [@inchausti2023], who refers to such transformations as "esoteric transformations." Inchausti argues that these are often unnecessary, particularly when we now have access to a wide range of advanced statistical modeling tools that can handle nonlinear relationships more directly and intuitively.
+Instead of forcing data into a linear framework, we can leverage these tools to model the data as it is, preserving its natural structure and meaning.
 
-As we move forward, we’ll see how far we can go by avoiding unnecessary transformations and embracing models that respect the inherent complexity of our data. I believe this enhances our ability to draw meaningful and transparent conclusions from our research.
+As we move forward, we’ll see how far we can go by avoiding unnecessary transformations and embracing models that respect the inherent complexity of our data.
+I believe this enhances our ability to draw meaningful and transparent conclusions from our research.
 
 ## Independence
 
-The assumption of independence ensures that the observations in our dataset [are not systematically related to each other]{style="color:green;"}. In the context of linear regression, this means that the error terms ($\epsilon$) are not strongly correlated across observations. When this assumption is violated, we end up with [overlapping information]{style="color:red;"} from dependent observations, which reduces the efficiency of our model and undermines the reliability of its estimates.
+The assumption of independence ensures that the observations in our dataset [are not systematically related to each other]{style="color:green;"}.
+In the context of linear regression, this means that the error terms ($\epsilon$) are not strongly correlated across observations.
+When this assumption is violated, we end up with [overlapping information]{style="color:red;"} from dependent observations, which reduces the efficiency of our model and undermines the reliability of its estimates.
 
-Non-independence is a common issue in neuroscience. A typical example is [repeated measures]{style="color:green;"}, where multiple observations are taken from the same subject or animal. Imagine an experiment where a mouse is placed on a rotarod three times, and the time it takes to fall is recorded for each trial. These measurements are not independent, as they come from the same mouse and are likely influenced by shared factors (e.g., the mouse’s learning curve or fatigue). Treating these repeated measures as if they were independent observations in a regression model is problematic. While the model will still produce results—without error messages or warnings—it will lead to biased coefficients and less reliable estimates. Again, we have plenity of statistical tools to manage correlated observations, as we will see in CHAPTER XXX.
+Non-independence is a common issue in neuroscience.
+A typical example is [repeated measures]{style="color:green;"}, where multiple observations are taken from the same subject or animal.
+Imagine an experiment where a mouse is placed on a rotarod three times, and the time it takes to fall is recorded for each trial.
+These measurements are not independent, as they come from the same mouse and are likely influenced by shared factors (e.g., the mouse’s learning curve or fatigue).
+Treating these repeated measures as if they were independent observations in a regression model is problematic.
+While the model will still produce results—without error messages or warnings—it will lead to biased coefficients and less reliable estimates.
+Again, we have plenity of statistical tools to manage correlated observations, as we will see in CHAPTER XXX.
 
 Let’s briefly simulate an example of non-independence for illustrative purposes:
 
-First, we generate independent data, where the response variable 
-$y$ depends linearly on time ($x$), with some added random, independent noise that is identically distributed. In this example, we calculate the `response variable` response_independent as a linear function of time with a slope of 0.3 and an intercept of 5. 
+First, we generate independent data, where the response variable $y$ depends linearly on time ($x$), with some added random, independent noise that is identically distributed.
+In this example, we calculate the `response variable` response_independent as a linear function of time with a slope of 0.3 and an intercept of 5.
 
 ```{r}
 #| label: tbl-assumptions-independent
@@ -165,9 +219,11 @@ data_independent <- data.frame(
 gt(head(data_independent))
 ```
 
-The result, shown in @tbl-assumptions-independent, demonstrates a random fluctuation in the response values, ranging from positive to negative numbers. 
+The result, shown in @tbl-assumptions-independent, demonstrates a random fluctuation in the response values, ranging from positive to negative numbers.
 
-Now, we introduce dependence into the data by incorporating autocorrelation. This means that each response value is partially influenced by the previous one. For this simulation, we create temporal dependence where adjacent observations are correlated, such that each observation depends not only on the linear relationship with time but also on 80% of the previous response value (0.8 * response_dependent[i - 1]).
+Now, we introduce dependence into the data by incorporating autocorrelation.
+This means that each response value is partially influenced by the previous one.
+For this simulation, we create temporal dependence where adjacent observations are correlated, such that each observation depends not only on the linear relationship with time but also on 80% of the previous response value (0.8 \* response_dependent\[i - 1\]).
 
 ```{r}
 #| label: tbl-assumptions-dependent
@@ -226,16 +282,31 @@ ggplot(data, aes(x = time, y = response)) +
 
 In @fig-assumptions_independence, the dependent observations resemble a rising stock in the financial market, while the independent observations look more like a less desirable, fluctuating stock.
 
-In both cases, if we were to fit a model to investigate whether time affects the response, we would find an apparent relationship. However, if our observations are not independent and we fail to account for this, we risk greatly overestimating the effect of time on the response. The model will give us results, yes—but these results are likely to be spurious and misleading. Incredibly, this type of error is not uncommon. Many researchers, whether through oversight or lack of awareness, perform their analyses on dependent data as if the observations were independent. This includes cases where repeated measures from the same unit (e.g., the same animal, subject, or experimental setup) are treated as separate observations. 
-
+In both cases, if we were to fit a model to investigate whether time affects the response, we would find an apparent relationship.
+However, if our observations are not independent and we fail to account for this, we risk greatly overestimating the effect of time on the response.
+The model will give us results, yes—but these results are likely to be spurious and misleading.
+Incredibly, this type of error is not uncommon.
+Many researchers, whether through oversight or lack of awareness, perform their analyses on dependent data as if the observations were independent.
+This includes cases where repeated measures from the same unit (e.g., the same animal, subject, or experimental setup) are treated as separate observations.
 
 ## Homoscedasticity
 
-I must admit, the assumption of [homoscedasticity]{style="color:green;"} is my favorite and also one of the [most violated]{style="color:green;"} in neuroscience and life sciences research. Honestly, overlooking homoscedasticity should make it hard to sleep peacefully at night! This assumption of linear regression specifies that the variance of the residuals (errors) must [remain constant]{style="text-decoration: underline;"} across all levels of the predictor(s). In simpler terms, no matter the value of the predictor variable(s), the spread of the residuals around the regression line should be similar.
+I must admit, the assumption of [homoscedasticity]{style="color:green;"} is my favorite and also one of the [most violated]{style="color:green;"} in neuroscience and life sciences research.
+Honestly, overlooking homoscedasticity should make it hard to sleep peacefully at night!
+This assumption of linear regression specifies that the variance of the residuals (errors) must [remain constant]{style="text-decoration: underline;"} across all levels of the predictor(s).
+In simpler terms, no matter the value of the predictor variable(s), the spread of the residuals around the regression line should be similar.
 
-Why does homoscedasticity matter? Becasue the calculation of [credible intervals and standard errors]{style="color:green;"} deppends on it. Without constant variance, these calculations—and the resulting inferences—become unreliable. And no, your linear model won’t check this for you. As far as your computer is concerned, if you ask it to fit a linear model, it assumes that you, the scientist, have verified that the data satisfies this property. For example, we saw in @sec-EDA_ggplot that data often violates this assumption, with variability increasing at higher values of predictors. Specifically, If the data does not have homoscedasticity, predictions from the model may be less reliable in certain ranges of the predictor(s). 
+Why does homoscedasticity matter?
+Becasue the calculation of [credible intervals and standard errors]{style="color:green;"} deppends on it.
+Without constant variance, these calculations—and the resulting inferences—become unreliable.
+And no, your linear model won’t check this for you.
+As far as your computer is concerned, if you ask it to fit a linear model, it assumes that you, the scientist, have verified that the data satisfies this property.
+For example, we saw in @sec-eda-ggplot that data often violates this assumption, with variability increasing at higher values of predictors.
+Specifically, If the data does not have homoscedasticity, predictions from the model may be less reliable in certain ranges of the predictor(s).
 
-Apart from looking at the distribution of data points as shown in @fig-cell_data_rain_EDA, residual plots are once again a useful tool. For illustration, we will simulate two datasets—one with homoscedastic and another with heteroscedastic data. By fitting simple linear models to both datasets and plotting the residuals, we can clearly visualize the difference. 
+Apart from looking at the distribution of data points as shown in @fig-cell_data_rain_EDA, residual plots are once again a useful tool.
+For illustration, we will simulate two datasets—one with homoscedastic and another with heteroscedastic data.
+By fitting simple linear models to both datasets and plotting the residuals, we can clearly visualize the difference.
 
 ```{r}
 #| label: fig-assumptions_homoscedasticity
@@ -287,29 +358,45 @@ ggplot(residual_data, aes(x = fitted, y = residuals)) +
 
 ```
 
-Similar to previous cases, @fig-assumptions_homoscedasticity demonstrates that residuals which are not evenly dispersed have something important to tell us about the assumptions and characteristics of our data. In this case, the figure on the left shows a [funnel-shaped pattern]{style="color:red;"}, where the spread of residuals increases as the fitted values (x-axis) augment. This is a common pattern observed when the variability of the data is narrow at certain levels of the predictor but increases significantly under different conditions or ranges.
+Similar to previous cases, @fig-assumptions_homoscedasticity demonstrates that residuals which are not evenly dispersed have something important to tell us about the assumptions and characteristics of our data.
+In this case, the figure on the left shows a [funnel-shaped pattern]{style="color:red;"}, where the spread of residuals increases as the fitted values (x-axis) augment.
+This is a common pattern observed when the variability of the data is narrow at certain levels of the predictor but increases significantly under different conditions or ranges.
 
-Once again, instead of resorting to [esoteric transformations]{style="color:red;"} of the data, we can [model heteroscedasticity]{style="color:green;"}, specifying different [variance structures]{style="text-decoration: underline;"} within the model to account for changing variability (discussed in detail in CHAPTER XXX) or fitting [weighted regressions]{style="text-decoration: underline;"}, that allows us to assign different weights to observations based on their variability to build more robust models (covered in CHAPTER XXX). 
+Once again, instead of resorting to [esoteric transformations]{style="color:red;"} of the data, we can [model heteroscedasticity]{style="color:green;"}, specifying different [variance structures]{style="text-decoration: underline;"} within the model to account for changing variability (discussed in detail in CHAPTER XXX) or fitting [weighted regressions]{style="text-decoration: underline;"}, that allows us to assign different weights to observations based on their variability to build more robust models (covered in CHAPTER XXX).
 
 ## Normality of residuals
 
-In linear regression, the [normality assumption]{style="color:green;"} states that the residuals (errors) follow a normal distribution. This assumption is critical for many inferential tools associated with regression analysis, such as constructing credible intervals and prediction intervals. It is important to emphasize that this assumption applies specifically to the residuals—not to the predictors or the response variable.
+In linear regression, the [normality assumption]{style="color:green;"} states that the residuals (errors) follow a normal distribution.
+This assumption is critical for many inferential tools associated with regression analysis, such as constructing credible intervals and prediction intervals.
+It is important to emphasize that this assumption applies specifically to the residuals—not to the predictors or the response variable.
 
 ::: callout-warning
-The normality assumption applies to the residuals of the fitted model, not to the predictors or the response variable. However, it is common for non-normal responses to lead to non-normal residuals.
+The normality assumption applies to the residuals of the fitted model, not to the predictors or the response variable.
+However, it is common for non-normal responses to lead to non-normal residuals.
 :::
 
-The residuals ($e$ = $y$ -$\hat{y}$) are the differences between the observed values ($y$) and the predicted ones ($\hat{y}$) by the regression model. For a well-specified model, the residuals should be symmetrically distributed around zero, as we saw earlier. Note if they show systematic patterns or extreme skewness. If the residuals are not normal, you may be dealing with issues such as model misspecification, failure to capture non-linear trends or interactions; extreme values that distort the residual distribution; or heteroscedasticity, where the variability of the residuals varies across the range of predictors. 
+The residuals ($e$ = $y$ -$\hat{y}$) are the differences between the observed values ($y$) and the predicted ones ($\hat{y}$) by the regression model.
+For a well-specified model, the residuals should be symmetrically distributed around zero, as we saw earlier.
+Note if they show systematic patterns or extreme skewness.
+If the residuals are not normal, you may be dealing with issues such as model misspecification, failure to capture non-linear trends or interactions; extreme values that distort the residual distribution; or heteroscedasticity, where the variability of the residuals varies across the range of predictors.
 
-It is worth noting that ordinary least squares (OLS) regression is generally considered robust to deviations from normality, particularly in large samples (REF). In such cases, the central limit theorem ensures that many inferential statistics derived from the regression model remain valid, even if the residuals are not perfectly normal. However, in smaller samples or when extreme deviations occur, violations of this assumption can compromise the accuracy of statistical inferences. Once again, I argue that we have sufficient statistical tools to build meaningful and robust models, rather than pushing a linear regression model to the extreme.
+It is worth noting that ordinary least squares (OLS) regression is generally considered robust to deviations from normality, particularly in large samples (REF).
+In such cases, the central limit theorem ensures that many inferential statistics derived from the regression model remain valid, even if the residuals are not perfectly normal.
+However, in smaller samples or when extreme deviations occur, violations of this assumption can compromise the accuracy of statistical inferences.
+Once again, I argue that we have sufficient statistical tools to build meaningful and robust models, rather than pushing a linear regression model to the extreme.
 
-::: {#fig-fitmodels layout-ncol=1}
+::: {#fig-fitmodels layout-ncol="1"}
 ![](images/model_fit.webp){fig-align="center" width="60%"}
 
-I see at least two approaches to data analysis and statistical modelling. One is the ritualistic option of using linear regression models for whatever kind of data you have, and trying to stretch the robustness and properties of these models as far as possible. Most of the time this will not be enough to build an informative model that fits your data and serves realistic scientific purposes. On the other hand, you can become an experienced modelling tailor, using the most advanced tools available in the XXI century to build clothes (models) that fit well and are adapted to the specific characteristics of the data you are working with. What will make you choose the first option? 
+I see at least two approaches to data analysis and statistical modelling.
+One is the ritualistic option of using linear regression models for whatever kind of data you have, and trying to stretch the robustness and properties of these models as far as possible.
+Most of the time this will not be enough to build an informative model that fits your data and serves realistic scientific purposes.
+On the other hand, you can become an experienced modelling tailor, using the most advanced tools available in the XXI century to build clothes (models) that fit well and are adapted to the specific characteristics of the data you are working with.
+What will make you choose the first option?
 :::
 
-To illustrate, let’s revisit the homoscedastic and heteroscedastic residuals from @fig-assumptions_homoscedasticity. By plotting their distributions as histograms, we can assess whether the residuals approximate a normal distribution or exhibit skewness or other deviations.
+To illustrate, let’s revisit the homoscedastic and heteroscedastic residuals from @fig-assumptions_homoscedasticity.
+By plotting their distributions as histograms, we can assess whether the residuals approximate a normal distribution or exhibit skewness or other deviations.
 
 ```{r}
 #| label: fig-assumptions_normality_hist
@@ -337,9 +424,12 @@ ggplot(residual_data, aes(x = residuals)) +
   Plot_theme
 
 ```
-We observe in fig-assumptions_normality_hist that normal residuals resemble the familiar bell shape around zero, a hallmark of normal distributions. I truly believe this simple approach is more informative that certain tests people uses as a requirement of journals and reviwers without even knowing what the test is testing.  
 
-Another effective tool for assessing the normality of residuals is the Q-Q plot (quantile-quantile plot), which compares the observed quantiles of residuals to the theoretical quantiles of a normal distribution. For residuals that follow a normal distribution, the points will align closely with a diagonal line.
+We observe in fig-assumptions_normality_hist that normal residuals resemble the familiar bell shape around zero, a hallmark of normal distributions.
+I truly believe this simple approach is more informative that certain tests people uses as a requirement of journals and reviwers without even knowing what the test is testing.
+
+Another effective tool for assessing the normality of residuals is the Q-Q plot (quantile-quantile plot), which compares the observed quantiles of residuals to the theoretical quantiles of a normal distribution.
+For residuals that follow a normal distribution, the points will align closely with a diagonal line.
 
 ```{r}
 #| label: fig-assumptions_normality_qq
@@ -363,4 +453,171 @@ ggplot(residual_data, aes(sample = residuals)) +
 
 ```
 
-As shown in @fig-assumptions_normality_qq, Q-Q plots often highlight deviations from normality more clearly than histograms. In the case of heteroscedastic data, we see that the residuals deviate substantially from the diagonal line, particularly at the lower (left) and upper (right) extremes. This pattern is characteristic of data that violates the homoscedasticity assumption, where the variability of residuals changes across levels of the predictor(s). In the book, we will generate multiple Q-Q plots to diagnose our models. 
+As shown in @fig-assumptions_normality_qq, Q-Q plots often highlight deviations from normality more clearly than histograms.
+In the case of heteroscedastic data, we see that the residuals deviate substantially from the diagonal line, particularly at the lower (left) and upper (right) extremes.
+This pattern is characteristic of data that violates the homoscedasticity assumption, where the variability of residuals changes across levels of the predictor(s).
+In the book, we will generate multiple Q-Q plots to diagnose our models.
+
+## No multicollinearity
+
+The assumption of [multicollinearity]{style="color:green;"} is critical when dealing with regression models that involve two or more predictor variables.
+Multicollinearity occurs when two or more predictors are [highly correlated]{style="color:green;"}, meaning they contain overlapping or redundant information about the response variable.
+In practical terms, knowing the value of one predictor essentially gives us enough information to infer the value of the other.This redundancy makes it difficult to disentangle the individual effects of the predictors and will certainly lead us to [unstable coefficients]{style="color:red;"} and [inflated standard errors]{style="color:red;"}.
+This is certainly not a good environment in which to interpret our model.
+
+There are several ways to assess whether your predictors are highly correlated.
+One effective method, as discussed earlier in Chapter XXX, involves using the `ggpairs` function from the [GGally](https://ggobi.github.io/ggally/reference/ggpairs.html) package.
+This visualization allows us to examine [pairwise relationships]{style="text-decoration: underline;"} between predictors, making it easy to identify strong correlations.
+To illustrate, let’s revisit the cell_data dataset we’ve been working with and perform an initial assessment of multicollinearity using ggpairs.
+
+First we load the `cell_data` we've been working with.
+
+```{r}
+#| label: tbl-cell_data_tbl
+#| tbl-cap: Cell data table used for excploratory data visualization
+
+library(here)
+library(gt)
+
+cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+
+gt(head(cell_data))
+```
+
+For simplicity's sake, let's subset the dataset to reduce the number of variables:
+
+```{r}
+
+cell_data_sub <- subset(cell_data, select = c(Tissue_Area, Pdgfrb_Area, Pdgfrb_IntDen, Gfap_Area, Gfap_IntDen))
+```
+
+Now we can use `ggpairs` to visualise if our variables are correlated:
+
+```{r}
+#| label: fig-cell_data_ggpairs
+#| fig-cap: Correlation between predictor variables in the `cell_data` frame.
+#| fig-width: 10
+#| fig-height: 5
+#| warning: false
+#| message: false
+#| results: false
+
+library(GGally)
+
+ggpairs(cell_data_sub)
+```
+
+For more plotting options, refer to the [GGally](https://ggobi.github.io/ggally/reference/ggpairs.html) documentation.
+Here, we see interesting results.
+
+In particular, we can see that the pairs Pdgfrb_Area / Pdgfrb_IntDen and Gfap_Area / Gfap_IntDen are [highly correlated]{style="color:red;"}.
+The Pearson correlation indicated by the `Corr` variable is 0.94 and 0.98, which means that if we know the distribution/development of Pdgfrb_Area or Gfap_Area, we acquire the information for the IntDen variables.
+Therefore, including both as predictors in a regression model will [heavily bias]{style="color:red;"} our coefficients and cloud our interpretation of the results.
+
+Another effective way to visualize correlations is by using the corrplot package [@corrplot].
+This approach is particularly useful for presenting findings in notebooks or research articles.
+First, we create a correlation matrix using the `cor` function from the `stats` package, and then visualize it using `corrplot`.
+
+```{r}
+#| label: fig-cell_data_corrplot
+#| fig-cap: Correlation matrix for predictor variables in the `cell_data` frame.
+#| fig-width: 10
+#| fig-height: 5
+#| warning: false
+#| message: false
+#| results: false
+
+library(corrplot)
+
+cell_data_sub_matrix <- cor(cell_data_sub)
+corrplot(cell_data_sub_matrix , type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+Some researchers may also find it useful to visualize the data as a heatmap:
+
+```{r}
+#| label: fig-cell_data_heatmap
+#| fig-cap: Heatmap for predictor variables in the `cell_data` frame.
+#| fig-width: 10
+#| fig-height: 5
+#| warning: false
+#| message: false
+#| results: false
+
+heatmap(x = cell_data_sub_matrix, col = topo.colors(5), symm = TRUE)
+```
+
+Throughout the book I emphasize the importance of [sharing models as R objects]{style="text-decoration: underline;"} to allow further model diagnostics and to allow independent verification and reproducibility.
+
+We can also check for multicollinearity in the fitted model by calculating the [variance inflation factor (VIF)]{style="color:green;"} using the `car` package [@car].
+The VIF is a way to quantify how much the variance of a regression coefficient is inflated due to multicollinearity.
+In general, a VIF greater than 5, and especially greater than 10, indicates a level of multicollinearity that needs to be addressed in the research.
+To illustrate the use of this metric, we will fit a toy linear model using our `cell_data_sub` data subset.
+
+```{r}
+library(car)
+
+model <- lm(Tissue_Area ~ Pdgfrb_Area + Gfap_Area + Gfap_IntDen, data = cell_data_sub)
+
+vif_values <- vif(model)
+vif_values
+```
+
+In this simple linear model, Gfap_Area and Gfap_IntDen exhibit an extremely large variance inflation factor (VIF) (approximately 50), compared to Pdgfrb_Area (1.7).
+This is a clear [warning signal]{style="color:red;"} that researchers must take seriously.
+
+How do we adress multicollinearity?
+The simplest approach to resolving multicollinearity is to [eliminate one of the predictors]{style="text-decoration: underline;"}.
+In this case, we should include only Gfap_Area or Gfap_IntDen in the regression equation, but not both.
+Including both variables provides [redundant information]{style="color:red;"} about the response (e.g., Tissue_Area in our toy model), which does not enhance statistical inference and instead inflates standard errors and undermines the reliability of the coefficients.
+
+Which Predictor Should You Eliminate?
+Deciding which predictor to remove is a task for the researcher and depends on the context of the study.
+Factors to consider include:
+
+-   Which variable is easier to measure?
+-   Which variable is more interpretable in the context of the research question?
+-   Which variable aligns better with the biological meaning of the study?
+
+For instance, if you find that age and preference for pistachio gelato are multicollinear predictors for a response variable, you might choose age because it is easier to obtain and interpret in a wide range of research contexts.
+Similarly, in the case of Gfap_Area and Gfap_IntDen, the choice depends on which variable is more practical or meaningful for the specific study. Another approach could be [feature engineering]{style="color:green;"} [@kuhn2021], which is the creation of variables using other variables or metrics. Later in this book, we will revisit these considerations in greater depth as we explore more complex regression examples.
+
+::: callout-tip
+When addressing multicollinearity, always prioritize variables that are easier to measure and relevant to the research context.
+This approach ensures that the model remains both statistically sound and scientifically meaningful.
+:::
+
+## What we have learned about linear regression assumptions?
+
+The effectiveness of statistical modeling hinges on several key assumptions that ensure its reliability, interpretability, and predictive accuracy.
+These assumptions provide a framework for evaluating whether the data and the chosen regression approach align with the underlying principles.
+
+First, the linearity assumption requires that the relationship between the predictors and the response variable be linear.
+This means that changes in the predictors should result in proportional changes in the response.
+Linearity is essential because it ensures that the model captures the true nature of the relationship without introducing systematic bias.
+
+The independence assumption asserts that observations in the dataset should be independent of one another.
+In practical terms, this means that the residuals—representing the differences between observed and predicted values—should not display specific patterns of correlation, such as temporal or spatial dependence.
+Dependent variables introduce redundant information and biases parameter estimates.
+Addressing such issues may involve mixed-effects models or hierarchical approaches.
+
+Homoscedasticity emphasizes that the variance of residuals should remain constant across all levels of the predictors.
+When residual variance increases or decreases systematically, as seen in heteroscedasticity, our parameter estimates become skwed, undermining the validity of credible intervals or orher uncertainty metrics.
+
+The assumption for the normality of residuals specifies that residuals should follow an aproximate normal distribution.
+While this assumption does not affect directly the estimation of our regression coefficients, it plays a vital role our inferences.
+It is worth to note that credible/confidence intervals and predictions are particularly sensitive to deviations from normality.
+Here, histograms and Q-Q plots are invaluable for the researchers for accurate diagnostics.
+Later (chapter XXX), we will deal with regression approaches for non-normal distributions, such as Student’s t-distribution.
+
+Finally, the no multicollinearity ensures that predictors are not highly correlated with each other.
+Multicollinearity undermines the stability and interpretability of the model by inflating standard errors and creating redundancy among predictors.
+The researcher must be aware of removing redundant predictors or build composited measures.
+
+While real-world data rarely meet these assumptions perfectly, understanding how to diagnose and address violations allows researchers to build robust models that yield meaningful insights.
+
+## References
+
+::: {#refs}
+:::

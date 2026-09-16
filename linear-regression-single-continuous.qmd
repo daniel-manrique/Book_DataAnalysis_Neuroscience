@@ -1,0 +1,178 @@
+---
+bibliography: references.bib
+---
+
+# Linear regression with a single continuous predictor {#sec-linear-regression-single-continuous}
+
+```{r}
+#| include: false
+
+library(ggplot2)
+
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
+```
+
+
+In this chapter we focus on the application of linear regression with a single continuous predictor. This is the simplest and easiest form of statistical modelling to interpret. For now, we will focus on understanding linear relationships to explore how to interpret the coefficients and explore their uncertainty. Later, in Chapter XXX, we will examine the same set of data for relationships that are not linear. As specified in previous chapters, we will carry out our modelling using the `brms` package (Markov Chain Monte Carlo) and the `parsnip` package (using least squares).
+
+
+## Load and visualize data points 
+
+Once again, we will use the `cell_data` table employed in the exploratory data visualization chapters. For this excersise, we make sure the `DPI` variable is numeric. 
+
+```{r}
+library(here)
+
+cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+
+cell_data$DPI <- as.numeric(cell_data$DPI)
+```
+
+```{r}
+#| label: tbl-cell_data_tbl
+#| tbl-cap: Cell data table
+
+library(gt)
+gt(head(cell_data))
+```
+
+From the table above, we will realize this excerpt with `Tisue_Area` as the continuous response we are interested in. This is the hemispheric area measured in a coronal section of the mouse brain. Since ischemia causes injury to the brain followed by neurodegeneration, we generally expect the hemispheric area to decrease over time. We reuse our previous code to generate a scatterplot with `ggplot` and add marginal plots with `ggmarginal`. 
+
+```{r}
+#| label: fig-cell_data_hemisphere_scatter
+#| fig-cap: Visualization for hemispheric area (scatterplot)
+#| fig-width: 5
+#| fig-height: 5
+#| warning: false
+#| message: false
+#| results: false
+
+library(ggExtra)
+library(ggplot2)
+ 
+# Plot for hemispheric area
+Area_scatter <- ggplot(
+  data = cell_data,
+  aes(x = DPI,
+      y= Tisue_Area)) +
+  geom_smooth(method=lm , color="black", fill="#8df693", se=TRUE) +
+  geom_point() +
+  scale_x_continuous(breaks = c(0, 3,7,14,30)) +
+  labs(title = "", 
+     x = "Days post-ischemia (DPI)", 
+     y = "PDGFR-β intensity") +
+  Plot_theme 
+ 
+
+# Add marginal plots
+Area_scatter_Marginal <- ggMarginal(
+  Area_scatter, 
+  type="densigram", 
+  colour = "black",
+  fill = "#8df693",
+  alpha = .9
+  )
+
+Area_scatter_Marginal
+```
+
+When all time points are considered, it is clear that a straight line does not adequately capture a linear trend for this data set. This limitation is not unique to the data itself, but is a reflection of the natural biological response of cerebral ischemia. Based on my knowledge of this system, I know that neurodegeneration is preceded by inflammation. Therefore, applying a linear model over the entire range from pre-ischemia (0 DPI) to 30 days post-ischemia (30 DPI) would be inappropriate for this response. To address this, we will create a subset of the data that focuses on a more specific range that better fits the assumptions and expectations of a linear model. This subset will resemble the type of data you might encounter in your own research, providing a more practical and relatable context for analysis.
+
+
+```{r}
+#| label: tbl-cell_data_sub_tbl
+#| tbl-cap: Cell data table subset
+
+cell_data_sub <- subset(cell_data, DPI %in% c(3, 7, 14))
+gt(head(cell_data_sub))
+```
+
+Now we use the previous code to replicate the scatterplot, passing the `cell_data_sub` table. In the following, I hide the code by including `#| echo: false` in the chunck options. 
+
+```{r}
+#| label: fig-cell_data_sub_hemisphere_scatter
+#| fig-cap: Visualization for hemispheric area (subset)
+#| fig-width: 5
+#| fig-height: 5
+#| warning: false
+#| message: false
+#| results: false
+#| echo: false
+
+# Plot for hemispheric area
+Area_sub_scatter <- ggplot(
+  data = cell_data_sub,
+  aes(x = DPI,
+      y= Tisue_Area)) +
+  geom_smooth(method=lm , color="black", fill="#8df693", se=TRUE) +
+  geom_point() +
+  scale_x_continuous(breaks = c(3,7,14)) +
+  labs(title = "", 
+     x = "Days post-ischemia (DPI)", 
+     y = "PDGFR-β intensity") +
+  Plot_theme 
+ 
+
+# Add marginal plots
+Area_sub_scatter_Marginal <- ggMarginal(
+  Area_sub_scatter, 
+  type="densigram", 
+  colour = "black",
+  fill = "#8df693",
+  alpha = .9
+  )
+
+Area_sub_scatter_Marginal
+```
+
+At first glance, we can see that the distribution of these data points appears to have a linear relationship. Note that at 3 days we have a wider distribution of data points. The variability is higher given the biological response we expect after cerebral ischemia. This is interesting because it is certainly something we can model appropriately. We will continue our excesise with this subset.
+
+:::callout-tip
+### Linear assumption
+Here, we have selected a subset of our dataset to ensure that our linear model (as its name suggests) makes sense and can be interpreted in a clear way.
+:::
+
+## Statistical modeling
+
+By running this linear regression, we will find the answer to a question we asked earlier:
+
+::: {style="text-align: center"}
+***What's the value of knowing A if I know B?***
+:::
+
+This means that we will find out how knowing the DPI helps us to inform about the hemispheric area after ischemia. This modol takes the following notation:
+
+$$
+\text{Area}_i = \beta_0 + \beta_1 \cdot \text{DPI}_i + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
+$$
+Here $\text{Area}_i$ is our response variable, the hemispheric area (for observation $i$) we want to predict by knowing the DPI. $\text{DPI}_i$ is our numerical, continuous variable for observation $i$. We have $\beta_0$, which is the intercept. This is the estimated constant value when $\text{DPI}$ is $0$. Sure, we do not have 0 as a time point in our regression after we did the subsetting, but our model will estimate a value for it. $\beta_1$ is the slope, a coefficient we can think of as the estimated effect of $\text{DPI}$ on $\text{Area}$. This coefficient tells us how much the area changes for each day that passes. Finally, $\epsilon_i$ is the error term for the observation $i$, which we assume follows a normal distribution with mean $0$ and variance $\sigma^2$.
+
+Now, we fit the models using `brms` and `parsnip`.
+
+::: panel-tabset
+### brms
+
+```{r}
+library(brms)
+
+brms_model <- brm(
+  Tisue_Area ~ DPI,
+  data = cell_data_sub,
+  seed = 123,
+  file = "models/linear-regression-single-continuous_fit1.rds",
+  file_refit = "never"
+)
+```
+
+
+### parsnip
+
+```{r}
+library(parsnip)
+parsnip_model <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(Tisue_Area ~ DPI, data = cell_data_sub)
+```
+
+:::

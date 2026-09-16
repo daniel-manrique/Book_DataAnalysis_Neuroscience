@@ -2,3 +2,5 @@
 _book/
 .Rproj.user
 /env/
+/references/books/
+/.Renviron
