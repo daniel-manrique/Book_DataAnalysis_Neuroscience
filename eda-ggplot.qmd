@@ -2,7 +2,7 @@
 bibliography: references.bib
 ---
 
-# EDA using graphics {#sec-EDA_ggplot}
+# EDA using graphics {#sec-eda-ggplot}
 
 When analyzing neuroscientific data, one of the most essential early steps is to explore the [distribution]{style="color:green;"} and [patterns]{style="color:green;"} within the measurements.
 Before diving into statistical models, understanding the [raw data’s structure]{style="text-decoration: underline;"} is crucial.
@@ -474,7 +474,7 @@ This will be extremely helpful when considering further modelling strategies.
 
 Another essential step during EDA is analyzing covariance between variables.
 This is particularly relevant when exploring relationships between potential predictors in a regression model.
-As discussed in @sec-EDA_ggpairs, we can rely in engaging tools from the R universe to examine the covariance between multiple pairs of variables.
+As discussed in @sec-eda-ggpairs, we can rely in engaging tools from the R universe to examine the covariance between multiple pairs of variables.
 
 With this dataset, another meaningful question might be:
 

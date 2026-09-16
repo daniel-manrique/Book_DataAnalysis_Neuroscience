@@ -1,1 +1,1 @@
-# EDA using ggpairs {#sec-sec-EDA_ggpairs}
+# EDA using ggpairs {#sec-eda-ggpairs}
