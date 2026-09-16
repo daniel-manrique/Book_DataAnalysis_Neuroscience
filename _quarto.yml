@@ -22,20 +22,20 @@ book:
 
     - part: introduction.qmd
       chapters:
-        - Intro_StatModeling.qmd
-        - Intro_Parsnip-Brms.qmd 
+        - intro-applied-modeling.qmd
 
-    - part: EDA_intro.qmd
+    - part: eda-intro.qmd
       chapters:
-        - EDA_ggplot.qmd
-        - EDA_gwalkr.qmd
-        - EDA_ggpairs.qmd
-        - EDA_summary.qmd
-        
-    - part: linearModels-Intro.qmd
+        - eda-ggplot.qmd
+        - eda-gwalkr.qmd
+        - eda-ggpairs.qmd
+        - eda-summary.qmd
+
+    - part: linear-models-intro.qmd
       chapters:
         - linear-regression-what.qmd
         - linear-regression-assumptions.qmd
+        - linear-regression-single-continuous.qmd
 
 format:
   html:
