@@ -56,7 +56,7 @@ this relationship is described by @eq-linear-regression-simple.
 
 If the assumption of linearity is [violated]{style="color:red;"}, the model may fail to capture the true nature and magnitude of the relationship, leading to biased estimates and poor predictive performance.
 As a neuroscientist, it is your responsibility—not the computer’s—to determine whether the relationship between your variables is likely to be linear.
-This judgment is informed by Exploratory Data Analysis (EDA), where you visualize and assess the nature of the data relationships.
+This judgment is informed by the exploratory data analysis (EDA) habits @sec-eda-ggplot walked you through — visualizing and assessing the nature of the data relationships before you ever fit a model.
 Your expertise and understanding of the biological context play a pivotal role in this step.
 
 The importance of linearity lies in the goal of linear regression: to estimate the [best-fit line]{style="color:green;"}, —the line that [minimizes the error]{style="text-decoration: underline;"} between observed and predicted values.
@@ -386,7 +386,7 @@ However, in smaller samples or when extreme deviations occur, violations of this
 Once again, I argue that we have sufficient statistical tools to build meaningful and robust models, rather than pushing a linear regression model to the extreme.
 
 ::: {#fig-fitmodels layout-ncol="1"}
-![](images/model_fit.webp){fig-align="center" width="60%"}
+![](images/model_fit.png){fig-align="center" width="60%"}
 
 I see at least two approaches to data analysis and statistical modelling.
 One is the ritualistic option of using linear regression models for whatever kind of data you have, and trying to stretch the robustness and properties of these models as far as possible.
@@ -619,5 +619,5 @@ While real-world data rarely meet these assumptions perfectly, understanding how
 
 ## References
 
-::: {#refs}
+::: {#refs-linear-regression-assumptions}
 :::

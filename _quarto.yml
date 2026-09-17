@@ -37,6 +37,10 @@ book:
         - linear-regression-assumptions.qmd
         - linear-regression-single-continuous.qmd
 
+  appendices:
+    - appendix-open-science.qmd
+    - appendix-p-values.qmd
+
 format:
   html:
     theme:
@@ -45,6 +49,15 @@ format:
     author-meta: "Daniel Manrique-Castano"
     callout-appearance: simple
     highlight-style: a11y
+
+  pdf:
+    documentclass: scrbook
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    highlight-style: a11y
+    colorlinks: true
+    fig-pos: "H"
 
 editor: source
 

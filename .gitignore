@@ -4,3 +4,5 @@ _book/
 /env/
 /references/books/
 /.Renviron
+/*.html
+/*_files/

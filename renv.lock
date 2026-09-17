@@ -9,6 +9,11 @@
     ]
   },
   "Packages": {
+    "AsioHeaders": {
+      "Package": "AsioHeaders",
+      "Version": "1.30.2-1",
+      "Source": "Repository"
+    },
     "BH": {
       "Package": "BH",
       "Version": "1.87.0-1",
@@ -393,6 +398,11 @@
         "utils"
       ],
       "Hash": "0e14e01ce07e7c88fd25de6d4260d26b"
+    },
+    "chromote": {
+      "Package": "chromote",
+      "Version": "0.5.1",
+      "Source": "Repository"
     },
     "cli": {
       "Package": "cli",
@@ -1147,6 +1157,11 @@
         "stats"
       ],
       "Hash": "b0fe731e5bd801dda962ac5057a548f6"
+    },
+    "magick": {
+      "Package": "magick",
+      "Version": "2.9.1",
+      "Source": "Repository"
     },
     "magrittr": {
       "Package": "magrittr",
@@ -1959,6 +1974,16 @@
         "R"
       ],
       "Hash": "c826c7c4241b6fc89ff55aaea3fa7491"
+    },
+    "webshot2": {
+      "Package": "webshot2",
+      "Version": "0.1.2",
+      "Source": "Repository"
+    },
+    "websocket": {
+      "Package": "websocket",
+      "Version": "1.4.4",
+      "Source": "Repository"
     },
     "withr": {
       "Package": "withr",

@@ -10,14 +10,14 @@ Common visualizations such as density plots, scatter plots, and violin plots pro
 These visual tools not only highlight patterns and relationships but also guide decisions about the most appropriate modeling strategies.
 
 For instance, consider a dataset where we measure characteristics of PDGFR-β and GFAP-positive cells following experimental cerebral ischemia—a model I employed in my research for almost a decade.
-We might be interested on how GFAP intensity increases in the ischemic hemisphere following injury.
+We might be interested in how GFAP intensity (`Gfap_IntDen` in our table) increases in the ischemic hemisphere following injury.
 Visualizing the [distribution]{style="color:green;"} of fluorescence intensity values, for example through density plots, can immediately reveal whether the [data clusters]{style="text-decoration: underline;"} around specific values, exhibits [multiple peaks]{style="text-decoration: underline;"} (suggesting subpopulations), or contains [extreme values]{style="text-decoration: underline;"} that might indicate [measurement errors]{style="color:red;"} or [rare biological events]{style="color:red;"}.
 
 Similarly, we can use [scatter plots]{style="color:green;"} to explore [relationships]{style="text-decoration: underline;"} between two variables, such as GFAP and PDGFR-β intensity.
 These visualizations might uncover [correlations]{style="text-decoration: underline;"}, [nonlinear patterns]{style="text-decoration: underline;"}, or even [distinct subgroups]{style="text-decoration: underline;"} of data.
 These relationships, often hidden in tables of summary statistics, can profoundly [shape our interpretation]{style="color:green;"} and [guide the selection of statistical models]{style="color:green;"}.
 
-Another powerful visualization is the violin plot, or [raincluod plots]{style="color:green;"}, which combines the benefits of box plots and density plots, offering a clear view of both central tendencies and variability within groups.
+Another powerful visualization is the violin plot, or [raincloud plot]{style="color:green;"}, which combines the benefits of box plots and density plots, offering a clear view of both central tendencies and variability within groups.
 When comparing GFAP intensity across time points or experimental conditions, these plots can highlight unexpected differences or [heterogeneity]{style="text-decoration: underline;"} in variability.
 
 Below, we will walk through an example of exploratory data analysis using a real dataset from my own research.
@@ -27,7 +27,7 @@ The resulting plots will allow us to assess the distributions, spot anomalies, a
 
 ## The data
 
-First, we can have a look at our data, called `cell_data` for this excercise.
+First, we can have a look at our data, called `cell_data` for this exercise.
 We load the data (code not shown in rendering) and plot the initial rows using the [`gt`](https://gt.rstudio.com/) package [@gt]
 
 ```{r}
@@ -49,7 +49,7 @@ gt(head(cell_data))
 We can see that this data table contains 20 variables and 49 observations in total.
 We'll focus the EDA on the variables of interest `Gfap_InDent` (GFAP integrated density) and `Pdgfrb_IntDen` (PDGFR-β integrated density).
 
-## Cheking the data distribution with density plots
+## Checking the data distribution with density plots
 
 Before we start plotting our data, we will use the [`theme`](https://ggplot2.tidyverse.org/reference/theme.html) function from `ggplot` to create a [personalised theme]{style="color:green;"} to add a systematic aesthetic to our plots.
 This will standardise the way we present the graphs and improve visualisation.
@@ -120,27 +120,37 @@ Also, we use `plot_annotation(tag_levels = 'A')` to include [tagging](https://pa
 
 library(patchwork)
 
+# We'll reuse this vermillion/blue pair for PDGFR-β/GFAP across every
+# figure in this chapter. It keeps the warm/cool intuition the original
+# red/green pairing was going for, but red-green is precisely the
+# combination a reader with the most common form of color blindness
+# (deuteranopia/protanopia) cannot tell apart -- vermillion and blue read
+# as distinct under any color vision, and still separate cleanly in
+# grayscale for the PDF edition.
+Pdgfrb_color <- "#D55E00"
+Gfap_color <- "#0072B2"
+
 # Density plot for Pdgfrb_Intensity
 Pdgfrb_dens <- ggplot(
-  data = cell_data, 
+  data = cell_data,
   aes(x = Pdgfrb_IntDen)) +
-  geom_density(fill = "red", alpha = 0.5) +
-  labs(title = "Density of PDGFR-β Intensity", 
+  geom_density(fill = Pdgfrb_color, alpha = 0.5) +
+  labs(title = "Density of PDGFR-β Intensity",
        subtitle = "Density plot",
-       x = "PDGFR-β Intensity", 
+       x = "PDGFR-β Intensity",
        y = "Density") +
-  Plot_theme 
+  Plot_theme
 
 # Density plot for Gfap_Intensity
 Gfap_dens <- ggplot(
-  data = cell_data, 
+  data = cell_data,
   aes(x = Gfap_IntDen)) +
-  geom_density(fill = "lightgreen", alpha = 0.5) +
-  labs(title = "Density of GFAP Intensity", 
+  geom_density(fill = Gfap_color, alpha = 0.5) +
+  labs(title = "Density of GFAP Intensity",
        subtitle = "Density plot",
-       x = "Gfap Intensity", 
+       x = "Gfap Intensity",
        y = "Density") +
-  Plot_theme 
+  Plot_theme
 
 # We render the graphs side by side using pathwork  
 Pdgfrb_dens + Gfap_dens + plot_annotation(tag_levels = 'A')
@@ -175,25 +185,25 @@ This comparison will provide an intuitive sense of how far our data deviates fro
 #| warning: false
 #| message: false
 
-Gfap_dens <- ggplot(data = cell_data, aes(x = Gfap_IntDen)) +
-  geom_density(fill = "lightgreen", alpha = 0.5) +
+Gfap_dens_normal <- ggplot(data = cell_data, aes(x = Gfap_IntDen)) +
+  geom_density(fill = Gfap_color, alpha = 0.5) +
   # Add a theoretical normal distribution curve
   stat_function(
-    fun = dnorm, 
-    args = list(mean = 625, sd = 200), 
-    color = "red", 
-    size = 1
+    fun = dnorm,
+    args = list(mean = 625, sd = 200),
+    color = Pdgfrb_color,
+    linewidth = 1
   ) +
   labs(
-    title = "GFAP density - normal distribution", 
+    title = "GFAP density - normal distribution",
     subtitle = "Density plot",
-    x = "Gfap Intensity / normal distribution", 
+    x = "Gfap Intensity / normal distribution",
     y = "Density"
   ) +
   coord_cartesian(xlim = c(0, 1250)) +
   Plot_theme
 
-Gfap_dens 
+Gfap_dens_normal
 ```
 
 The results shown in @fig-cell_data_normal_EDA reveal a clear divergence between the observed GFAP intensity values and the theoretical normal distribution simulated within the range of 0–1250.
@@ -212,7 +222,7 @@ Given this fundamental uncertainty, why should we rely on speculative assumption
 I judge that modern statistical approaches offers a diverse toolkit for robust modeling that enable us to choose approaches that are both theoretically sound and empirically grounded.
 This book will further develop this perspective.
 
-## Conditioning on addional variables with scatter plots
+## Conditioning on additional variables with scatter plots
 
 As you possess deep knowledge about your data, I also hold a comprehensive understanding of the `cell_data` data frame, having acquired it during my research on glial scarring.
 One crucial aspect in EDA is considering the hierarchy or organization inherent to the data.
@@ -256,28 +266,28 @@ Finally, we will use the [`cowplot`](https://wilkelab.org/cowplot/index.html) pa
 library(cowplot)
 library(ggExtra)
 library(ggplot2)
- 
+
 # Plot for PDGFR-β
 Pdgfrb_scatter <- ggplot(
   data = cell_data,
   aes(x = DPI,
       y= Pdgfrb_IntDen)) +
-  geom_smooth(method=lm , color="black", fill="#f7637e", se=TRUE) +
+  geom_smooth(method=lm , color="black", fill=Pdgfrb_color, se=TRUE) +
   geom_point() +
   scale_x_continuous(breaks = c(0, 3,7,14,30)) +
-  labs(title = "", 
+  labs(title = "",
      subtitle = "Scatterplot",
-     x = "Days post-ischemia (DPI)", 
+     x = "Days post-ischemia (DPI)",
      y = "PDGFR-β intensity") +
-  Plot_theme 
- 
+  Plot_theme
+
 
 # Add marginal plots
 Pdgfrb_scatter_Marginal <- ggMarginal(
-  Pdgfrb_scatter, 
-  type="densigram", 
+  Pdgfrb_scatter,
+  type="densigram",
   colour = "black",
-  fill = "#f7637e",
+  fill = Pdgfrb_color,
   alpha = .9
   )
 
@@ -286,21 +296,21 @@ Gfap_scatter <- ggplot(
   data = cell_data,
   aes(x = DPI,
       y= Gfap_IntDen)) +
-  geom_smooth(method=lm , color="black", fill="#8df693", se=TRUE) +
+  geom_smooth(method=lm , color="black", fill=Gfap_color, se=TRUE) +
   geom_point() +
   scale_x_continuous(breaks = c(0, 3,7,14,30)) +
-  labs(title = "", 
+  labs(title = "",
      subtitle = "Scatterplot",
-     x = "Days post-ischemia (DPI)", 
+     x = "Days post-ischemia (DPI)",
      y = "Gfap intensity")+
-  Plot_theme 
- 
+  Plot_theme
+
 # Add marginal plots
 Gfap_scatter_Marginal <- ggMarginal(
-  Gfap_scatter, 
-  type="densigram", 
+  Gfap_scatter,
+  type="densigram",
   colour = "black",
-  fill = "#8df693",
+  fill = Gfap_color,
   alpha = .9
   )
 
@@ -329,7 +339,7 @@ Please note that we have not yet fitted a statistical model, we are simply drawi
 Another important observation is the striking [variability in the distribution]{style="text-decoration: underline;"} of points across different DPI levels.
 We can see that at 0 and 3 DPI, the data points shows a relatively low variability, whereas the situation changes dramatically after 3 DPI, with a higher degree of variability in the marker intensities as time progresses.
 
-Is the preceeding biologically sound?
+Is the preceding biologically sound?
 Absolutely.
 My understanding of cerebral ischemia allows me to confidently assert that the evolution of the injury introduces numerous biological variables that exert strong effects on the intensity of the markers of interest.
 At 0 DPI, the observed variability can be logically attributed to a combination of inherent biological variability—natural differences in marker intensities across animals—and measurement errors arising from staining, imaging, and quantification processes.
@@ -354,7 +364,7 @@ In summary, with these scatter plots we have learned:
 
 These observations set the stage for our further tasks of statistical modeling.
 
-## Using raincluod plots for grouped variables
+## Using raincloud plots for grouped variables
 
 Now, let’s move forward with one of my favorite visualization strategies: the [raincloud plot]{style="color:green;"}.
 This method provides an excellent way to combine multiple layers of information in a single graph, making it a powerful tool for EDA.
@@ -397,12 +407,12 @@ Pdgfrb_raincloud <- ggplot(
   geom_boxplot(width = .2, 
                outlier.shape = NA) +
   geom_half_point(side = "l",
-                  range_scale = .4, 
+                  range_scale = .4,
                   alpha = .5)+
-  stat_summary(fun.y=mean, geom="point", shape=18, size=4, color="#f7637e") +
-  labs(title = "", 
+  stat_summary(fun=mean, geom="point", shape=18, size=4, color=Pdgfrb_color) +
+  labs(title = "",
      subtitle = "Raincloud plot",
-     x = "Days post-ischemia (DPI)", 
+     x = "Days post-ischemia (DPI)",
      y = "PDGFR-β intensity") +
   Plot_theme
 
@@ -420,12 +430,12 @@ Gfap_raincloud <- ggplot(
   geom_boxplot(width = .2, 
                outlier.shape = NA) +
   geom_half_point(side = "l",
-                  range_scale = .4, 
+                  range_scale = .4,
                   alpha = .5)+
-  stat_summary(fun.y=mean, geom="point", shape=18, size=4, color="#8df693") +
-  labs(title = "", 
+  stat_summary(fun=mean, geom="point", shape=18, size=4, color=Gfap_color) +
+  labs(title = "",
      subtitle = "Raincloud plot",
-     x = "Days post-ischemia (DPI)", 
+     x = "Days post-ischemia (DPI)",
      y = "Gfap intensity") +
   Plot_theme
 
@@ -433,11 +443,11 @@ Gfap_raincloud <- ggplot(
 Pdgfrb_raincloud + Gfap_raincloud 
 ```
 
-Contrary to our previous scatter plot, @fig-cell_data_rain_EDA offers us a wealth of information about the distribution of our data at each DPI level´+{style="text-decoration: underline;"}.
+Contrary to our previous scatter plot, @fig-cell_data_rain_EDA offers us a wealth of information about the distribution of our data at each [DPI level]{style="text-decoration: underline;"}.
 This allows us to answer the following vital question:
 
 ::: {style="text-align: center"}
-***What is the varibility of my data by DPI?***
+***What is the variability of my data by DPI?***
 :::
 
 The raincloud plot reveals that while the variance at 0 and 3 DPI is relatively small for both markers, the variability at 30 DPI is strikingly large.
@@ -456,7 +466,7 @@ Let us return to a question that arose during our initial analysis: **Is our dat
 Here, I want to emphasize common sense.
 We do not ask whether our data are normally distributed simply to adhere to some ["rules"]{style="color:red;"} established by statisticians whose names we cannot recall, or to [satisfy reviewers]{style="text-decoration: underline;"} demanding [non-informative tests]{style="color:red;"} like the Kolmogorov-Smirnov or Shapiro-Wilk tests.
 Such [dogmatic rituals]{style="color:red;"} serve little purpose beyond ticking boxes in a review process.
-Instead, we ask this question because, as scientists, our goal is to answer research questions as [rigorously and accurately]{style="color:green;"} as possible, using the [best tools]{style="color:grewe;"} at our disposal, right?
+Instead, we ask this question because, as scientists, our goal is to answer research questions as [rigorously and accurately]{style="color:green;"} as possible, using the [best tools]{style="color:green;"} at our disposal, right?
 Thus, understanding whether our data approximate a normal distribution matters because it informs how we summarize and compare our groups.
 If the data are not normal— and I contend that in neurobiology they almost never are—then measures like the mean and standard deviation fail to represent what we have in our hands.
 Comparing means between groups only makes sense if we can be confident that the means and their associated variability [accurately reflect the underlying data]{style="text-decoration: underline;"}.
@@ -470,7 +480,7 @@ What we can do as scientists is to ensure that our conclusions are **reliable**,
 Our raincloud plots have reinforced key observations: our data by time points is not normally distributed, and there is non-uniform variability across DPI levels.
 This will be extremely helpful when considering further modelling strategies.
 
-## Analizing variable covariance
+## Analyzing variable covariance
 
 Another essential step during EDA is analyzing covariance between variables.
 This is particularly relevant when exploring relationships between potential predictors in a regression model.
@@ -486,14 +496,18 @@ In other words, are PDGFR-β and GFAP intensities increasing simultaneously, or 
 Based on our previous visualizations, we may hypothesize that these two markers are strongly correlated.
 Thus, visualizing the relationship between them is a straightforward and effective way to verify this intuition and assess the strength and nature of their association.
 
-To expand the use of visualization tools from the ggplot universe, we will make our graph interactive using the [`ggiraph`](https://davidgohel.github.io/ggiraph/index.html) package [@ggiraph]. So, our plot contains  the following features:
+A static scatter plot would already show us the overall trend, but it would hide something we actually care about here: *which* points belong to which DPI, and which specific animal or slide a suspicious-looking point came from — exactly the kind of anomaly-hunting `eda-intro.qmd` flagged as one of EDA's core jobs. Rather than cluttering the plot with fifty text labels, we can let the reader hover to ask. That's the actual justification for reaching for interactivity here, not novelty for its own sake: to expand the use of visualization tools from the ggplot universe, we will make our graph interactive using the [`ggiraph`](https://davidgohel.github.io/ggiraph/index.html) package [@ggiraph]. So, our plot contains  the following features:
 
-- `tooltip` (from ggiraph) defines the content displayed when we hover over a point. In our case, this include three variables: `Gfap_IntFDen`, `Pdgfrb_IntDen`, and `DPI`. 
+- `tooltip` (from ggiraph) defines the content displayed when we hover over a point. In our case, this include three variables: `Gfap_IntDen`, `Pdgfrb_IntDen`, and `DPI`.
 - `data_id` (from ggiraph) uniquely identifies each point for interactivity.
 - `geom_smooth_interactive` is the interactive layer for `geom_smooth` provided by ggiraph.
 - `geom_point_interactive` is the interactive layer for `geom_point` provided by ggiraph.
--   `scale_color_viridis`: applies the viridis color scale, which is perceptually uniform and visually appealing, to differentiate observations by DPI (Days Post-Ischemia).
+-   `scale_color_viridis`: applies the viridis color scale, which is perceptually uniform and visually appealing (and colorblind-safe, unlike a rainbow palette), to differentiate observations by DPI — a natural fit here since DPI is an ordered/continuous quantity, not an unordered category.
 -   `theme`: to customize the legend position and orientation to make the plot more readable.
+
+This is also the first figure in the book where the HTML and PDF editions genuinely diverge: the PDF page can't hover, so it gets a plain static equivalent instead of a broken interactive widget or a blank gap.
+
+::: {.content-visible when-format="html"}
 
 ```{r}
 #| label: fig-cell_data_scatter_covariance_EDA
@@ -514,11 +528,11 @@ Pdgfrb_Gfap_scatter <- ggplot(
     x = Gfap_IntDen,
     y = Pdgfrb_IntDen,
     color = DPI,
-    tooltip = paste("GFAP:", Gfap_IntDen, "<br>PDGFR-β:", Pdgfrb_IntDen, "<br>DPI:", DPI), 
-    data_id = rownames(cell_data) 
+    tooltip = paste("GFAP:", Gfap_IntDen, "<br>PDGFR-β:", Pdgfrb_IntDen, "<br>DPI:", DPI),
+    data_id = rownames(cell_data)
   )
 ) +
-  
+
   geom_point_interactive(size = 3) +
   scale_color_viridis(discrete = TRUE, option = "viridis") +
   labs(
@@ -527,15 +541,15 @@ Pdgfrb_Gfap_scatter <- ggplot(
     x = "GFAP intensity",
     y = "PDGFR-β intensity"
   ) +
-  
+
   geom_smooth_interactive(
-    tooltip="Linear relation", 
+    tooltip="Linear relation",
     data_id="Linear relation",
     method = "lm",
-    color = "red",
+    color = "black",
     se = FALSE
   ) +
-  
+
   Plot_theme +
   theme(
     legend.position = "top",
@@ -549,9 +563,52 @@ girafe(ggobj = Pdgfrb_Gfap_scatter,
 
 ```
 
-@fig-cell_data_scatter_covariance_EDA reveals that the covariation between PDGFR-β and GFAP intensities varies substantially depending on DPI. For example, at 0 DPI (purple), the points are tightly clustered near zero on both axes, indicating low variability and a lack of strong covariance at this baseline time point. In contrast, at 14 DPI (light green) and 30 DPI (yellow), the points are more widely dispersed, suggesting greater variability and a different relationship between the markers at later stages of recovery. These aspects highlight the evolving nature of our markers in the dataset. 
+@fig-cell_data_scatter_covariance_EDA reveals that the covariation between PDGFR-β and GFAP intensities varies substantially depending on DPI. For example, at 0 DPI (dark purple), the points are tightly clustered near zero on both axes, indicating low variability and a lack of strong covariance at this baseline time point. In contrast, at 14 and 30 DPI (yellow-green tones), the points are more widely dispersed, suggesting greater variability and a different relationship between the markers at later stages of recovery — hover over any point to check its exact values and DPI. These aspects highlight the evolving nature of our markers in the dataset.
 
 Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction. This is an idea we will certainly explore in subsequent analyses.
+
+:::
+
+::: {.content-visible when-format="pdf"}
+
+```{r}
+#| label: fig-cell_data_scatter_covariance_EDA-pdf
+#| fig-cap: Exploratory data visualization for PDGFR-β and GFAP covariation (scatter plot, static edition)
+#| fig-width: 5
+#| fig-height: 5
+#| warning: false
+#| message: false
+
+library(ggplot2)
+library(viridis)
+
+Pdgfrb_Gfap_scatter_static <- ggplot(
+  data = cell_data,
+  aes(x = Gfap_IntDen, y = Pdgfrb_IntDen, color = DPI)
+) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", color = "black", se = FALSE) +
+  scale_color_viridis(discrete = TRUE, option = "viridis") +
+  labs(
+    title = "",
+    subtitle = "Scatterplot",
+    x = "GFAP intensity",
+    y = "PDGFR-β intensity"
+  ) +
+  Plot_theme +
+  theme(
+    legend.position = "top",
+    legend.direction = "horizontal"
+  )
+
+Pdgfrb_Gfap_scatter_static
+```
+
+@fig-cell_data_scatter_covariance_EDA-pdf reveals that the covariation between PDGFR-β and GFAP intensities varies substantially depending on DPI. At 0 DPI (dark purple), the points are tightly clustered near zero on both axes, indicating low variability and a lack of strong covariance at this baseline time point. In contrast, at 14 and 30 DPI (yellow-green tones), the points are more widely dispersed, suggesting greater variability and a different relationship between the markers at later stages of recovery. (The online edition of this book lets you hover over individual points to inspect their exact values.)
+
+Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction. This is an idea we will certainly explore in subsequent analyses.
+
+:::
 
 ## What we have learned about our data using EDA?
 

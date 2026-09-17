@@ -1,0 +1,377 @@
+---
+bibliography: references.bib
+---
+
+# Specifying priors and regularization {#sec-priors-regularization}
+
+```{r}
+#| include: false
+
+library(ggplot2)
+
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
+```
+
+Two chapters ago, we fit our first model, read off an effect of roughly 107 units of GFAP intensity, and moved on. Last chapter, we finally looked honestly at where that number came from, and I told you something that probably should have bothered you a little more than it did: we never actually told `brms` anything. We let it fall back to a flat default for the ischemia effect — a "colleague" who, before seeing a single data point, genuinely had no opinion at all about whether cerebral ischemia would move GFAP by 5 units or 5,000. That's a strange kind of colleague to consult on a question you already know something about.
+
+You know things about GFAP. You know it's a protein intensity measurement, so it can't be negative. You know astrogliosis is a real, bounded biological response, not an unbounded one. You've spent time at the microscope; you have a rough sense of what a "big" change in staining intensity even looks like. None of that made it into the model last chapter, and that omission is exactly what we're fixing now.
+
+::: callout-tip
+### Two things a prior can do for you
+
+A prior distribution does one of two jobs, and it's worth naming both before we touch any code. First, it can encode **existing knowledge** — everything you already believe about GFAP intensity before this dataset spoke up, translated into a distribution over plausible values. Second, whether you intend it or not, it acts as **regularization** — a brake on how far the model is willing to swing toward whatever the data happens to say, especially when the data is sparse or noisy. These aren't two different techniques you choose between; they're two descriptions of the same mathematical object. A prior that honestly reflects what you know *is* a regularizer, because real knowledge rules out implausible values, and ruling out implausible values is precisely what keeps a small, noisy sample from running away with the estimate. We'll see both faces of this in the same chapter — the first on our real GFAP data, where you have 15 animals worth of information already pulling hard in one direction; the second on a much smaller simulated dataset, where the prior finally has real work to do.
+:::
+
+## What counts as a plausible GFAP number?
+
+Before we can write down a prior, we need some sense of the scale we're working on — and this is worth pausing on, because we haven't done a formal exploratory pass over this data yet. That's coming, in its own dedicated part of the book, and it deserves more care than a paragraph here. What we need right now is smaller: not "what does this dataset look like," but "roughly how big can a GFAP number get before I should be suspicious of it." A quick look, not an analysis.
+
+```{r}
+library(here)
+
+cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+cell_data_sub <- subset(cell_data, DPI %in% c(0, 3))
+cell_data_sub$Condition <- factor(cell_data_sub$Condition, levels = c("SHAM", "MCAO"))
+```
+
+```{r}
+#| label: tbl-priors_group_summary
+#| tbl-cap: A quick look at GFAP intensity by condition (not a full EDA)
+
+library(gt)
+
+group_summary <- aggregate(
+  Gfap_Intensity ~ Condition, data = cell_data_sub,
+  FUN = function(x) c(mean = mean(x), sd = sd(x), min = min(x), max = max(x))
+)
+group_summary <- do.call(data.frame, group_summary)
+names(group_summary) <- c("Condition", "mean", "sd", "min", "max")
+
+gt(group_summary) |> fmt_number(columns = -Condition, decimals = 1)
+```
+
+```{r}
+#| include: false
+
+sham_mean <- group_summary$mean[group_summary$Condition == "SHAM"]
+sham_sd   <- group_summary$sd[group_summary$Condition == "SHAM"]
+full_range <- range(cell_data$Gfap_Intensity)
+```
+
+Sham-operated animals sit around `r round(sham_mean, 0)` units, give or take about `r round(sham_sd, 0)`. And if we glance past this two-timepoint subset at the *entire* dataset — every DPI, every animal, the full course of the injury — GFAP intensity ranges from about `r round(full_range[1], 0)` to `r round(full_range[2], 0)`. That single fact, "this assay has never produced a number outside roughly this envelope," is already enough to keep us from proposing something absurd.
+
+::: callout-note
+### This isn't the EDA chapter
+
+I want to be explicit about the difference, because it matters: this is a five-second glance to keep a prior honest, not the deliberate, question-first exploration you'll see once we get to that part of the book. We're not looking for patterns, relationships, or anomalies here — just a sense of scale.
+:::
+
+## Specifying priors in `brms`
+
+`brms` will tell you exactly what it's currently assuming, for every parameter in a model, if you ask it directly — before you fit anything:
+
+```{r}
+library(brms)
+
+get_prior(Gfap_Intensity ~ Condition, data = cell_data_sub)
+```
+
+Read that table like a witness statement, one row per parameter. The `ConditionMCAO` coefficient — our ischemia effect — gets `(flat)`: no opinion whatsoever, any real number equally credible, exactly the colleague we complained about a moment ago. `sigma`, the residual noise, gets a `student_t(3, 0, 89.6)`, structurally forced to stay positive regardless of what we specify (the parameter itself is declared non-negative under the hood, so even a prior family that technically extends below zero gets truncated there in practice). And notice the `Intercept`: `student_t(3, 98.7, 89.6)`. That's not flat. `brms` quietly centered it on roughly the mean GFAP value across the *whole* subset — sham and ischemic animals pooled together — which is a real, if unannounced, opinion. The lesson here isn't "brms's defaults are bad." It's that **there's no such thing as a genuinely opinion-free model.** Even the "flat" default made a choice about where to center the intercept; it just made that choice automatically, from the data, instead of asking you to make it deliberately from what you actually know.
+
+So let's make our own choices, on purpose, using the numbers from the section above. `brms` takes a prior specification as a small vector built from `prior()` calls, one per parameter:
+
+```{r}
+priors_v1 <- c(
+  prior(normal(30, 20), class = "Intercept"),
+  prior(normal(0, 150), class = "b", coef = "ConditionMCAO"),
+  prior(normal(0, 30), class = "sigma")
+)
+```
+
+Here's the reasoning behind each line, because a prior without a stated reason is just a number you made up:
+
+- **Intercept — `normal(30, 20)`.** Sham animals averaged about `r round(sham_mean, 0)` in the table above, with a spread of roughly `r round(sham_sd, 0)`. A standard deviation of 20 gives real room around that — plausible sham intensities from close to zero up past 70 — without pretending we have no idea at all where a sham animal's baseline sits.
+- **`sigma` — `normal(0, 30)`, effectively half-normal thanks to that structural lower bound at zero.** Both groups' observed spreads (`r round(sham_sd,0)` for sham, and the ischemic group's own spread in the table above) sit comfortably under 30, so most of this prior's mass covers noise levels at least as large as anything we've actually measured, with headroom for a noisier sample than this one.
+
+The `ConditionMCAO` slope deserves its own paragraph, because there's a trap here worth naming honestly.
+
+::: callout-important
+### Why not just center the prior on the effect we already saw?
+
+We already know, from the table above and from chapter 1, that the observed sham-vs-ischemia gap is around 107. The tempting move is to build a prior centered right there — `normal(107, 20)`, say. Don't. That's using the exact comparison you're about to test to construct the very belief you'll claim was independent of it — a [circular move]{style="color:red;"} that quietly stacks the deck before the model ever runs. A genuine prior reflects what you believed *before* this specific contrast, not a repackaging of the answer you already peeked at.
+
+That's why the slope prior above is centered on **zero** — "before seeing this comparison, I don't assume ischemia raises or lowers GFAP" — with its width, 150, grounded instead in the *broader*, comparison-independent fact from the section above: this assay has never produced a swing bigger than roughly the full `r round(full_range[1],0)`–`r round(full_range[2],0)` range. That's legitimate prior knowledge — a fact about the measurement itself, not a repackaging of the specific answer we're about to test.
+:::
+
+::: callout-tip
+### A trap for later: priors on a link scale
+
+Every prior in this chapter lives on the same scale as GFAP intensity itself, because our model uses an identity link — the coefficients *are* GFAP units, so "does this number look plausible" is a direct question. That stops being true the moment we move to a model with a non-identity link, like the logistic regression waiting for us in Part 3. A prior that *looks* just as timid there, say `normal(0, 100)` on a log-odds coefficient, is actually one of the most opinionated priors you could write — the logistic function saturates, so that "vague-looking" number dumps almost all its prior mass onto probabilities crushed up against 0 or 1. Keep this in your back pocket; we'll return to it properly once we're there.
+:::
+
+## Before touching real data: the prior predictive check
+
+Here's an idea we've already used once, back when we built a fake dataset from chosen parameters to check whether our fitting machinery could recover a known truth. A prior is a claim about what data *could* plausibly look like, even before any real data exists — which means we can run it forward, exactly like we ran that generative model forward, and just look at what it produces. If `brms` can sample the posterior by exploring the space of parameter values, it can just as easily sample from the *prior alone*, by setting `sample_prior = "only"` and simply not letting the likelihood weigh in:
+
+```{r}
+#| label: fig-priors_prior_predictive
+#| fig-cap: Prior predictive check — simulated GFAP values from the priors alone, before seeing any real data
+#| fig-width: 6
+#| fig-height: 4
+
+prior_check_fit <- brm(
+  Gfap_Intensity ~ Condition,
+  data = cell_data_sub,
+  prior = priors_v1,
+  sample_prior = "only",
+  seed = 123,
+  file = "models/priors-regularization_fit1.rds",
+  file_refit = "never"
+)
+
+pp_check(prior_check_fit, ndraws = 100) +
+  labs(x = "GFAP intensity (simulated from priors only)", y = "Density") +
+  Plot_theme
+```
+
+Every one of those faint curves is a full fake dataset, generated purely from our priors, before a single real animal's measurement was involved. This is the positive control from last chapter, run one step earlier in the pipeline — instead of asking "can the model recover a truth I planted," we're asking "does the model, armed with nothing but these priors, even propose scientifically sane data."
+
+```{r}
+#| include: false
+
+prior_draws_y <- posterior_predict(prior_check_fit, ndraws = 2000)
+prop_negative <- mean(prior_draws_y < 0)
+```
+
+It mostly does — but not entirely. About `r round(prop_negative * 100, 0)`% of the simulated values in that cloud are negative, which is a physical impossibility for a staining intensity. That's not a disaster, and I'm not going to pretend it is just to manufacture drama: our priors are still weakly informative rather than tightly constrained, and a Gaussian model has no way to know on its own that its outcome can't cross zero. Catching that honestly, in a chapter about priors, is exactly the point — we've made the model noticeably more scientifically literate than the flat default, without pretending it's now perfect. A model that can still occasionally imagine negative protein intensity is a model we'll want to check more rigorously against real predictions once we have the tools for it — which is precisely what the next chapter, on posterior predictive checks, is for.
+
+## Refitting the ischemia model with real priors
+
+With the prior predictive check giving us reasonable confidence that we're not handing `brms` something scientifically silly, let's put these priors to work on the real data — the same model, same fifteen animals, as chapters 1 and 2:
+
+```{r}
+informed_fit <- brm(
+  Gfap_Intensity ~ Condition,
+  data = cell_data_sub,
+  prior = priors_v1,
+  seed = 123,
+  file = "models/priors-regularization_fit2.rds",
+  file_refit = "never"
+)
+
+summary(informed_fit)
+```
+
+```{r}
+#| include: false
+
+library(posterior)
+
+informed_diag <- summarise_draws(as_draws_df(informed_fit), "rhat", "ess_bulk", "ess_tail")
+informed_diag <- subset(informed_diag, variable %in% c("b_Intercept", "b_ConditionMCAO", "sigma"))
+stopifnot(max(informed_diag$rhat) < 1.01, min(informed_diag$ess_bulk) > 400, min(informed_diag$ess_tail) > 400)
+```
+
+Rhat tops out at `r sprintf("%.2f", max(informed_diag$rhat))` and both effective sample sizes clear 400 comfortably across every parameter, so this fit has earned our trust the same way last chapter's did.
+
+Now the question we actually care about: did any of this matter? Let's put the prior itself, the original flat-prior posterior from chapter 1, and this new informed posterior on the same axis and look:
+
+```{r}
+#| label: fig-priors_prior_posterior_overlay
+#| fig-cap: Prior, flat-prior posterior, and informed-prior posterior for the ischemia effect
+#| fig-width: 6.5
+#| fig-height: 4
+
+flat_fit <- brm(
+  Gfap_Intensity ~ Condition,
+  data = cell_data_sub,
+  seed = 123,
+  file = "models/intro-applied-modeling_fit1.rds",
+  file_refit = "never"
+)
+
+overlay_df <- data.frame(
+  beta1 = c(
+    as_draws_df(prior_check_fit)$b_ConditionMCAO,
+    as_draws_df(flat_fit)$b_ConditionMCAO,
+    as_draws_df(informed_fit)$b_ConditionMCAO
+  ),
+  curve = factor(
+    rep(c("Prior alone", "Posterior (flat prior, ch. 1)", "Posterior (informed prior)"),
+        each = 4000),
+    levels = c("Prior alone", "Posterior (flat prior, ch. 1)", "Posterior (informed prior)")
+  )
+)
+
+ggplot(overlay_df, aes(x = beta1, fill = curve, color = curve)) +
+  geom_density(alpha = 0.4, linewidth = 0.8) +
+  scale_fill_manual(values = c("#E69F00", "#0072B2", "#D55E00")) +
+  scale_color_manual(values = c("#E69F00", "#0072B2", "#D55E00")) +
+  coord_cartesian(xlim = c(-300, 500)) +
+  labs(x = "Ischemia effect on GFAP intensity", y = "Density", fill = "", color = "") +
+  Plot_theme +
+  theme(legend.position = "bottom")
+```
+
+The pale, wide curve is the prior — spread thin across a huge range, exactly as intended. The other two curves, the flat-prior and informed-prior posteriors, sit almost on top of each other, both tall and narrow, both centered right around 107. With fifteen animals showing a gap this clean, the data is already carrying the argument almost entirely on its own; our prior had an opinion, but the evidence simply outvoted it. That's not a failure of the exercise — it's exactly what should happen when you have enough good data. A prior's job is to matter *when the data can't settle things by itself*, and right now, it can.
+
+::: callout-tip
+### Frequentist equivalent
+
+Nothing changes here on the frequentist side, and for the same reason chapter 1 flagged already: with this much data pointing this clearly in one direction, `lm()` and an informed `brms` fit are converging on the same answer as the flat-prior fit did. Where they'll actually part ways is coming up next.
+:::
+
+## Where a prior earns its keep: small samples
+
+A prior that agrees with fifteen well-behaved animals isn't proving very much. The honest test is a dataset too small to speak clearly on its own — which is exactly the generative-model exercise from last chapter, run again with far fewer animals:
+
+```{r}
+#| label: tbl-priors_sim_small
+#| tbl-cap: A deliberately tiny simulated dataset (same ground truth as chapter 2)
+
+set.seed(2025)
+
+true_beta0 <- 30
+true_beta1 <- 107
+true_sigma <- 20
+n_small <- 3
+
+sim_small <- data.frame(
+  Condition = factor(rep(c("SHAM", "MCAO"), each = n_small), levels = c("SHAM", "MCAO"))
+)
+sim_small$Gfap_Intensity <- true_beta0 +
+  true_beta1 * (sim_small$Condition == "MCAO") +
+  rnorm(nrow(sim_small), mean = 0, sd = true_sigma)
+
+gt(sim_small) |> fmt_number(columns = Gfap_Intensity, decimals = 1)
+```
+
+Same planted truth as chapter 2 — a baseline of 30, an ischemia effect of 107 — but only three animals per group instead of eight. Let's see what a plain frequentist fit makes of this:
+
+```{r}
+library(parsnip)
+library(broom)
+
+sim_small_freq <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(Gfap_Intensity ~ Condition, data = sim_small)
+
+tidy(sim_small_freq, conf.int = TRUE)
+```
+
+```{r}
+#| include: false
+
+freq_tidy_small <- tidy(sim_small_freq, conf.int = TRUE)
+freq_est_small <- freq_tidy_small$estimate[freq_tidy_small$term == "ConditionMCAO"]
+freq_lo_small  <- freq_tidy_small$conf.low[freq_tidy_small$term == "ConditionMCAO"]
+freq_hi_small  <- freq_tidy_small$conf.high[freq_tidy_small$term == "ConditionMCAO"]
+```
+
+By sheer luck of the draw, the point estimate (`r round(freq_est_small,1)`) actually landed close to the truth this time — small samples don't always land this well, which is itself worth remembering. Now let's fit the same tiny dataset in `brms`, first with no prior stated at all (the same flat default from chapter 1), so we can isolate what *being Bayesian* buys us before we ask what an *informative prior* buys us:
+
+```{r}
+sim_small_flat <- brm(
+  Gfap_Intensity ~ Condition,
+  data = sim_small,
+  seed = 123,
+  file = "models/priors-regularization_fit3.rds",
+  file_refit = "never"
+)
+```
+
+```{r}
+#| include: false
+
+flat_small_draws <- as_draws_df(sim_small_flat)$b_ConditionMCAO
+flat_small_ci <- quantile(flat_small_draws, c(0.025, 0.975))
+freq_width_small <- freq_hi_small - freq_lo_small
+flat_width_small <- diff(flat_small_ci)
+```
+
+Even with a flat prior — no informative opinion at all on the slope — the Bayesian credible interval (width `r round(flat_width_small,0)`) comes out wider than the frequentist confidence interval (width `r round(freq_width_small,0)`). That's not the prior doing anything yet; it's honesty about a different problem. `lm()` estimates the noise, `sigma`, once and then treats it as known when building its confidence interval. `brms` carries its own uncertainty about `sigma` all the way through the calculation. With only three animals per group, we genuinely don't know `sigma` very well — and the Bayesian interval is simply the one being upfront about that, rather than quietly assuming away a problem three data points can't solve.
+
+Now let's actually give the prior something to do. Rather than fit several near-identical models by hand, let's dial the width of our belief about the slope — keeping the same `normal(0, ...)` shape, centered on "no assumed direction," from wide to narrow — and watch what happens to both the estimate and the interval:
+
+```{r}
+#| label: tbl-priors_shrinkage_sweep
+#| tbl-cap: How the ischemia-effect estimate moves as the slope prior tightens
+
+prior_widths <- c(150, 60, 25)
+sweep_files <- paste0("models/priors-regularization_fit", 4:6, ".rds")
+
+sweep_fits <- Map(function(sd_b, file) {
+  p <- c(
+    prior(normal(30, 20), class = "Intercept"),
+    set_prior(paste0("normal(0,", sd_b, ")"), class = "b", coef = "ConditionMCAO"),
+    prior(normal(0, 30), class = "sigma")
+  )
+  brm(
+    Gfap_Intensity ~ Condition, data = sim_small, prior = p, seed = 123,
+    file = file, file_refit = "never"
+  )
+}, prior_widths, sweep_files)
+
+sweep_summary <- do.call(rbind, lapply(seq_along(sweep_fits), function(i) {
+  draws <- as_draws_df(sweep_fits[[i]])
+  b <- draws$b_ConditionMCAO
+  ci <- quantile(b, c(0.025, 0.975))
+  diag <- summarise_draws(draws, "rhat", "ess_bulk")
+  diag <- subset(diag, variable %in% c("b_Intercept", "b_ConditionMCAO", "sigma"))
+  data.frame(
+    prior_sd = prior_widths[i],
+    median = median(b),
+    ci_low = ci[1],
+    ci_high = ci[2],
+    width = diff(ci),
+    max_rhat = max(diag$rhat),
+    min_ess = min(diag$ess_bulk)
+  )
+}))
+
+stopifnot(max(sweep_summary$max_rhat) < 1.01, min(sweep_summary$min_ess) > 400)
+
+gt(sweep_summary) |> fmt_number(columns = -prior_sd, decimals = 1)
+```
+
+```{r}
+#| label: fig-priors_shrinkage
+#| fig-cap: Point estimate and 95% interval for the ischemia effect, from a wide frequentist fit to an aggressively tight prior
+#| fig-width: 6.5
+#| fig-height: 4
+
+forest_df <- rbind(
+  data.frame(method = "Frequentist (lm)", estimate = freq_est_small, ci_low = freq_lo_small, ci_high = freq_hi_small),
+  data.frame(method = "brms, flat prior", estimate = median(flat_small_draws), ci_low = flat_small_ci[1], ci_high = flat_small_ci[2]),
+  data.frame(method = paste0("brms, prior sd = ", sweep_summary$prior_sd),
+             estimate = sweep_summary$median, ci_low = sweep_summary$ci_low, ci_high = sweep_summary$ci_high)
+)
+forest_df$method <- factor(forest_df$method, levels = rev(forest_df$method))
+
+ggplot(forest_df, aes(x = estimate, y = method)) +
+  geom_vline(xintercept = true_beta1, linetype = "dashed", color = "grey40") +
+  geom_pointrange(aes(xmin = ci_low, xmax = ci_high), color = "#0072B2", linewidth = 0.8, size = 0.7) +
+  labs(x = "Ischemia effect on GFAP intensity", y = NULL,
+       caption = "Dashed line: the true planted effect (107)") +
+  Plot_theme
+```
+
+Look at the medians as the prior tightens, from 150 down to 25: `r round(sweep_summary$median[1],0)`, `r round(sweep_summary$median[2],0)`, `r round(sweep_summary$median[3],0)`. That's a genuinely monotonic pull, away from what three noisy animals per group happened to suggest and toward the prior's center at zero — precisely the mechanism a labmate coming from a frequentist background would recognize immediately as **ridge regression**: an L2 penalty that shrinks a coefficient toward zero in proportion to how confident (small-variance) that penalty is. McElreath makes exactly this connection explicit — a regularizing prior "has the same effect as a penalized regression," damping a coefficient's tendency to overreact to whatever a small or noisy sample happens to hand it, in exchange for a small amount of bias [@mcelreath2020]. Gelman and colleagues make the identical point from the applied-modeling side: a weakly informative prior is chosen specifically to rule out implausible values without ruling out plausible ones, precisely so that a small sample can't run away with an estimate no domain expert would actually believe [@gelman2026].
+
+Notice what *doesn't* move in lockstep: the interval width. It doesn't shrink smoothly the way the point estimate does — at a prior sd of 60 and 25, the interval is actually a bit wider than the flat-prior fit, not narrower. With only six animals total, `sigma` itself is barely identified, and pulling the slope away from what the (sparse) data wants creates a little friction that shows up as extra estimated noise rather than a tidier answer. I'd rather show you that honestly than let you walk away thinking "a more informative prior always means a narrower interval" — it doesn't. **Shrinkage of the estimate is the reliable signature of regularization here; a narrower interval is not guaranteed, and isn't really the point.**
+
+::: callout-important
+### Sensitivity check: would you actually defend `sd = 25`?
+
+That's the honest question to ask before reporting any tightened prior, and here the honest answer is probably no — not without real, external justification (an actual prior study on GFAP fold-changes after MCAO, say, which is exactly the kind of literature-grounded number I'd want to pull from a NotebookLM lookup against Daniel's reference texts rather than invent). We tightened the prior here to *show* the shrinkage mechanism clearly, not because `sd = 25` is a prior we'd stand behind for this specific claim. That distinction — showing what a prior *can* do versus defending what a prior *should* do — is worth keeping separate every time you report one.
+:::
+
+That's the whole regularization story: with fifteen well-behaved animals, an informative prior is mostly a formality, gently agreeing with data that was already convincing on its own. With three animals per group, the exact same prior becomes the thing standing between you and a coefficient that a noisy sample handed you by accident. A frequentist fit has no equivalent lever to pull — `lm()` will report whatever the data says, confidently, regardless of how little data there was to say it. That's not a flaw in frequentist statistics; it's a design choice that assumes you'll bring your own judgment to bear on the result *afterward*. A prior just lets you bring that same judgment *into* the model itself, and get an answer that already reflects it.
+
+We still owe this chapter one honest admission: we never checked whether either of these fitted models — the real-data one or the small-sample one — actually predicts data that looks like what we observed. We checked the prior alone, before any data arrived, and we checked that the sampler behaved. Whether the *fitted* model is any good is a different question, and it's the entire subject of the next chapter.
+
+## References
+
+::: {#refs-priors-regularization}
+:::
