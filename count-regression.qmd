@@ -1,0 +1,642 @@
+---
+bibliography: references.bib
+---
+
+# Modeling count data: Poisson and negative binomial {#sec-count-regression}
+
+```{r}
+#| include: false
+
+library(ggplot2)
+library(here)
+library(brms)
+library(ggdist)
+library(patchwork)
+library(gt)
+
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
+
+cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+cell_data$DPI_f <- factor(cell_data$DPI)
+# Centering log-area makes the intercept describe a section of typical size
+cell_data$log_area <- log(cell_data$Tissue_Area) - mean(log(cell_data$Tissue_Area))
+
+spikes <- read.csv(here("project/AnalysisData/Ephys_spikes_simulated.csv"))
+spikes$group <- factor(spikes$group, levels = c("control", "treated"))
+
+group_cols <- c(control = "#D55E00", treated = "#0072B2")
+
+# Median and 95% credible interval, formatted for inline reporting
+summ <- function(x, digits = 2) {
+  sprintf(paste0("%.", digits, "f [%.", digits, "f, %.", digits, "f]"),
+          median(x), quantile(x, 0.025), quantile(x, 0.975))
+}
+```
+
+@sec-glm-intro ended with a negative binomial model that finally behaved, and with two promises I made in passing. The first was about the counting window. I told you I was treating the region of interest as the same size for every animal, and that the fix for the day it isn't (an *offset*) would wait for this chapter. The second was about zeros: the PDGFR-β counts of that chapter never dropped below about ninety cells, which is a luxury. Spike counts, and most counts you'll collect in an electrophysiology rig, are not so kind.
+
+I'll say something about how the chapter is put together, because it changes scene halfway. We start on the histology counts you know, and go back to the negative binomial to read the one number, `shape`, that I let you skip over last time. Then we give those counts what they've been missing, a denominator. And then we leave the microscope for the rig, where a new kind of zero appears and the negative binomial, on its own, can't explain it.
+
+## What `shape` is really telling us
+
+Last chapter I reported the `shape` of the negative binomial, said it was "small enough that the extra variance is substantial", and moved on. That was a bit like handing you a thermometer reading without saying which way is hot. So before we add anything, let me reopen that fit, without refitting it, and read it properly.
+
+```{r}
+# The negative binomial of @sec-glm-intro, loaded from its cache (not refit)
+fit_nb <- readRDS("models/glm-intro_fit3.rds")
+shape_draws <- as.data.frame(posterior::as_draws_df(fit_nb))$shape
+```
+
+Here is the way I like to think about `shape`. Imagine two pericyte-rich animals on the same day after ischemia. Even before you put a section under the microscope, one of them simply has more PDGFR-β+ cells in that territory than the other, for reasons that are biological and not your fault. The negative binomial says each animal has its *own* true density, and that those densities scatter around the day's mean by a multiplicative wobble. `shape` (which I'll write $\phi$, as in the previous chapter) is the dial that controls how big that wobble is: the animal-to-animal coefficient of variation of the true rate is $1/\sqrt{\phi}$ [@inchausti2023]. A large $\phi$ means the animals are almost interchangeable; as $\phi \to \infty$ the wobble vanishes and you're left with the Poisson. A small $\phi$ means animals are individuals.
+
+For our fit, `shape` has a posterior median of `r round(median(shape_draws), 1)`, so before we have counted a single cell, animals of the same day already differ by about `r round(100 / sqrt(median(shape_draws)))`% in their true PDGFR-β+ density. That figure answers a question that comes up at the bench all the time: *if I count more cells per animal, will the noise go away?* The total variance of a count is $\mu + \mu^2/\phi$, so its coefficient of variation, the standard deviation relative to the mean, is
+
+$$
+\text{CV}(y) = \sqrt{\frac{1}{\mu} + \frac{1}{\phi}}
+$$ {#eq-cv-nb}
+
+The first term is the counting noise: it shrinks as the count grows. The second is the animal-to-animal noise: it doesn't depend on the count at all. I'll draw both against each other, with the Poisson (which has only the first term) for contrast, and the observed CV of each day's animals as points. I'm using the CV, not the variance as in @sec-glm-intro, because the CV is on the scale a scientist thinks in ("the counts wobble by 40% or so"), and it turns the two noise terms into a picture: one keeps falling, the other is a floor.
+
+```{r}
+#| label: fig-count_cv_floor
+#| fig-cap: Coefficient of variation of a count against its mean. The Poisson keeps falling as the count grows; the negative binomial levels off at a floor set by shape (band, 95% credible interval). Points are the observed CV of each day's animals.
+#| fig-width: 6.5
+#| fig-height: 4.2
+#| warning: false
+
+mu_grid <- exp(seq(log(300), log(4500), length.out = 80))
+phi_sub <- shape_draws[seq(1, length(shape_draws), length.out = 400)]
+
+cv_band <- data.frame(
+  mu = mu_grid,
+  lo = sapply(mu_grid, function(m) quantile(sqrt(1 / m + 1 / phi_sub), 0.025)),
+  mid = sapply(mu_grid, function(m) median(sqrt(1 / m + 1 / phi_sub))),
+  hi = sapply(mu_grid, function(m) quantile(sqrt(1 / m + 1 / phi_sub), 0.975)),
+  pois = 1 / sqrt(mu_grid)
+)
+
+day_cv <- aggregate(Pdgfrb_Pos ~ DPI_f, data = cell_data,
+                    FUN = function(x) c(m = mean(x), cv = sd(x) / mean(x)))
+day_cv <- do.call(data.frame, day_cv)
+names(day_cv) <- c("DPI_f", "m", "cv")
+
+ggplot(cv_band, aes(x = mu)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "#0072B2", alpha = 0.25) +
+  geom_line(aes(y = mid), color = "#0072B2", linewidth = 1) +
+  geom_line(aes(y = pois), color = "#D55E00", linewidth = 1, linetype = "dashed") +
+  geom_point(data = day_cv, aes(x = m, y = cv), size = 3) +
+  ggrepel::geom_text_repel(data = day_cv, aes(x = m, y = cv, label = paste("DPI", DPI_f)),
+                           size = 3, min.segment.length = 0.2) +
+  annotate("text", x = 4700, y = cv_band$mid[80], label = "Negative
+binomial",
+           color = "#0072B2", hjust = 0, size = 3.5) +
+  annotate("text", x = 4700, y = cv_band$pois[80], label = "Poisson",
+           color = "#D55E00", hjust = 0, size = 3.5) +
+  scale_x_log10(labels = scales::label_comma(), breaks = c(300, 1000, 3000),
+                expand = expansion(mult = c(0.05, 0.3))) +
+  scale_y_log10(breaks = c(0.03, 0.1, 0.3, 1), labels = scales::label_percent()) +
+  labs(x = "Mean count", y = "Coefficient of variation") +
+  Plot_theme
+```
+
+The Poisson (dashed) says that a group averaging four thousand cells should be pinned down to about 1.6%. The observed animals sit ten to thirty times higher. The negative binomial has a floor at $1/\sqrt{\phi}$ (roughly the `r round(100 / sqrt(median(shape_draws)))`% we computed), and the animals sit near it (day 14 a little below, which with a handful of animals per day is unsurprising). This is a fact about the *experiment*, not just about the model: past a point, a bigger ROI or a more patient counter buys almost nothing, because the remaining noise is between animals, and the only cure for that is more animals. If you have ever wondered why your reviewers ask for more mice when you already counted thousands of cells per section, this figure is the reason.
+
+::: callout-tip
+### Which `shape` is it? The same number under several names
+
+`shape` in `brms` is the `theta` that `MASS::glm.nb()` prints, and in both the variance is $\mu + \mu^2/\text{shape}$; `glmmTMB`'s `nbinom2` family uses the same form. Other software parametrizes the same distribution with the *reciprocal*, $1/\phi$, so that zero means "Poisson" (a small number, then, is a good sign there, and a large number is a bad one). Whenever you read a paper that reports "the dispersion parameter", check which of the two it is before you decide whether the data are overdispersed.
+:::
+
+## "Per what?": the offset
+
+Every scientist has had the following conversation. You report that treated animals have 1,900 PDGFR-β+ cells and the controls have 500. Somebody at the back asks: *per what?* A count is like a receipt with the shop's name torn off: it tells you how many, and it says nothing about how big the window was that you looked through. If sections differ in size, the count mixes two things: how dense the cells are, and how much tissue you counted.
+
+`cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it.) I assumed in @sec-glm-intro that this area was the same for every animal. It isn't.
+
+```{r}
+#| label: fig-count_area
+#| fig-cap: Area of the counted tissue for each animal, by day after ischemia. The area is not constant, and it shrinks as the days go by.
+#| fig-width: 6.5
+#| fig-height: 3.8
+#| warning: false
+
+ggplot(cell_data, aes(x = DPI_f, y = Tissue_Area)) +
+  geom_jitter(aes(color = Condition, shape = Condition),
+              width = 0.12, size = 2.5, alpha = 0.85) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5,
+               linewidth = 0.4, color = "black") +
+  scale_color_manual(values = c(SHAM = "#D55E00", MCAO = "#0072B2")) +
+  scale_y_continuous(limits = c(0, NA)) +
+  labs(x = "Days post-ischemia (DPI)", y = "Counted tissue area (mm²)") +
+  Plot_theme +
+  theme(legend.position = "top")
+```
+
+```{r}
+area_by_day <- tapply(cell_data$Tissue_Area, cell_data$DPI_f, mean)
+```
+
+The area falls from about `r round(area_by_day["0"])` mm² in the sham animals to about `r round(area_by_day["30"])` mm² at day 30, which is what you'd expect from tissue that loses volume as the infarct matures. Two consequences. The first is that counts are not comparable across animals as they stand. The second is subtler and I find it more interesting: the area is not noise that's independent of the question, it moves *with* the day, so it will change the answer.
+
+### What an offset does
+
+The idea is old and simple. If the counting window is $A_i$ and the true density of cells is $\theta_i$, then the expected count is the density times the window, $\mu_i = A_i \theta_i$. Take logs, and the window turns into something we can add:
+
+$$
+\log(\mu_i) = \log(A_i) + \log(\theta_i) = \log(A_i) + \beta_0 + \beta_1 x_{1i} + \dots
+$$ {#eq-offset}
+
+The term $\log(A_i)$ is called an **offset**. It is a predictor whose coefficient isn't estimated but fixed to exactly 1, which is how the model says "double the window, double the expected count" [@gelman2020; @inchausti2023; @mcelreath2020]. What remains on the right, $\beta_0 + \beta_1 x_1 + \dots$, is now a model for the *density*: cells per mm², not cells per section. The coefficients keep the interpretation they had before (log fold changes), but the thing being multiplied is a rate.
+
+Before fitting I need priors on the log scale, and I'd like to keep them judged on the *outcome* scale, per the warning in @sec-glm-intro. With the offset, the `Intercept` is the log of the density (cells per mm²) of a day-0 animal with a typical section size. In @sec-glm-intro the day-0 mean was about 500 cells, over sections of about 14 mm², so around 35 cells/mm². I'll use `Normal(4, 1.5)`, which puts 95% of its mass between roughly 3 and 1,100 cells/mm², a range that comfortably includes what we saw and is far from "anything goes". For the day coefficients, `Normal(0, 1.5)` allows fold changes from about 1/20 to 20, wider than anything the biology here would deliver (the largest change we saw last time was under tenfold). I keep `brms`'s default for `shape`, an inverse-gamma(0.4, 0.3), which is weakly informative and keeps the parameter away from zero.
+
+```{r}
+prior_hist <- c(
+  prior(normal(4, 1.5), class = "Intercept"),
+  prior(normal(0, 1.5), class = "b"),
+  prior(inv_gamma(0.4, 0.3), class = "shape")
+)
+
+fit_offset <- brm(
+  Pdgfrb_Pos ~ DPI_f + offset(log(Tissue_Area)),
+  data = cell_data,
+  family = negbinomial(),
+  prior = prior_hist,
+  seed = 123,
+  file = "models/count-regression_fit1.rds",
+  file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_offset)
+```
+
+### glm.nb
+
+```{r}
+library(broom)
+
+glm_offset <- MASS::glm.nb(Pdgfrb_Pos ~ DPI_f + offset(log(Tissue_Area)),
+                           data = cell_data)
+
+tidy(glm_offset, conf.int = TRUE)
+```
+:::
+
+Sampling is healthy. The `Intercept` of `r round(fixef(fit_offset)["Intercept", "Estimate"], 2)` is $\log$(cells per mm²) on day 0, which is about `r round(exp(fixef(fit_offset)["Intercept", "Estimate"]))` cells/mm², close to what I guessed from the raw numbers. And `shape` barely moved: `r round(summary(fit_offset)$spec_pars["shape", "Estimate"], 1)`, the same as before. The offset changed *what* is being modeled, but the animal-to-animal wobble, being a property of the animals, stayed where it was.
+
+What did change is the story about the time course. Here are the fold changes relative to day 0 from the model of @sec-glm-intro (raw counts) and from this one (density), side by side.
+
+```{r}
+#| label: fig-count_fold_offset
+#| fig-cap: Fold change relative to day 0 in PDGFR-β+ cells, as a raw count (model of @sec-glm-intro) and as a density per mm² (offset model). Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
+#| fig-width: 6.5
+#| fig-height: 4
+#| warning: false
+
+day_cols <- c("b_DPI_f3", "b_DPI_f7", "b_DPI_f14", "b_DPI_f30")
+d_cnt <- as.data.frame(posterior::as_draws_df(fit_nb))[, day_cols]
+d_dens <- as.data.frame(posterior::as_draws_df(fit_offset))[, day_cols]
+
+fold <- rbind(
+  data.frame(model = "Count per section", day = rep(day_cols, each = nrow(d_cnt)),
+             fold = exp(unlist(d_cnt))),
+  data.frame(model = "Density per mm²", day = rep(day_cols, each = nrow(d_dens)),
+             fold = exp(unlist(d_dens)))
+)
+fold$day <- factor(sub("b_DPI_f", "", fold$day), levels = c(30, 14, 7, 3))
+
+ggplot(fold, aes(x = fold, y = day, color = model, shape = model)) +
+  stat_pointinterval(.width = c(0.5, 0.95), position = position_dodge(width = 0.5),
+                     point_size = 2.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  scale_color_manual(values = c("Count per section" = "#D55E00", "Density per mm²" = "#0072B2")) +
+  scale_x_log10(breaks = c(0.5, 1, 2, 4, 8, 16)) +
+  labs(x = "Fold change vs. day 0 (log scale)", y = "Days post-ischemia") +
+  Plot_theme +
+  theme(legend.position = "top", legend.title = element_blank())
+```
+
+```{r}
+fc14_cnt <- exp(d_cnt$b_DPI_f14)
+fc14_dens <- exp(d_dens$b_DPI_f14)
+```
+
+At day 14, the number of PDGFR-β+ cells per section was about `r round(median(fc14_cnt), 1)` times the day-0 number (`r summ(fc14_cnt, 1)`); their density per mm² was about `r round(median(fc14_dens), 1)` times (`r summ(fc14_dens, 1)`). Both statements are true, and they answer different questions: *there are more cells in the section*, and *the tissue that's left is more crowded with them*. The second is bigger because the tissue shrank while the cells accumulated. If your hypothesis is about the density of pericytes in what remains of the tissue, which is what I'd usually want, then the raw count understates the effect at the later days (at day 7, where the area is close to the day-0 area, the two agree), in the same direction as the atrophy. That's the sense in which the offset is not a technicality: it changed the day-14 estimate by roughly 45%.
+
+::: callout-note
+### An offset is an assumption, not a discovery
+
+The offset says the expected count is *exactly proportional* to the area. Nothing in the data forced that: it comes from how the counting was done. The textbook way to check it [@gelman2020; @mcelreath2020; @inchausti2023] is to put $\log(A_i)$ in the model as an ordinary predictor with a free coefficient and see whether 1 is a believable value for it. So let me do that.
+:::
+
+```{r}
+prior_free <- c(prior_hist, prior(normal(0, 1), class = "b", coef = "log_area"))
+
+fit_free <- brm(
+  Pdgfrb_Pos ~ DPI_f + log_area,
+  data = cell_data,
+  family = negbinomial(),
+  prior = prior_free,
+  seed = 123,
+  file = "models/count-regression_fit2.rds",
+  file_refit = "never"
+)
+
+b_area <- as.data.frame(posterior::as_draws_df(fit_free))$b_log_area
+```
+
+The coefficient of log-area comes out at `r summ(b_area)`. The interval is wide enough to contain 1 (the value the offset imposes) and also 0 (the value that would say area doesn't matter at all). The data cannot tell those apart, and the reason is worth understanding: area and day are tangled up, since the sections get smaller as the days go by, and within a single day the areas are fairly similar. There isn't enough independent variation in area to learn what it does on its own. Comparing the two models by leave-one-out cross-validation says the same thing, that neither is predicting new animals better.
+
+```{r}
+#| label: tbl-count_loo_area
+#| tbl-cap: Leave-one-out comparison of the offset model (coefficient fixed at 1) and the model with a free coefficient for log-area
+
+loo_offset <- loo(fit_offset)
+loo_free <- loo(fit_free)
+cmp_area <- loo_compare(list("Offset (coefficient = 1)" = loo_offset, "Free coefficient" = loo_free))
+
+cmp_area_tbl <- data.frame(
+  Model = rownames(cmp_area),
+  `elpd difference` = round(cmp_area[, "elpd_diff"], 1),
+  `SE of difference` = round(cmp_area[, "se_diff"], 1),
+  check.names = FALSE
+)
+
+gt(cmp_area_tbl)
+```
+
+That is not a failure of the offset; it's what the exposure in your design is *for*. In an experiment where I know that the count is taken over a window of a certain size, I don't need the data to tell me that the count is proportional to that window. I need them to not contradict me, and here they don't. What I would not do is claim the data *confirmed* the offset. Use it because of the design, check the free coefficient when the data can speak to it (with a lot of variation in exposure at each level of the predictors, this check gets sharp), and say which of those you did.
+
+## A new scene: spikes
+
+Now to the second promise. Take the histology hat off and put on the electrophysiologist's. Suppose you record 150 single units from cortex, half from control animals and half from animals given a drug that is supposed to quiet spontaneous activity. For each unit you count the spikes emitted in a window of spontaneous activity. **Does the drug reduce firing?**
+
+::: callout-note
+### These data are simulated, on purpose
+
+As in @sec-logistic-regression, I don't have a dataset with the structure I need, so I generated one, in `functions/simulate_ephys.R`, with a fixed seed. The recording window of each unit differs in length (20 to 120 seconds, because a recording is cut when the unit stops being stable), which is the exposure of this chapter; and, as in real recordings, the file has one row per unit. In real experiments the units come from a handful of animals, so they are not independent of each other; I treat them as independent here to keep the chapter about counts, and @sec-multilevel-glmm is where that shortcut gets repaired.
+:::
+
+Let me look at all the units first. A spike count against the length of the recording is the honest view, because it shows the exposure and the outcome together.
+
+```{r}
+#| label: fig-count_spikes_raw
+#| fig-cap: Spikes emitted by each unit against the length of its recording, by group. The units at the bottom, on the zero line, emitted nothing.
+#| fig-width: 6.5
+#| fig-height: 4
+#| warning: false
+
+ggplot(spikes, aes(x = duration_s, y = spikes, color = group, shape = group)) +
+  geom_point(size = 2.3, alpha = 0.8) +
+  scale_color_manual(values = group_cols) +
+  labs(x = "Recording length (s)", y = "Spikes in the window") +
+  Plot_theme +
+  theme(legend.position = "top", legend.title = element_blank())
+```
+
+```{r}
+zero_share <- tapply(spikes$spikes == 0, spikes$group, mean)
+```
+
+Two features stand out. The counts fan out as the recordings get longer, as they should if firing is a rate: longer window, more spikes, and more room to differ. And there is a suspicious floor: `r round(100 * mean(spikes$spikes == 0))`% of the units have zero spikes, `r round(100 * zero_share["control"])`% of the controls and `r round(100 * zero_share["treated"])`% of the treated units. Hold that thought. First, do what you'd do with any new count: use the model we already trust, with the offset that the recording length calls for.
+
+### The negative binomial, with an offset
+
+Duration is the exposure, so the offset is $\log(\text{duration}_i)$, and the model is for the firing rate in spikes per second. Priors again on the outcome scale. The `Intercept` is the log firing rate of a control unit in Hz, and `Normal(-1.5, 1.5)` puts 95% of its mass between about 0.01 and 4.5 spikes/s, the range in which the spontaneous firing of cortical neurons plausibly lives. The group coefficient is a log rate ratio: `Normal(0, 0.7)` allows rate ratios from about 0.25 to 4, which is more than any single drug should manage. The `shape` keeps its default.
+
+```{r}
+prior_spk <- c(
+  prior(normal(-1.5, 1.5), class = "Intercept"),
+  prior(normal(0, 0.7), class = "b"),
+  prior(inv_gamma(0.4, 0.3), class = "shape")
+)
+
+fit_nb_spk <- brm(
+  spikes ~ group + offset(log(duration_s)),
+  data = spikes,
+  family = negbinomial(),
+  prior = prior_spk,
+  init = 0,
+  control = list(adapt_delta = 0.95),
+  seed = 123,
+  file = "models/count-regression_fit3.rds",
+  file_refit = "never"
+)
+```
+
+::: callout-warning
+### When one chain wanders off
+
+With `brms`'s default random starting values, this model was hit by a chain that drifted into a degenerate corner of parameter space, where the counts are "explained" by a vanishing mean and an astronomically large `shape`, and never came back. The summary showed an `Rhat` of 3 and hundreds of divergent transitions, which is the sign the chapter on MCMC taught you to respect: don't read that fit. Starting every chain at 0 on the link scale (`init = 0`, a rate of one spike per second, not a bad guess) and a slightly higher `adapt_delta` fixed it, and I report the fix instead of hiding it because the same thing can happen to you on data with many zeros, and the cure isn't to "run it longer".
+:::
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_nb_spk)
+```
+
+### glm.nb
+
+```{r}
+glm_nb_spk <- MASS::glm.nb(spikes ~ group + offset(log(duration_s)), data = spikes)
+
+tidy(glm_nb_spk, conf.int = TRUE)
+```
+:::
+
+```{r}
+draws_nb_spk <- as.data.frame(posterior::as_draws_df(fit_nb_spk))
+```
+
+The fit is unremarkable at first sight: the treated units fire at `r summ(exp(draws_nb_spk$b_grouptreated))` times the control rate. But look at `shape`: `r round(median(draws_nb_spk$shape), 2)`. In the histology counts it was about five; here it is below one, and by @eq-cv-nb the animal-to-animal wobble of the true rate is about `r round(100 / sqrt(median(draws_nb_spk$shape)))`%, over a hundred percent. Either these neurons really are wildly different from one another, or the model is using `shape` to absorb something it has no other way to say. The posterior predictive check tells us which. For counts, the right check isn't the density overlay of the earlier chapters: with discrete data and a spike at zero, a kernel density smooths away the one thing we care about. A **rootogram** is designed for this [@gelman2026]. It compares, for each possible count, how many units the model expects with how many we saw, on a square-root scale so that the rare high counts remain visible. In the "hanging" style, the bars hang from the model's expected curve down toward the zero line: a bar that stops short of the line means the model expected more units of that count than we saw; one that crosses it means the model expected fewer. I add the simplest zero-specific check next to it, the share of zeros in replicated data against the observed share.
+
+```{r}
+zeros <- function(x) mean(x == 0)
+
+ppc_pair <- function(fit) {
+  p1 <- pp_check(fit, type = "rootogram", style = "hanging", prob = 0.95) +
+    coord_cartesian(xlim = c(0, 40)) +
+    labs(title = "Rootogram", x = "Spikes in the window")
+  p2 <- pp_check(fit, type = "stat", stat = "zeros", ndraws = 500) +
+    labs(title = "Share of zeros", x = "Proportion of units with 0 spikes")
+  p1 + p2 + plot_layout(widths = c(1.4, 1))
+}
+```
+
+```{r}
+#| label: fig-count_ppc_nb
+#| fig-cap: Posterior predictive checks for the negative binomial model of the spike counts. Left, rootogram (bars hang from the expected counts; the horizontal axis is cut at 40 spikes). Right, share of zeros in replicated data (histogram) against the observed share (line).
+#| fig-width: 8
+#| fig-height: 3.8
+#| warning: false
+#| message: false
+
+ppc_pair(fit_nb_spk)
+```
+
+Read the two panels together. In the right one, the observed share of zeros (the vertical line) sits in the far right tail of what the model replicates: it expects about a sixth of the units to be silent and we saw a quarter. In the rootogram, the bar at zero hangs *below* the line, which says the model expects fewer zero-spike units than we observed; and for one to ten spikes the bars stop short of the line, which says it expects more units with a handful of spikes than we saw. The model is trying to explain the zeros by making every unit noisy (that is what a `shape` below one is), and a noisy ordinary neuron cannot produce a pile of exact zeros without also producing a crowd of near-zeros. Ours aren't ordinary neurons: some of them simply aren't firing.
+
+## Two kinds of silence: zero inflation
+
+A picture that helps me here: you ask a room of people how many times they checked their phone during your talk. Some of them answer zero because they don't own a phone. Others own one, and just happened not to check it. The two zeros mean different things, and no amount of rethinking the distribution of the *phone owners* will explain the first kind: it's a different process, a group of people for whom the count is impossible. In the rig it's the same. An active unit with a low firing rate can well emit no spikes in a short window, by chance alone; a unit that's silent under these conditions (whatever the reason: hyperpolarized by inhibition, not part of the active ensemble, damaged by the electrode) emits none however long you listen.
+
+A **zero-inflated** model writes exactly that as a mixture. With probability $\pi_i$ a unit is silent and produces a zero; with probability $1 - \pi_i$ it's an active unit whose spike count follows the negative binomial, which has its own zeros too:
+
+$$
+P(y_i = 0) = \pi_i + (1 - \pi_i)\,\text{NB}(0 \mid \mu_i, \phi), \qquad P(y_i = k) = (1 - \pi_i)\,\text{NB}(k \mid \mu_i, \phi) \text{ for } k \geq 1
+$$ {#eq-zinb}
+
+There are now two models to write: one for the rate of the active units, $\log(\mu_i) = \log(\text{duration}_i) + \beta_0 + \beta_1\,\text{treated}_i$, which is what we had; and one for the probability of being silent, $\text{logit}(\pi_i) = \gamma_0 + \gamma_1\,\text{treated}_i$. That's the logit doorway of @sec-logistic-regression again, now for the probability that a unit belongs to the silent state. In `brms`, the second model is a second formula for the parameter `zi`. That gives me two questions instead of one: *does the drug change how fast the active units fire, and does it change how many units are silent?* I'll use the priors from before on the rate model. For the silence model, I borrow the logic of @sec-logistic-regression: on the logit scale, `Normal(0, 1.5)` for the intercept and the coefficient spreads the prior over the whole range of probabilities. I also set the `shape` prior explicitly to the one used above, because `brms` 2.22's default for the zero-inflated family is a nearly flat gamma(0.01, 0.01), and I want the two models to differ in the structure I'm testing, not in an accidental prior.
+
+```{r}
+prior_zi <- c(
+  prior_spk,
+  prior(normal(0, 1.5), class = "Intercept", dpar = "zi"),
+  prior(normal(0, 1.5), class = "b", dpar = "zi")
+)
+
+fit_zinb <- brm(
+  bf(spikes ~ group + offset(log(duration_s)), zi ~ group),
+  data = spikes,
+  family = zero_inflated_negbinomial(),
+  prior = prior_zi,
+  seed = 123,
+  file = "models/count-regression_fit4.rds",
+  file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_zinb)
+```
+
+### glmmTMB
+
+```{r}
+library(glmmTMB)
+
+glmm_zinb <- glmmTMB(spikes ~ group + offset(log(duration_s)),
+                     ziformula = ~ group, family = nbinom2, data = spikes)
+
+summary(glmm_zinb)
+```
+:::
+
+Sampling is healthy, and there's an obvious change in `shape`: it is now about `r round(summary(fit_zinb)$spec_pars["shape", "Estimate"], 1)` instead of `r round(median(draws_nb_spk$shape), 1)`, back in the range of the histology counts. Once the silent units have their own explanation, the active ones no longer need to be wildly variable to account for the zeros. Now the same check as before.
+
+```{r}
+#| label: fig-count_ppc_zinb
+#| fig-cap: Posterior predictive checks for the zero-inflated negative binomial model of the spike counts (same layout as the previous figure)
+#| fig-width: 8
+#| fig-height: 3.8
+#| warning: false
+#| message: false
+
+ppc_pair(fit_zinb)
+```
+
+The zero bar now lines up with the expected curve, the share of zeros sits in the middle of the replicated ones, and the excess of units with a few spikes is gone. Nothing in the figure is flawless (some bars between 10 and 30 spikes dip a little below the line, within what the band allows for a sample this size), but the model has stopped being wrong about its own reasons.
+
+### Zero-inflated, or a hurdle?
+
+There is a close cousin I owe you a mention. A **hurdle** model also has a "zero part" and a "count part", but it organizes them differently: a first stage decides whether the unit fires *at all* (crossing the hurdle), and the count of the second stage is drawn from a distribution that can't produce zeros (a zero-truncated negative binomial). In a hurdle, every zero comes from the first stage; in a zero-inflated model, zeros come from both. The choice is scientific: a hurdle is the natural model if crossing zero is a distinct qualitative event (a cell either engages or doesn't, and the interesting quantity is how strongly it engages once it does), and zero inflation is the natural one if some zeros are structural and others are just unlucky draws from an active process. Here's the hurdle version, for comparison.
+
+```{r}
+prior_hu <- c(
+  prior_spk,
+  prior(normal(0, 1.5), class = "Intercept", dpar = "hu"),
+  prior(normal(0, 1.5), class = "b", dpar = "hu")
+)
+
+fit_hurdle <- brm(
+  bf(spikes ~ group + offset(log(duration_s)), hu ~ group),
+  data = spikes,
+  family = hurdle_negbinomial(),
+  prior = prior_hu,
+  seed = 123,
+  file = "models/count-regression_fit5.rds",
+  file_refit = "never"
+)
+```
+
+```{r}
+#| label: tbl-count_loo
+#| tbl-cap: Leave-one-out comparison of the three models for the spike counts (higher elpd is better; differences are relative to the best model)
+
+loo_nb <- loo(fit_nb_spk)
+loo_zinb <- loo(fit_zinb)
+loo_hurdle <- loo(fit_hurdle)
+cmp <- loo_compare(list("Negative binomial" = loo_nb, "Zero-inflated NB" = loo_zinb,
+                        "Hurdle NB" = loo_hurdle))
+
+cmp_tbl <- data.frame(
+  Model = rownames(cmp),
+  `elpd difference` = round(cmp[, "elpd_diff"], 1),
+  `SE of difference` = round(cmp[, "se_diff"], 1),
+  check.names = FALSE
+)
+
+gt(cmp_tbl)
+```
+
+```{r}
+n_bad_k <- sum(loo::pareto_k_values(loo_zinb) > 0.7)
+```
+
+The comparison separates the negative binomial from the two models with a zero part, by a margin of nearly four standard errors, and it can't separate the zero-inflated model from the hurdle. `r if (n_bad_k == 0) "No observation has an unreliable Pareto-k in the zero-inflated fit" else paste(n_bad_k, "observation(s) have a Pareto-k above 0.7 in the zero-inflated fit, so read the differences with care")`. That's the honest structure of this choice: the data say "*there is a zero part*"; they don't say which of two stories about it is right. That's a decision about the biology, and it needs evidence from outside the count table, for instance whether units that are silent in this window respond in another (in which case "silent" is a state and the zero-inflated story fits) or whether they are never recorded firing at all. I'll keep the zero-inflated version, on those grounds, and I'll be specific about what its parameters mean.
+
+::: callout-warning
+### Model comparison doesn't replace the check
+
+The comparison above says the zero-inflated model predicts new units better than the plain negative binomial. That's a *relative* statement about a set of three candidates. It's the rootogram, not the table, that tells us the winner is a credible description of the data rather than "the least bad of three".
+:::
+
+## What did the drug do?
+
+A zero-inflated model answers with several numbers, and the honest report needs each one in the units that a colleague understands. The rate model lives on the log scale, so I exponentiate to get a rate ratio; the silence model lives on the logit scale, so I push it through the inverse logit to get probabilities. Working on the posterior draws, as in @sec-logistic-regression, means each quantity arrives with its uncertainty.
+
+```{r}
+draws_zi <- as.data.frame(posterior::as_draws_df(fit_zinb))
+
+effects <- data.frame(
+  rate_ratio = exp(draws_zi$b_grouptreated),
+  p_silent_control = plogis(draws_zi$b_zi_Intercept),
+  p_silent_treated = plogis(draws_zi$b_zi_Intercept + draws_zi$b_zi_grouptreated),
+  rate_control = exp(draws_zi$b_Intercept)
+)
+effects$silent_diff <- effects$p_silent_treated - effects$p_silent_control
+```
+
+The two effects, on the two parts of the model, are these. **Among active units**, the treated ones fire at `r summ(effects$rate_ratio)` times the rate of the controls (a control unit that's active fires at about `r summ(effects$rate_control)` spikes per second). **The share of silent units** is `r summ(100 * effects$p_silent_control, 0)`% in the controls and `r summ(100 * effects$p_silent_treated, 0)`% in the treated units, a difference of `r summ(100 * effects$silent_diff, 0)` percentage points.
+
+```{r}
+#| label: fig-count_zinb_effects
+#| fig-cap: The two effects of the drug in the zero-inflated model. Left, rate ratio among active units. Right, probability that a unit is silent, by group. Half-eyes show the posterior with 50% and 95% intervals.
+#| fig-width: 8
+#| fig-height: 3.6
+#| warning: false
+
+p_rate <- ggplot(effects, aes(x = rate_ratio)) +
+  stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", point_interval = "median_qi") +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "Rate ratio, treated / control\n(active units)", y = NULL) +
+  Plot_theme
+
+silent_long <- data.frame(
+  group = factor(rep(c("control", "treated"), each = nrow(effects)),
+                 levels = c("control", "treated")),
+  p = c(effects$p_silent_control, effects$p_silent_treated)
+)
+
+p_silent <- ggplot(silent_long, aes(x = p, y = group, fill = group)) +
+  stat_halfeye(.width = c(0.5, 0.95), point_interval = "median_qi", alpha = 0.8) +
+  scale_fill_manual(values = group_cols, guide = "none") +
+  scale_x_continuous(limits = c(0, 0.7)) +
+  labs(x = "Probability that a unit is silent", y = NULL) +
+  Plot_theme
+
+p_rate + p_silent
+```
+
+The rate effect is clear: the whole posterior sits below 1. The silence effect is less so: the treated units are more likely to be silent, but the credible interval for the difference `r if (quantile(effects$silent_diff, 0.025) < 0) "reaches below zero" else "stays above zero, if only just"`, so with 150 units I'd call it suggestive, not settled. That is a finding in itself: the plain negative binomial's single rate ratio (`r summ(exp(draws_nb_spk$b_grouptreated))`) is the two effects blurred into one number. What the drug did to the *average* unit, the thing a single-number summary reports, is a combination of the active units firing slower and more units falling silent, and the model with a zero part is the only one that can pull the two apart.
+
+If you still want the single number (a manuscript will ask for one), `posterior_epred()` gives the expected count for each unit, silent ones included, and setting the recording length to one second turns it into a mean firing rate in spikes per second across the population of units.
+
+```{r}
+nd_rate <- data.frame(group = factor(c("control", "treated"), levels = levels(spikes$group)),
+                      duration_s = 1)
+mean_rate <- posterior_epred(fit_zinb, newdata = nd_rate)
+mean_rate_ratio <- mean_rate[, 2] / mean_rate[, 1]
+```
+
+The population-mean firing rate is `r summ(mean_rate[, 1])` spikes/s in the controls and `r summ(mean_rate[, 2])` in the treated units, a ratio of `r summ(mean_rate_ratio)`. That number is smaller than the rate ratio among active units, because it contains both mechanisms. Neither is "the effect of the drug"; the honest sentence describes both, and says which one you're reporting.
+
+::: callout-note
+### What I put in
+
+Since I wrote the generator, I can check the answers. Active control units fired at 0.25 spikes/s, the drug multiplied that by 0.6, and the probability of being silent went from 20% to 35%; the true `shape` was 2. The model recovers each of them with the truth inside its interval, including the modest silence effect that 150 units can barely resolve. That's a check that the model can find what is there, not a guarantee that it would in a real dataset, where the mechanism isn't known.
+:::
+
+### Does the prior matter?
+
+I promised in the last chapter to stop asking you to trust priors on faith, so here is the sensitivity check for this model: the same fit with a narrower and a wider prior on the two treatment coefficients (the rate and the silence).
+
+```{r}
+prior_narrow <- c(
+  prior(normal(-1.5, 1.5), class = "Intercept"),
+  prior(normal(0, 0.3), class = "b"),
+  prior(inv_gamma(0.4, 0.3), class = "shape"),
+  prior(normal(0, 1.5), class = "Intercept", dpar = "zi"),
+  prior(normal(0, 0.5), class = "b", dpar = "zi")
+)
+prior_wide <- c(
+  prior(normal(-1.5, 1.5), class = "Intercept"),
+  prior(normal(0, 2), class = "b"),
+  prior(inv_gamma(0.4, 0.3), class = "shape"),
+  prior(normal(0, 1.5), class = "Intercept", dpar = "zi"),
+  prior(normal(0, 5), class = "b", dpar = "zi")
+)
+
+zi_formula <- bf(spikes ~ group + offset(log(duration_s)), zi ~ group)
+
+fit_zinb_narrow <- brm(zi_formula, data = spikes, family = zero_inflated_negbinomial(),
+                       prior = prior_narrow, seed = 123,
+                       file = "models/count-regression_fit6.rds", file_refit = "never")
+
+fit_zinb_wide <- brm(zi_formula, data = spikes, family = zero_inflated_negbinomial(),
+                     prior = prior_wide, seed = 123,
+                     file = "models/count-regression_fit7.rds", file_refit = "never")
+```
+
+```{r}
+#| label: tbl-count_sensitivity
+#| tbl-cap: Treatment effects (log scale for the rate, logit scale for silence) under three prior widths
+
+get_row <- function(m, par) fixef(m)[par, c("Estimate", "Q2.5", "Q97.5")]
+
+sens <- rbind(
+  data.frame(Prior = c("Narrow", "Used", "Wide"), Coefficient = "Rate (log rate ratio)",
+             do.call(rbind, lapply(list(fit_zinb_narrow, fit_zinb, fit_zinb_wide),
+                                   get_row, par = "grouptreated"))),
+  data.frame(Prior = c("Narrow", "Used", "Wide"), Coefficient = "Silence (log-odds)",
+             do.call(rbind, lapply(list(fit_zinb_narrow, fit_zinb, fit_zinb_wide),
+                                   get_row, par = "zi_grouptreated")))
+)
+sens[, 3:5] <- round(sens[, 3:5], 2)
+names(sens) <- c("Prior width", "Coefficient", "Estimate", "Lower 2.5%", "Upper 97.5%")
+
+gt(sens)
+```
+
+The rate effect is nearly indifferent to my choice: the narrow prior shrinks it a little (from about -0.5 to about -0.4 on the log scale) and the conclusion, a slower firing rate, is the same under all three. The silence effect is more sensitive, as you'd expect from a parameter that rests on 150 units, of which 39 recorded no spikes at all: the narrow prior pulls it down by about a third, and under every one of the three priors the interval still includes zero. That agrees with the previous figure, and it's the reason I called the silence effect suggestive: the data lean toward "the drug silences more units" but don't settle it, and a reader with a skeptical prior would be entitled to stay unconvinced.
+
+::: callout-tip
+### Frequentist equivalent
+
+`MASS::glm.nb()` and `glmmTMB` fit the same models by maximum likelihood, and for the mean parts they land close to `brms`: the offset model gives a day-14 log fold change of `r round(coef(glm_offset)["DPI_f14"], 2)` in `glm.nb` and `r round(fixef(fit_offset)["DPI_f14", "Estimate"], 2)` in `brms`, and the treatment rate ratio among active units is `r round(exp(fixef(glmm_zinb)$cond["grouptreated"]), 2)` in `glmmTMB` against `r round(median(effects$rate_ratio), 2)` in `brms`. The small gap in the fold change is the weakly informative prior pulling a little toward zero. This is the usual story of this book: with a weak prior and a decent sample, the likelihood does the work.
+
+Two differences are worth knowing. `shape` is where they drift: `glm.nb` reports `theta` = `r round(glm_offset$theta, 1)` for the histology offset model where `brms` reports a posterior median of `r round(summary(fit_offset)$spec_pars["shape", "Estimate"], 1)`. The posterior of a dispersion parameter with 49 animals is skewed, and a maximum-likelihood point estimate and a posterior summary are two different summaries of a skewed thing, which is also why a frequentist fit of a dispersion parameter from a few animals per group can be unstable. The second difference is more consequential: zero-inflated likelihoods can be flat or multimodal in the parameters of the zero part, especially with few silent units, and a frequentist fit may then return a silence probability at the boundary (exactly 0 or 1) or fail to converge. In our data, `glmmTMB` gives a silence coefficient of `r round(fixef(glmm_zinb)$zi["grouptreated"], 2)` and a Wald interval for it of `r paste0("[", paste(round(confint(glmm_zinb)["zi.grouptreated", c("2.5 %", "97.5 %")], 2), collapse = ", "), "]")`, close to the Bayesian one; with fewer units, the weakly informative prior on the silence coefficient would be doing something practical, keeping the estimate away from the edge, and not just something philosophical.
+:::
+
+## Where this leaves us
+
+We started with two loose ends from the previous chapters and they turned out to be the same kind of lesson. The `shape` of a negative binomial is a statement about how different the *units* are from each other before you count anything, and it sets a floor on the noise that counting more cannot lower, which is a statement about your experimental design. An **offset** gives a count its denominator: it fixes the coefficient of $\log(\text{exposure})$ to 1, turns the model into one for a rate, and, in the histology data, changed the size of the time course because the tissue shrank while the cells piled up. It's an assumption of the design, and the data could not tell us whether it was right, so I used it for the reason that we counted over a known window. And when a count has more zeros than any negative binomial can honestly explain, the honest model separates two kinds of silence, the neurons that can't fire from the ones that didn't, and lets you ask two questions of a drug instead of one.
+
+One shortcut runs through the whole chapter, and I've flagged it twice: every unit and every animal was treated as independent of the others. Real units come from a few animals, and the count of an animal's units is not the same as the number of independent pieces of evidence. @sec-multilevel-glmm is the chapter that repairs it. Before that, @sec-beta-robust-regression turns to outcomes that are continuous but bounded (proportions of time in a zone) or heavy-tailed (reaction times), the last two families of this part.
+
+## References
+
+::: {#refs-count-regression}
+:::

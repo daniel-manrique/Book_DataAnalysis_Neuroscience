@@ -214,6 +214,20 @@
       ],
       "Hash": "f38a72a419b91faac0ce5d9eee04c120"
     },
+    "Rdpack": {
+      "Package": "Rdpack",
+      "Version": "2.6.6",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "methods",
+        "rbibutils",
+        "tools",
+        "utils"
+      ],
+      "Hash": "9aafb16a721acbb1f793e7b9e26de471"
+    },
     "SparseM": {
       "Package": "SparseM",
       "Version": "1.84-2",
@@ -239,6 +253,22 @@
         "RcppParallel"
       ],
       "Hash": "c35dc5b81d7ffb1018aa090dff364ecb"
+    },
+    "TMB": {
+      "Package": "TMB",
+      "Version": "1.9.25",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "Matrix",
+        "R",
+        "RcppEigen",
+        "graphics",
+        "methods",
+        "stats",
+        "utils"
+      ],
+      "Hash": "50e474ea5d25f74768d2668c68c877c5"
     },
     "V8": {
       "Package": "V8",
@@ -1065,6 +1095,27 @@
         "utils"
       ],
       "Hash": "60efa3bc3aaa341339617681e7b88b68"
+    },
+    "glmmTMB": {
+      "Package": "glmmTMB",
+      "Version": "1.1.14",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "Matrix",
+        "R",
+        "RcppEigen",
+        "TMB",
+        "lme4",
+        "methods",
+        "mgcv",
+        "nlme",
+        "numDeriv",
+        "pbkrtest",
+        "reformulas",
+        "sandwich"
+      ],
+      "Hash": "82412f977f08cd76b050f4b16e141daa"
     },
     "globals": {
       "Package": "globals",
@@ -1919,6 +1970,18 @@
       ],
       "Hash": "5e3c5dc0b071b21fa128676560dbe94d"
     },
+    "rbibutils": {
+      "Package": "rbibutils",
+      "Version": "2.4.1",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "tools",
+        "utils"
+      ],
+      "Hash": "92dd8158e4025e954fd06fcda0def88b"
+    },
     "reactR": {
       "Package": "reactR",
       "Version": "0.6.1",
@@ -1943,6 +2006,19 @@
         "reactR"
       ],
       "Hash": "6069eb2a6597963eae0605c1875ff14c"
+    },
+    "reformulas": {
+      "Package": "reformulas",
+      "Version": "0.4.4",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "Matrix",
+        "Rdpack",
+        "methods",
+        "stats"
+      ],
+      "Hash": "f7f3d0b52f1eb2745d13ae785ec275d4"
     },
     "renv": {
       "Package": "renv",
@@ -2055,6 +2131,19 @@
       "Source": "Repository",
       "Repository": "RSPM",
       "Hash": "5f90cd73946d706cfe26024294236113"
+    },
+    "sandwich": {
+      "Package": "sandwich",
+      "Version": "3.1-1",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "stats",
+        "utils",
+        "zoo"
+      ],
+      "Hash": "072bb2d27425f2a58fe71fe1080676ce"
     },
     "sass": {
       "Package": "sass",
@@ -2454,6 +2543,21 @@
         "cli"
       ],
       "Hash": "5807bea03035bfdd7535c1d3eb258cb0"
+    },
+    "zoo": {
+      "Package": "zoo",
+      "Version": "1.8-12",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "grDevices",
+        "graphics",
+        "lattice",
+        "stats",
+        "utils"
+      ],
+      "Hash": "5c715954112b45499fb1dadc6ee6ee3e"
     }
   }
 }

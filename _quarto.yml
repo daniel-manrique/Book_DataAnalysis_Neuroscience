@@ -41,6 +41,7 @@ book:
         - linear-regression-single-continuous.qmd
         - linear-regression-multiple.qmd
         - glm-intro.qmd
+        - count-regression.qmd
 
   appendices:
     - appendix-open-science.qmd
