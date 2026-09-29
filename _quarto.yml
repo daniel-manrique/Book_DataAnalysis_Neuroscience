@@ -41,7 +41,9 @@ book:
         - linear-regression-single-continuous.qmd
         - linear-regression-multiple.qmd
         - glm-intro.qmd
+        - logistic-regression.qmd
         - count-regression.qmd
+        - beta-robust-regression.qmd
 
   appendices:
     - appendix-open-science.qmd
