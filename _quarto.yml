@@ -23,6 +23,9 @@ book:
     - part: introduction.qmd
       chapters:
         - intro-applied-modeling.qmd
+        - bayesian-core-workflow.qmd
+        - priors-regularization.qmd
+        - mcmc-model-checking.qmd
 
     - part: eda-intro.qmd
       chapters:
@@ -36,6 +39,8 @@ book:
         - linear-regression-what.qmd
         - linear-regression-assumptions.qmd
         - linear-regression-single-continuous.qmd
+        - linear-regression-multiple.qmd
+        - glm-intro.qmd
 
   appendices:
     - appendix-open-science.qmd

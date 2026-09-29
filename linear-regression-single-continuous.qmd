@@ -8,40 +8,24 @@ bibliography: references.bib
 #| include: false
 
 library(ggplot2)
+library(here)
 
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
-```
-
-
-In this chapter we focus on the application of linear regression with a single continuous predictor. This is the simplest and easiest form of statistical modelling to interpret. For now, we will focus on understanding linear relationships to explore how to interpret the coefficients and explore their uncertainty. Later, in Chapter XXX, we will examine the same set of data for relationships that are not linear. As specified in previous chapters, we will carry out our modelling using the `brms` package (Markov Chain Monte Carlo) and the `parsnip` package (using least squares).
-
-
-## Load and visualize data points 
-
-Once again, we will use the `cell_data` table employed in the exploratory data visualization chapters. For this excersise, we make sure the `DPI` variable is numeric. 
-
-```{r}
-library(here)
 
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
-
 cell_data$DPI <- as.numeric(cell_data$DPI)
 ```
 
-```{r}
-#| label: tbl-cell_data_tbl
-#| tbl-cap: Cell data table
+@sec-linear-regression-assumptions left us with a diagnosis and a plan, not a finished model. The straight line across the full 0–30 DPI range of `cell_data` failed linearity and homoscedasticity for a real, biological reason — an early bump from acute edema, then a decline as neurodegeneration takes over, that no single slope can honestly summarize. The plan was to restrict the range to where a straight line is actually a defensible description of the biology, then take that narrower model all the way through: fit it, check it, interpret it, and say what it tells us about the effect of time on tissue after ischemia. That's this chapter.
 
-library(gt)
-gt(head(cell_data))
-```
+## The full range, once more
 
-From the table above, we will realize this excerpt with `Tisue_Area` as the continuous response we are interested in. This is the hemispheric area measured in a coronal section of the mouse brain. Since ischemia causes injury to the brain followed by neurodegeneration, we generally expect the hemispheric area to decrease over time. We reuse our previous code to generate a scatterplot with `ggplot` and add marginal plots with `ggmarginal`. 
+Here's `Tisue_Area` (hemispheric tissue area) against `DPI` again, this time with marginal density plots attached so we can also see how each variable is distributed on its own, not just how they relate.
 
 ```{r}
 #| label: fig-cell_data_hemisphere_scatter
-#| fig-cap: Visualization for hemispheric area (scatterplot)
+#| fig-cap: Tissue area against days post-ischemia, full range
 #| fig-width: 5
 #| fig-height: 5
 #| warning: false
@@ -49,50 +33,42 @@ From the table above, we will realize this excerpt with `Tisue_Area` as the cont
 #| results: false
 
 library(ggExtra)
-library(ggplot2)
- 
-# Plot for hemispheric area
+
 Area_scatter <- ggplot(
   data = cell_data,
-  aes(x = DPI,
-      y= Tisue_Area)) +
-  geom_smooth(method=lm , color="black", fill="#8df693", se=TRUE) +
+  aes(x = DPI, y = Tisue_Area)
+) +
+  geom_smooth(method = lm, color = "black", fill = "#8df693", se = TRUE) +
   geom_point() +
-  scale_x_continuous(breaks = c(0, 3,7,14,30)) +
-  labs(title = "", 
-     x = "Days post-ischemia (DPI)", 
-     y = "PDGFR-β intensity") +
-  Plot_theme 
- 
+  scale_x_continuous(breaks = c(0, 3, 7, 14, 30)) +
+  labs(x = "Days post-ischemia (DPI)", y = "Tissue area") +
+  Plot_theme
 
-# Add marginal plots
 Area_scatter_Marginal <- ggMarginal(
-  Area_scatter, 
-  type="densigram", 
+  Area_scatter,
+  type = "densigram",
   colour = "black",
   fill = "#8df693",
   alpha = .9
-  )
+)
 
 Area_scatter_Marginal
 ```
 
-When all time points are considered, it is clear that a straight line does not adequately capture a linear trend for this data set. This limitation is not unique to the data itself, but is a reflection of the natural biological response of cerebral ischemia. Based on my knowledge of this system, I know that neurodegeneration is preceded by inflammation. Therefore, applying a linear model over the entire range from pre-ischemia (0 DPI) to 30 days post-ischemia (30 DPI) would be inappropriate for this response. To address this, we will create a subset of the data that focuses on a more specific range that better fits the assumptions and expectations of a linear model. This subset will resemble the type of data you might encounter in your own research, providing a more practical and relatable context for analysis.
-
+This is the same picture @sec-linear-regression-assumptions used to diagnose the problem, and the same conclusion holds: a single straight line, drawn across the entire 30-day window, splits the difference between an early rise and a later fall instead of honestly describing either. That's not a flaw specific to this dataset — it's what happens whenever a biological process changes character partway through the timeline you're modeling, and cerebral ischemia's inflammation-then-degeneration arc does exactly that. So we do what the last chapter's diagnostics recommended: narrow the window to a stretch where the biology is closer to monotonic, and model that stretch honestly instead of the whole thing dishonestly.
 
 ```{r}
 #| label: tbl-cell_data_sub_tbl
-#| tbl-cap: Cell data table subset
+#| tbl-cap: Cell data table subset (DPI 3, 7, 14)
 
+library(gt)
 cell_data_sub <- subset(cell_data, DPI %in% c(3, 7, 14))
 gt(head(cell_data_sub))
 ```
 
-Now we use the previous code to replicate the scatterplot, passing the `cell_data_sub` table. In the following, I hide the code by including `#| echo: false` in the chunck options. 
-
 ```{r}
 #| label: fig-cell_data_sub_hemisphere_scatter
-#| fig-cap: Visualization for hemispheric area (subset)
+#| fig-cap: Tissue area against days post-ischemia, DPI 3-14 subset
 #| fig-width: 5
 #| fig-height: 5
 #| warning: false
@@ -100,58 +76,50 @@ Now we use the previous code to replicate the scatterplot, passing the `cell_dat
 #| results: false
 #| echo: false
 
-# Plot for hemispheric area
 Area_sub_scatter <- ggplot(
   data = cell_data_sub,
-  aes(x = DPI,
-      y= Tisue_Area)) +
-  geom_smooth(method=lm , color="black", fill="#8df693", se=TRUE) +
+  aes(x = DPI, y = Tisue_Area)
+) +
+  geom_smooth(method = lm, color = "black", fill = "#8df693", se = TRUE) +
   geom_point() +
-  scale_x_continuous(breaks = c(3,7,14)) +
-  labs(title = "", 
-     x = "Days post-ischemia (DPI)", 
-     y = "PDGFR-β intensity") +
-  Plot_theme 
- 
+  scale_x_continuous(breaks = c(3, 7, 14)) +
+  labs(x = "Days post-ischemia (DPI)", y = "Tissue area") +
+  Plot_theme
 
-# Add marginal plots
 Area_sub_scatter_Marginal <- ggMarginal(
-  Area_sub_scatter, 
-  type="densigram", 
+  Area_sub_scatter,
+  type = "densigram",
   colour = "black",
   fill = "#8df693",
   alpha = .9
-  )
+)
 
 Area_sub_scatter_Marginal
 ```
 
-At first glance, we can see that the distribution of these data points appears to have a linear relationship. Note that at 3 days we have a wider distribution of data points. The variability is higher given the biological response we expect after cerebral ischemia. This is interesting because it is certainly something we can model appropriately. We will continue our excesise with this subset.
+Restricted to DPI 3–14, the decline looks far closer to a straight line than the full-range version did — which is exactly the point of subsetting: not to make the data prettier, but to only ask a linear model a question it can honestly answer. Notice, too, that day 3 still shows a noticeably wider spread of points than day 7 or 14 — the same acute-phase variability @sec-linear-regression-assumptions flagged in the full dataset hasn't disappeared just because we narrowed the range. Keep that in mind; it's going to matter again in a moment.
 
-:::callout-tip
-### Linear assumption
-Here, we have selected a subset of our dataset to ensure that our linear model (as its name suggests) makes sense and can be interpreted in a clear way.
+::: callout-tip
+### Why this subset, and not a wider or narrower one
+
+DPI 3–14 isn't an arbitrary trim — it's the stretch where the biology is doing one thing (degeneration) instead of two (edema, then degeneration). A narrower window would waste data without buying anything; a wider one, reaching back toward day 0 or out toward day 30, would drag the edema bump or the later plateau back into a model that can't represent either.
 :::
 
-## Statistical modeling
+## Fitting the model
 
-By running this linear regression, we will find the answer to a question we asked earlier:
+Running this regression answers the same question this book keeps coming back to:
 
 ::: {style="text-align: center"}
 ***What's the value of knowing A if I know B?***
 :::
 
-This means that we will find out how knowing the DPI helps us to inform about the hemispheric area after ischemia. This modol takes the following notation:
+Here, knowing $B$ = days since ischemia, how much does that tell us about $A$ = hemispheric tissue area? The model takes the now-familiar shape:
 
 $$
 \text{Area}_i = \beta_0 + \beta_1 \cdot \text{DPI}_i + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
 $$
-Here $\text{Area}_i$ is our response variable, the hemispheric area (for observation $i$) we want to predict by knowing the DPI. $\text{DPI}_i$ is our numerical, continuous variable for observation $i$. We have $\beta_0$, which is the intercept. This is the estimated constant value when $\text{DPI}$ is $0$. Sure, we do not have 0 as a time point in our regression after we did the subsetting, but our model will estimate a value for it. $\beta_1$ is the slope, a coefficient we can think of as the estimated effect of $\text{DPI}$ on $\text{Area}$. This coefficient tells us how much the area changes for each day that passes. Finally, $\epsilon_i$ is the error term for the observation $i$, which we assume follows a normal distribution with mean $0$ and variance $\sigma^2$.
 
-Now, we fit the models using `brms` and `parsnip`.
-
-::: panel-tabset
-### brms
+$\text{Area}_i$ is the tissue area for animal $i$, and $\text{DPI}_i$ its measurement day — both real, numeric, continuous variables, unlike the categorical `Condition` from @sec-intro-applied-modeling. $\beta_0$ is still the intercept: the area the model predicts at $\text{DPI} = 0$, even though day 0 isn't actually in this subset anymore — the model will happily extrapolate an intercept for it regardless, which is worth remembering before you lean on that number too hard. $\beta_1$ is the slope: how much tissue area changes per additional day within this window. And $\epsilon_i$ is everything else, same as always.
 
 ```{r}
 library(brms)
@@ -165,14 +133,88 @@ brms_model <- brm(
 )
 ```
 
+We haven't specified any priors here — same deliberate choice as @sec-intro-applied-modeling's first model, so the coefficients below reflect the data with as little of our own opinion mixed in as `brms`'s defaults allow. @sec-priors-regularization is where we stop doing that on purpose.
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(brms_model)
+```
+
+Rhat sits at 1.00 for every parameter, both bulk and tail effective sample sizes clear 2,600 (comfortably past the 400 minimum), and there's no divergent-transition warning — a fit worth trusting on the sampling side, which is a separate question from whether the *model* itself is a good description of the biology (more on that shortly).
 
 ### parsnip
 
 ```{r}
 library(parsnip)
+library(broom)
+
 parsnip_model <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Tisue_Area ~ DPI, data = cell_data_sub)
+
+tidy(parsnip_model, conf.int = TRUE)
+```
+:::
+
+## Reading the coefficients
+
+Both fits agree closely: an intercept around 18.8 million and a `DPI` slope around $-670{,}000$, with `brms`'s 95% credible interval and `parsnip`'s 95% confidence interval both sitting comfortably away from zero (roughly $-813{,}000$ to $-528{,}000$). Concretely, that slope says tissue area falls by about 670,000 units for every additional day in this window — predicted area drops from around 16.8 million at day 3 to around 9.4 million by day 14, a decline of roughly 44% over eleven days. (The units themselves are the scaled `Tisue_Area` column flagged in @sec-linear-regression-assumptions's naming note — the direction and the size of the *change* is the meaningful part here, not the raw digit count.)
+
+::: callout-warning
+### Before you trust this too far
+
+Subsetting fixed the problem it was meant to fix — linearity — but it didn't fix everything. A quick residual check on this exact model shows the same day-3 excess variability we just saw in @fig-cell_data_sub_hemisphere_scatter carrying through into the residuals, and a Shapiro-Wilk test flags the resulting residual distribution as non-normal ($W = 0.88$, $p = 0.002$) — driven by that same wider spread at the acute timepoint. With only 31 animals across three groups, chasing this further with a transformation would cost more in interpretability than it would buy in normality, and @sec-beta-robust-regression gives us purpose-built machinery — robust, heavier-tailed likelihoods — for exactly this shape of problem later in the book. File this under "known, honest limitation," not "fatal flaw": the effect direction and its distance from zero are not in question, but the precision quoted above is probably a little optimistic.
+:::
+
+Let's actually look at the posterior for that slope, rather than just quoting its interval.
+
+```{r}
+#| label: fig-single_continuous_posterior_halfeye
+#| fig-cap: Posterior distribution for the DPI slope on tissue area
+#| fig-width: 6
+#| fig-height: 3.5
+
+library(ggdist)
+library(posterior)
+
+draws <- as_draws_df(brms_model)
+
+ggplot(draws, aes(x = b_DPI, y = 0)) +
+  stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", point_interval = "median_qi") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
+  labs(x = "Posterior for the DPI slope on tissue area", y = NULL) +
+  Plot_theme +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
 ```
 
+The whole mass of that distribution sits well below zero — every plausible value for the slope, weighted by how well it fits what we observed, points the same direction. That's the Bayesian answer to "how sure are we?", in the same sense @sec-intro-applied-modeling walked through in detail: a direct probability statement about the effect itself, not a long-run frequency claim about a procedure.
+
+::: callout-tip
+### Frequentist equivalent
+
+`brms` and `lm` land on nearly identical numbers again, for the same reason as in @sec-intro-applied-modeling: with a flat prior, the posterior is shaped almost entirely by the likelihood, which is exactly what `lm` maximizes on its own [@gelman2020]. Thirty-one animals is a small sample by most standards, but it's enough here for the two approaches to agree — the divergence you'll start to see later in the book shows up with hierarchical structure or genuinely uninformative small samples, neither of which applies yet to this single-level model.
+:::
+
+## Does the model's story match the data?
+
+@sec-mcmc-model-checking introduced the posterior predictive check as the way to ask whether a fitted model's simulated data actually resembles the real thing, rather than just trusting the coefficients on faith. Let's finally put that to use on a model with something at stake.
+
+```{r}
+#| label: fig-single_continuous_ppcheck
+#| fig-cap: Posterior predictive check for the DPI model of tissue area
+#| fig-width: 6
+#| fig-height: 4
+
+pp_check(brms_model, ndraws = 50)
+```
+
+The replicated datasets (light lines) bracket the observed data (dark line) reasonably well — same center, same overall spread, no replicate wildly off from reality. Look closely, though, and the observed curve has a faint two-humped shape that no single replicate quite reproduces: a small echo of the fact that this "one" dataset is really three DPI groups stitched together, one of them (day 3) wider than the other two. A single Gaussian likelihood, by construction, can only ever propose one smooth hump — it has no way to represent "three groups with different spreads" as anything other than an approximation. That's the same day-3 variability from the callout above, showing up here a second way rather than as a new problem. A model doesn't have to be flawless to be useful; it has to be useful in a way you can name precisely, and now we can.
+
+Two coefficients, an honestly-scoped range, a checked fit, and a named limitation — that's a complete linear regression, start to finish. @sec-linear-regression-multiple picks up the natural next question: what happens once we bring a second predictor into this same model? And further out, @sec-longitudinal-timeseries returns to the *entire* 0–30 DPI range we set aside at the start of this chapter, this time with a model built to actually represent a rise followed by a fall, instead of subsetting the problem away.
+
+## References
+
+::: {#refs-linear-regression-single-continuous}
 :::
