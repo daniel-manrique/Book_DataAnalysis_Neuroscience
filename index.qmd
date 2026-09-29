@@ -8,6 +8,8 @@ Picture a quiet afternoon at the bench. The sections are stained, imaged, and qu
 
 If that voice sounds familiar, this book was written for you.
 
+![The asterisks drift away, and what stays behind is a model: a curve through the data, the uncertainty around it, and a distribution of what we still believe.](images/index_asterisks-to-models.png){#fig-welcome-asterisks fig-align="center" width="100%" fig-alt="Watercolor sketch of a smiling scientist in a lab coat resting their chin on one hand at a bench with a microscope and a mug, gazing up at a glowing bell-shaped distribution while little asterisks float off a stack of papers like dandelion seeds. A scatterplot with a fitted curve and an uncertainty band lies on the desk, and brain and neuron doodles fill the background."}
+
 ## Who is talking
 
 I'm Daniel, and I'm a neuroscientist, not a statistician. That matters more than it might seem. Most statistics books are written by people who think about data for a living and are explaining it to people who are (reasonably) not thrilled to be there. This one is written from the other side of the table. I spent most of my research career trying to understand how the brain scars, and sometimes recovers, after an injury like a stroke, the last stretch of it (until 2024) at the Laboratory of Neurovascular Interactions at Université Laval, in Quebec. My days were spent with tissue, microscopes, and images, not with proofs. Today I work as a research data curator at the Digital Research Alliance of Canada, where I help scientists prepare their datasets so that other people can find them, understand them, and reuse them.
@@ -55,6 +57,8 @@ Read it in order the first time. The chapters build on one another, and the data
 ## A quick look at where we're going
 
 The book has four parts. I'll keep this brief, because each part opens with its own introduction that tells the story properly.
+
+![The route: a campsite for the foundations, a lookout for exploring the data, a steady climb through the linear models, and a summit above the clouds where the hierarchical models live.](images/index_four-parts-map.png){#fig-welcome-map fig-align="center" width="100%" fig-alt="Watercolor map of a winding trail with footprints, leading from a campsite with a tent and campfire, past a lookout with a telescope and a signpost, up to a sunlit mountain summit above a sea of clouds filled with branching neurons."}
 
 1.  **Foundations.** What it means to model, and the mechanics of Bayesian inference itself: priors, likelihoods, posteriors, how MCMC gets you there, and how to check whether you should trust the result.
 2.  **Data exploration.** Before any model, learn to look. Distributions, relationships, anomalies, and the habits that keep you from feeding a model something it shouldn't eat.
