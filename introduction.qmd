@@ -1,13 +1,33 @@
 ---
-title: Introduction to modeling tools
+title: Foundations
 ---
 
-In this section we introduce you to Quarto...
+Imagine a labmate hands you a Western blot and says, "the band is there, we're done." You'd ask a dozen questions before believing it: what was the loading control, how long was the exposure, was the antibody ever validated in this species? Nobody trusts a result just because it came out of the machine. And yet that is exactly how many of us treat the output of a statistical model — we run it, read off the coefficient table, and move on to the next experiment.
 
--   In [Chapter -@sec-quarto] we tell you what Quarto is...
--   In [Chapter -@sec-tools], we walk you through the experience of authoring with Quarto in JupyterLab, RStudio, and VSCode.
--   [Chapter -@sec-authoring] introduces you to components of a Quarto document such as markdown text, figures, tables, etc.
--   [Chapter -@sec-computation] discusses using executable code cells with Quarto in Python, R, Julia, and Observable. In this chapter we also go deeper into the execution engines: Jupyter and knitr.
--   [Chapter -@sec-projects] introduces you to the concept of Quarto projects which allow you to combine and render Quarto documents in a given directory in harmony.
--   In [Chapter -@sec-publishing] is an overview of publishing options.
--   In [Chapter -@sec-look-under-hood] you can find more details on the orchestration Quarto does in going from plain text source code (or mixed-format Jupyter notebooks) to elegant outputs in multiple formats.
+This first part of the book is about not doing that. Before we fit a single regression in earnest — before line fitting, before count models, before anything hierarchical — I want us to spend four chapters on the *mechanics* of Bayesian inference itself: what a posterior distribution is, where it comes from, what you are quietly assuming when you compute one, and how you find out whether the model you fit actually describes your data. It's the least glamorous part of the book, and I'm fairly sure it's the part that will pay you back the most. Every applied chapter that follows leans on it, and I would rather build it once, carefully, on one small dataset than re-derive it awkwardly in the middle of a logistic regression.
+
+We'll do it with a single, deliberately modest question: **does cerebral ischemia raise GFAP intensity in the brain, compared with a sham surgery?** Fifteen animals, two groups, one number to estimate. It is small enough that you can hold the whole thing in your head, which is precisely why it's a good place to take a model apart and look at every gear.
+
+## What you'll find in the next four chapters
+
+The arc is one I'd describe as *use it, understand it, aim it, verify it*.
+
+**We start by using it** (@sec-intro-applied-modeling). I'd rather not open with philosophy. So the first chapter goes straight to a complete worked example: sham versus ischemic animals, a boxplot-free look at the raw points, a model written down and fitted twice — once with `brms`, once with `parsnip` — and a first posterior distribution for the ischemia effect. Along the way I explain why the whole book treats statistical modeling as a way of recovering the process that generated your data rather than a machine for producing asterisks, and why a credible interval and a confidence interval are not the same thing, even when the numbers look alike. By the end you have an answer. You also have, if I've done my job, a mild sense of unease about how much you took on trust.
+
+**Then we open the hood** (@sec-bayesian-core-workflow). The second chapter takes that posterior apart. I'll show you what it means for credibility to be *reallocated* from a prior, through the data, to a posterior — and we'll watch it happen on the actual model from the first chapter. Then we zoom out to the full workflow of model, infer, check, improve, and I'll tell you honestly how much of that loop we skipped the first time around. The centerpiece is a positive control for statistical models: we invent a ground truth, simulate fake data from it, and see whether our fitting machinery finds the number we hid. If it can't recover a truth we planted ourselves, we have no business trusting it on animals we can't re-run.
+
+**Next we decide what the model believes going in** (@sec-priors-regularization). Up to this point we've let `brms` quietly assume that the ischemia effect could be 5 units or 5,000 with equal comfort. That's an odd colleague to consult on a question you know something about. The third chapter is about replacing that default with priors you can defend: how to ground them in what a GFAP measurement can plausibly be, how to check them *before* they touch real data with a prior predictive check, and why they matter little with fifteen clean animals but a great deal with three per group. This is where you'll see a prior act as regularization, and where I'll be candid about what a prior can and can't do for you.
+
+**Finally we check whether any of it is true** (@sec-mcmc-model-checking). The last chapter asks the question a skeptical reviewer would ask first: does the fitted model produce data that look like the data you collected? To answer it properly, I'll show you how Stan actually explores the posterior — a marble rolling across a landscape — and what Rhat, effective sample size, and divergent transitions are each protecting you from. Then we turn to the posterior predictive check, where the model is asked to simulate its own version of your dataset so you can compare the two. I'll also show you what a check that isn't perfectly clean looks like, because your own models will produce one sooner or later.
+
+## Two things to know before you start
+
+First, `brms` is the main line of the book, but nothing here is Bayesian-only. Every model is fitted both ways, `brms` next to its frequentist counterpart, and each chapter closes by saying where the two agree and where they part ways. In this part they mostly agree, and you will learn *why* they agree, which is what makes the later disagreements informative rather than confusing.
+
+Second, this part is deliberately about the machinery, not the data. You will meet `cell_data` here, but only enough of it to give the machinery something to chew on. We take a five-second glance to keep a prior honest, and we borrow `pp_check()` for the posterior predictive comparisons instead of building them by hand. What we don't do, on purpose, is *look* at the data properly: distributions, relationships between variables, the odd extreme value. That's the job of the next part, and it will send you back to sharpen everything you learn here.
+
+::: callout-tip
+If you've never met Bayesian inference before, don't worry — the first chapter assumes nothing beyond having run an experiment. If you already have, I'd still read all four: the point of this part is a shared vocabulary that the rest of the book uses without stopping to re-explain it.
+:::
+
+So let's go and settle the question our labmate waved past: not "do these groups look different," but *how* different, *how sure are we*, and whether we have earned the right to say so. On to @sec-intro-applied-modeling.
