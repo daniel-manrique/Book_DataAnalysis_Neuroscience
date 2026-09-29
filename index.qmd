@@ -1,11 +1,54 @@
+---
+bibliography: references.bib
+---
+
 # Welcome {.unnumbered}
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-Mauris vel volutpat dui.
-Praesent vitae urna nec lorem feugiat consequat.
-Nunc ex nisi, posuere a lorem a, iaculis euismod tellus.
-Sed laoreet justo sit amet commodo suscipit.
-Curabitur gravida elit fermentum leo pulvinar, ac laoreet lectus iaculis.
-Quisque eu fringilla tellus, sit amet sollicitudin massa.
-In justo lorem, imperdiet laoreet interdum non, finibus in risus.
-In egestas fringilla nisl eu blandit.
+Picture a quiet afternoon at the bench. The sections are stained, imaged, and quantified; the spreadsheet is open; the lab meeting is on Thursday. You have two groups, and someone (a reviewer, a labmate, your own nagging conscience) asks whether the difference between them is "real." You reach for the t-test you were taught in a methods course, out comes a p-value, and somewhere in the back of your mind a small voice asks: *but what did that number actually tell me?*
+
+If that voice sounds familiar, this book was written for you.
+
+## Who is talking
+
+I'm Daniel, and I'm a neuroscientist, not a statistician. That matters more than it might seem. Most statistics books are written by people who think about data for a living and are explaining it to people who are (reasonably) not thrilled to be there. This one is written from the other side of the table: by someone who spends the days with tissue, animals, and images, who has been burned by their own analyses, and who had to learn the alternative the slow way because nobody sat down and explained it in the language of the bench.
+
+So you won't find me talking about "subjects" and "treatments" in the abstract. You'll find glial scars after cerebral ischemia, open-field behavior, spike counts, reaction times, the messy and beautiful stuff we actually measure. When a technical term shows up, I'll try to give you something familiar to hang it on before I give you its formal name, and I'll try not to water down the math or the assumptions while I do it. Warm, yes. Sloppy, never.
+
+## What makes this book different
+
+Three decisions shape everything that follows.
+
+**Bayesian first, frequentist always alongside.** The main line of the book is [Bayesian modeling with `brms`]{style="color:green;"}, which fits models with MCMC and hands back a full posterior distribution instead of a single number and a p-value. But I don't pretend the other tradition doesn't exist. Every applied model is shown side by side with its frequentist counterpart (`parsnip`, `lm`, and `glm` early on, `lme4` and `glmmTMB` once we get to multilevel models), and each chapter closes by saying where the two agree and where they part ways. Small samples, weakly identified effects, and priors that steady an estimate a frequentist fit can't stabilize are the places where the difference is worth knowing. My goal is for you to move fluently between both, not to swap one ritual for another.
+
+**Real neuroscience, not `mtcars`.** The examples come from a small set of datasets that recur and grow more demanding as the book goes on: a histology study of the glial response after ischemia, and simulated behavioral and electrophysiology data where I couldn't find (or didn't want to burden you with) a real file. When a dataset is simulated, I say so, and I show you the generating process, which turns out to be one of the best ways to understand a model.
+
+**Practice before theory.** Every chapter opens on a question you might really ask and a dataset that might really answer it. The theory arrives when the question needs it, not before. If you've ever closed a stats textbook at page 40 because you still hadn't seen a single thing you cared about, you'll understand why.
+
+## Who this book is for
+
+For the bench neuroscientist who got tired of the ritual: run the test, look for the asterisk, write "significant" or "n.s.," move on. I'm not going to spend the book scolding you about it (there's a short appendix on p-values if you want the argument in one place, and that's plenty). The point is not that the old tools are evil; it's that you deserve to know what alternatives exist, what they let you say that the old tools didn't, and how to actually use them, in R, on data that looks like yours.
+
+You don't need a statistics background. You do need some curiosity, and a little patience with R. If you're new to the language, don't worry: I explain each piece of code before it runs, and the point is always the question, not the syntax. If you already know your way around a model, I hope the side-by-side comparisons and the honest failures (models that don't fit, assumptions that break) will still teach you something. I'm an admirer of the way @mcelreath2020 taught a generation to think about models as stories about how data get made, and that spirit runs through these pages.
+
+## How to read it
+
+The book lives in two forms built from the same source: an interactive HTML edition and a PDF. In the HTML version you'll sometimes find figures you can hover over and tools you can play with; in the PDF, every interactive element has a static counterpart (or a note pointing you to the web edition when there's no sensible static version), so nothing important is lost.
+
+More important than the format: [nothing is hidden]{style="text-decoration: underline;"}. All the code is on the page and reproducible, and the source lives in the book's repository. There is no "and here the magic happens" step. The slow Bayesian fits are cached so the book doesn't have to refit its chains every time it's built, but you can delete the cached files and rerun them yourself, and I encourage you to. Break things. Change a prior. See what moves.
+
+::: callout-tip
+Read it in order the first time. The chapters build on one another, and the datasets return with more complicated questions, so a later chapter will sometimes ask you to remember what we learned about the same data earlier. After that, treat it like a reference and jump around.
+:::
+
+## A quick look at where we're going
+
+The book has four parts. I'll keep this brief, because each part opens with its own introduction that tells the story properly.
+
+1.  **Foundations.** What it means to model, and the mechanics of Bayesian inference itself: priors, likelihoods, posteriors, how MCMC gets you there, and how to check whether you should trust the result.
+2.  **Data exploration.** Before any model, learn to look. Distributions, relationships, anomalies, and the habits that keep you from feeding a model something it shouldn't eat.
+3.  **Linear models.** The workhorse. From a single predictor to several, and out to the generalized models that handle binary outcomes, counts, proportions, and outliers, the shapes neuroscience data usually takes.
+4.  **Hierarchical and advanced models.** Where the real structure of our experiments lives: cells in sections in animals, trials in neurons, measurements over time. This is where I think the book earns its keep, and it's the part still under construction as I write this.
+
+That last point deserves honesty: the book is a work in progress. Some chapters are polished, some are drafts, and some are still ideas on a whiteboard. I'd rather show you the real state of things than pretend it's finished.
+
+Ready? Let's go look at some data.
