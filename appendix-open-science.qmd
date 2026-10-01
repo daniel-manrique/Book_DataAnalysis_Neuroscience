@@ -4,13 +4,13 @@ bibliography: references.bib
 
 # Open Science {#sec-appendix-open-science}
 
-Two years from now, a reviewer is going to ask you to redo one panel of a figure with a slightly different subset of animals. You go looking for the script that made it. You find three candidates: `analysis.R`, `analysis_v2.R`, and `analysis_v2_FINAL_useThisOne.R`. None of them run without errors on the package versions currently installed on your machine, and you're no longer sure which one actually produced the number printed in the paper. If any part of that sentence made you wince a little, you've already lived the problem this appendix is about — you just haven't had a name for it yet.
+Two years from now, a reviewer is going to ask you to redo one panel of a figure with a slightly different subset of animals. You go looking for the script that made it. You find three candidates: `analysis.R`, `analysis_v2.R`, and `analysis_v2_FINAL_useThisOne.R`. None of them run without errors on the package versions currently installed on your machine, and you're no longer sure which one actually produced the number printed in the paper. If any part of that sentence made you wince a little, you've already lived the problem this appendix is about: you just haven't had a name for it yet.
 
 ## Reproducibility and replicability aren't the same thing
 
 Here's the distinction, and it's worth being precise about it because the two get used interchangeably all the time, including by people who should know better.
 
-Imagine handing a colleague your exact reagents, your exact protocol, and your exact samples, and asking them to run the Western blot again. If they get the same band, that's **reproducibility** — same inputs, same method, same result. Nothing new is being tested except whether your original procedure was executed and reported correctly. Now imagine instead that a different lab, hearing about your finding, runs their *own* version of the experiment — their own animals, their own antibody lot, their own hands — to see whether the underlying biological claim holds up. If they find the same effect, that's **replicability**: the finding survives contact with new data, not just a rerun of the old data.
+Imagine handing a colleague your exact reagents, your exact protocol, and your exact samples, and asking them to run the Western blot again. If they get the same band, that's **reproducibility**: same inputs, same method, same result. Nothing new is being tested except whether your original procedure was executed and reported correctly. Now imagine instead that a different lab, hearing about your finding, runs their *own* version of the experiment (their own animals, their own antibody lot, their own hands) to see whether the underlying biological claim holds up. If they find the same effect, that's **replicability**: the finding survives contact with new data, not just a rerun of the old data.
 
 ```{r}
 #| label: tbl-open-science-repro-replic
@@ -28,39 +28,39 @@ gt(data.frame(
 ))
 ```
 
-Both matter, and they fail for different reasons. A result can be perfectly reproducible (the code runs, the numbers match) and still fail to replicate, because the original finding was a fluke, a fragile effect, or an artifact of one particular sample. But if a result *isn't even reproducible* — nobody, including future-you, can regenerate the original numbers from the original data — then replicability isn't even a question you can ask yet. Reproducibility is the floor, not the ceiling.
+Both matter, and they fail for different reasons. A result can be perfectly reproducible (the code runs, the numbers match) and still fail to replicate, because the original finding was a fluke, a fragile effect, or an artifact of one particular sample. But if a result *isn't even reproducible* (nobody, including future-you, can regenerate the original numbers from the original data), then replicability isn't even a question you can ask yet. Reproducibility is the floor, not the ceiling.
 
 ## Why this gets taken especially seriously in neuroscience
 
-This isn't an abstract worry borrowed from another field. Button and colleagues went through hundreds of neuroscience studies and estimated the typical statistical power at somewhere around 20% [@button2013] — meaning most of these experiments, even if the effect they were chasing was completely real, had roughly a one-in-five chance of detecting it. Run enough underpowered studies and you don't just miss real effects; the ones that *do* clear the p < 0.05 bar and get published are disproportionately the ones that got lucky with an inflated estimate, because a small, noisy sample can only reach "significant" by overshooting. Small samples don't just cost you power — they systematically bias what gets published toward exaggerated effects, which is precisely the sort of result that fails to replicate later. That's the mechanism, not just a vague sense that "science has a problem." Munafò and colleagues later laid out a broader set of practices — the ones this appendix walks through — specifically aimed at fixing it [@munafo2017].
+This isn't an abstract worry borrowed from another field. Button and colleagues went through hundreds of neuroscience studies and estimated the typical statistical power at somewhere around 20% [@button2013], meaning most of these experiments, even if the effect they were chasing was completely real, had roughly a one-in-five chance of detecting it. Run enough underpowered studies and you don't just miss real effects; the ones that *do* clear the p < 0.05 bar and get published are disproportionately the ones that got lucky with an inflated estimate, because a small, noisy sample can only reach "significant" by overshooting. Small samples don't just cost you power; they systematically bias what gets published toward exaggerated effects, which is precisely the sort of result that fails to replicate later. That's the mechanism, not just a vague sense that "science has a problem." Munafò and colleagues later laid out a broader set of practices (the ones this appendix walks through) specifically aimed at fixing it [@munafo2017].
 
 ::: callout-tip
 ### This connects directly to a decision you'll make in every chapter
 
-Sample size and statistical power aren't a separate topic from the modeling you'll be doing throughout this book — a prior chosen to regularize a noisy estimate (the subject of the upcoming chapter on priors and regularization) and a posterior predictive check that catches an overconfident model (covered in the upcoming chapter on MCMC and model checking) are both, in part, defenses against exactly the failure mode described above. Open science practices and good statistical practice are the same project, viewed from two angles.
+Sample size and statistical power aren't a separate topic from the modeling you'll be doing throughout this book: a prior chosen to regularize a noisy estimate (the subject of the upcoming chapter on priors and regularization) and a posterior predictive check that catches an overconfident model (covered in the upcoming chapter on MCMC and model checking) are both, in part, defenses against exactly the failure mode described above. Open science practices and good statistical practice are the same project, viewed from two angles.
 :::
 
-## What Chapter 1 already showed you, and what's still missing
+## What our first worked example already showed you, and what's still missing
 
-Go back and look at what @sec-intro-applied-modeling actually did: the data path was written in plain text in the chunk, the model used `seed = 123` instead of leaving randomness unpinned, and the fitted object was cached to a specific, named `.rds` file instead of existing only in one person's R session. That's not incidental tidiness — it's the minimum version of reproducibility, and it's genuinely more than a lot of published analyses manage.
+Go back and look at what @sec-intro-applied-modeling actually did: the data path was written in plain text in the chunk, the model used `seed = 123` instead of leaving randomness unpinned, and the fitted object was cached to a specific, named `.rds` file instead of existing only in one person's R session. That's not incidental tidiness; it's the minimum version of reproducibility, and it's genuinely more than a lot of published analyses manage.
 
 But it's the minimum, not the whole practice. A few things that chapter quietly relied on, which a fully open project makes explicit rather than assumed:
 
-- **Version control.** This entire book lives in a git repository. Every chapter you've read has a history of exactly how it changed and when — which is what lets a collaborator (or a reviewer, or future-you) see not just the final analysis but the decisions that led there. Think of it as a lab notebook that can't be quietly rewritten after the fact.
-- **A pinned computational environment.** The random seed controls one source of variability, but package versions are another — a model fit with one version of `brms` isn't guaranteed to behave identically with the next. This project's own `renv.lock` file is a live example: it records the exact version of every R package used, so someone rebuilding this book two years from now gets the same computational environment, not whatever happens to be current when they try.
+- **Version control.** This entire book lives in a git repository. Every chapter you've read has a history of exactly how it changed and when, which is what lets a collaborator (or a reviewer, or future-you) see not just the final analysis but the decisions that led there. Think of it as a lab notebook that can't be quietly rewritten after the fact.
+- **A pinned computational environment.** The random seed controls one source of variability, but package versions are another: a model fit with one version of `brms` isn't guaranteed to behave identically with the next. This project's own `renv.lock` file is a live example: it records the exact version of every R package used, so someone rebuilding this book two years from now gets the same computational environment, not whatever happens to be current when they try.
 - **A public home for the data itself.** `cell_data` lives in this repository because it's a teaching example, but for a real study, "the code is on GitHub" isn't enough if the underlying data isn't archived anywhere a reader can actually reach it.
 
 ## Preregistration: deciding the recipe before you taste the soup
 
-If you've ever caught yourself trying "just one more" imaging threshold or exclusion criterion after already glancing at whether it made the effect look cleaner, you already understand the problem preregistration exists to solve — and if you haven't, ask any labmate who has, because nearly everyone has been tempted at least once. Preregistration means writing down your hypothesis, your sample size, and your planned analysis *before* you touch the outcome data, and time-stamping it somewhere you can't quietly edit later. It's the same discipline as deciding your antibody dilution and your imaging exposure settings before you run the experiment, not after you've seen which settings happen to flatter the result.
+If you've ever caught yourself trying "just one more" imaging threshold or exclusion criterion after already glancing at whether it made the effect look cleaner, you already understand the problem preregistration exists to solve, and if you haven't, ask any labmate who has, because nearly everyone has been tempted at least once. Preregistration means writing down your hypothesis, your sample size, and your planned analysis *before* you touch the outcome data, and time-stamping it somewhere you can't quietly edit later. It's the same discipline as deciding your antibody dilution and your imaging exposure settings before you run the experiment, not after you've seen which settings happen to flatter the result.
 
-Nosek and colleagues describe this as removing a specific kind of flexibility — not the flexibility to explore your data (exploration is good science), but the flexibility to *present* an exploratory, after-the-fact decision as if it had been the plan all along [@nosek2018]. Some journals now offer **Registered Reports**, where the introduction and methods are peer-reviewed and provisionally accepted *before* the results exist at all — which is as strong a guarantee against this particular failure mode as currently exists in publishing.
+Nosek and colleagues describe this as removing a specific kind of flexibility: not the flexibility to explore your data (exploration is good science), but the flexibility to *present* an exploratory, after-the-fact decision as if it had been the plan all along [@nosek2018]. Some journals now offer **Registered Reports**, where the introduction and methods are peer-reviewed and provisionally accepted *before* the results exist at all, which is as strong a guarantee against this particular failure mode as currently exists in publishing.
 
-This should feel familiar from a different angle: specifying a prior before seeing your data (which is exactly what the upcoming chapter on priors and regularization is about) is philosophically the same move — commit to what you believe, or what you plan to do, before the data gets a vote on it.
+This should feel familiar from a different angle: specifying a prior before seeing your data (which is exactly what the upcoming chapter on priors and regularization is about) is philosophically the same move: commit to what you believe, or what you plan to do, before the data gets a vote on it.
 
 ## Sharing data, code, and materials so the sharing is actually usable
 
-"I'll share my data if someone emails me" is not a data-sharing plan — it's a promise that quietly expires the day you change institutions or stop checking that inbox. The FAIR principles give a concrete standard to aim for instead: data and code should be **F**indable (has a persistent identifier, is indexed somewhere searchable), **A**ccessible (retrievable without a personal favor), **I**nteroperable (in a format other tools can actually read), and **R**eusable (documented well enough that someone besides you can make sense of it) [@wilkinson2016].
+"I'll share my data if someone emails me" is not a data-sharing plan; it's a promise that quietly expires the day you change institutions or stop checking that inbox. The FAIR principles give a concrete standard to aim for instead: data and code should be **F**indable (has a persistent identifier, is indexed somewhere searchable), **A**ccessible (retrievable without a personal favor), **I**nteroperable (in a format other tools can actually read), and **R**eusable (documented well enough that someone besides you can make sense of it) [@wilkinson2016].
 
 In practice, for a typical neuroscience analysis, that looks like:
 
@@ -68,21 +68,16 @@ In practice, for a typical neuroscience analysis, that looks like:
 ### A practical checklist
 
 - **Code** goes in a version-controlled repository (GitHub, GitLab) with an explicit license, not a folder attached to an email.
-- **Data** goes somewhere that issues a persistent identifier — the Open Science Framework, Zenodo, or a field-specific repository — rather than "available upon request."
-- **The computational environment** is documented, not assumed — an `renv.lock`, a `requirements.txt`, or equivalent, so someone else's "it works on my machine" isn't required to reproduce your numbers.
+- **Data** goes somewhere that issues a persistent identifier: the Open Science Framework, Zenodo, or a field-specific repository, rather than "available upon request."
+- **The computational environment** is documented, not assumed: an `renv.lock`, a `requirements.txt`, or equivalent, so someone else's "it works on my machine" isn't required to reproduce your numbers.
 - **The analysis plan**, when a study is confirmatory rather than exploratory, is preregistered before the data are examined.
-- **Every reported model** states its specification plainly enough to refit — formula, priors (if Bayesian), and software version — the same level of detail this book tries to model in every chapter.
+- **Every reported model** states its specification plainly enough to refit (formula, priors if Bayesian, and software version), the same level of detail this book tries to model in every chapter.
 :::
 
 ## A quick word on p-values
 
-A lot of the practices above exist specifically because a single number crossing an arbitrary threshold has historically been treated as license to stop thinking critically about a result — quietly trying alternative exclusion criteria until $p$ dips below 0.05 is exactly the kind of undisclosed flexibility preregistration is meant to close off. This book has more to say about why that threshold deserves far less authority than it's usually given — see @sec-appendix-p-values for the full argument, rather than the short version here.
+A lot of the practices above exist specifically because a single number crossing an arbitrary threshold has historically been treated as license to stop thinking critically about a result: quietly trying alternative exclusion criteria until $p$ dips below 0.05 is exactly the kind of undisclosed flexibility preregistration is meant to close off. This book has more to say about why that threshold deserves far less authority than it's usually given: see @sec-appendix-p-values for the full argument, rather than the short version here.
 
 ## Coming back to that reviewer
 
-The point of all of this isn't ceremony, and it isn't about satisfying a journal's checklist. It's about making sure that when future-you — or a curious stranger, or a skeptical reviewer — goes looking for `analysis_v2_FINAL_useThisOne.R`, there's exactly one script, it runs, and it produces the number in the paper. Everything in this appendix is just infrastructure for keeping that promise.
-
-## References
-
-::: {#refs-appendix-open-science}
-:::
+The point of all of this isn't ceremony, and it isn't about satisfying a journal's checklist. It's about making sure that when future-you (or a curious stranger, or a skeptical reviewer) goes looking for `analysis_v2_FINAL_useThisOne.R`, there's exactly one script, it runs, and it produces the number in the paper. Everything in this appendix is just infrastructure for keeping that promise.

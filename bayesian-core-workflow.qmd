@@ -9,23 +9,27 @@ bibliography: references.bib
 
 library(ggplot2)
 
+# Load this book's shared ggplot theme (functions/plot_theme.R) so every
+# figure in the chapter shares the same look.
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 ```
 
 By the end of the last chapter, you had something real in hand: a posterior distribution telling you how much GFAP intensity rises after cerebral ischemia, sitting comfortably above zero, agreeing nicely with what a plain `lm` would have told you. It would be very easy to stop right there, screenshot the summary table, and move on to the next experiment. Plenty of papers do exactly that.
 
-But think about what you'd actually be skipping. If a labmate handed you a Western blot and said "the band is there, we're done," you'd ask a dozen questions before believing it — loading controls, exposure time, whether the antibody was even validated for this species. A posterior distribution deserves the same scrutiny. It's not a verdict handed down from the software; it's the output of a whole chain of decisions, any one of which could have gone wrong. This chapter is about seeing that whole chain clearly, so that trusting a posterior becomes something you've earned, not something you've assumed.
+But think about what you'd actually be skipping. If a labmate handed you a Western blot and said "the band is there, we're done," you'd ask a dozen questions before believing it: loading controls, exposure time, whether the antibody was even validated for this species. A posterior distribution deserves the same scrutiny. It's not a verdict handed down from the software; it's the output of a whole chain of decisions, any one of which could have gone wrong. This chapter is about seeing that whole chain clearly, so that trusting a posterior becomes something you've earned, not something you've assumed.
 
 ## Reallocating credibility: from prior, through data, to posterior
 
-Let's make the "thorough colleague" from the last chapter less of a metaphor and more of a picture. Before your colleague saw the data, they had some opinion about how big the ischemia effect on GFAP could plausibly be — not a specific number, but a *spread* of numbers they'd find believable, some more than others. Statisticians call that spread a **prior distribution**. It's not a guess pulled from nowhere; it's whatever you were willing to believe before this particular dataset spoke up. In the model you fit in @sec-intro-applied-modeling, we didn't state a prior explicitly, which means `brms` quietly gave every possible value of the ischemia effect equal standing — a colleague who, before seeing your data, genuinely had no opinion at all about whether the effect was 5 units or 5,000.
+Let's make the "thorough colleague" from the last chapter less of a metaphor and more of a picture. Before your colleague ever saw your data, they weren't starting from nothing. They'd read the astrogliosis literature, maybe run something similar themselves, and that background left them with a sense of which ischemia effects on GFAP were plausible and which weren't: not a specific number, but a *spread* of values already consistent with what's known. Statisticians call that spread a **prior distribution**. As @sec-intro-applied-modeling already established, this isn't a hunch smuggled into the analysis. It's existing scientific knowledge, written down explicitly instead of left to shape your interpretation informally after the fact. In the model you fit in @sec-intro-applied-modeling, we didn't state a prior explicitly, which means `brms` quietly gave every possible value of the ischemia effect equal standing: a colleague with no literature behind them and no prior data to draw on, genuinely unable to rule out an effect of 5 units or 5,000.
 
-Then your colleague looked at the data. Given the numbers you showed them, some effect sizes now explain what they saw much better than others — an effect of 100 makes the observed GFAP values in both groups look unsurprising, while an effect of 5, or of 5,000, would make your actual measurements look like a strange coincidence. This "how well does each candidate value explain what we saw" curve is called the **likelihood**. It's the data doing the talking.
+Then your colleague looked at the data. Given the numbers you showed them, some effect sizes now explain what they saw much better than others: an effect of 100 makes the observed GFAP values in both groups look unsurprising, while an effect of 5, or of 5,000, would make your actual measurements look like a strange coincidence. This "how well does each candidate value explain what we saw" curve is called the **likelihood**. It's the data doing the talking.
 
-The posterior is what happens when you let the prior and the likelihood negotiate: multiply them together (and rescale, so the result is still a proper distribution), and the values that the data found plausible *and* that weren't already ruled out by the prior are the ones left standing. Kruschke puts it plainly: "the essence of Bayesian inference is [reallocation of credibility]{style="color:green;"} across possibilities. The distribution of credibility initially reflects prior knowledge about the possibilities... Then new data are observed, and the credibility is re-allocated. Possibilities that are consistent with the data garner more credibility, while possibilities that are not consistent with the data lose credibility" [@kruschke2015]. Bayes' rule, he adds, is simply the exact mathematical machinery that carries out that reallocation in a logically coherent way — nothing mystical, just precise bookkeeping for how much credibility moves where.
+The posterior is what happens when you let the prior and the likelihood negotiate: multiply them together (and rescale, so the result is still a proper distribution), and the values that the data found plausible *and* that weren't already ruled out by the prior are the ones left standing. Kruschke puts it plainly: "the essence of Bayesian inference is [reallocation of credibility]{style="color:green; font-weight:bold;"} across possibilities. The distribution of credibility initially reflects prior knowledge about the possibilities... Then new data are observed, and the credibility is re-allocated. Possibilities that are consistent with the data garner more credibility, while possibilities that are not consistent with the data lose credibility" [@kruschke2015]. Bayes' rule, he adds, is simply the exact mathematical machinery that carries out that reallocation in a logically coherent way: nothing mystical, just precise bookkeeping for how much credibility moves where.
 
-Because our prior here was flat — no opinion, remember — there's nothing for the likelihood to fight against. All the credibility reallocation is done by the data alone, so the posterior should end up looking almost exactly like the likelihood itself. Let's check that directly, using the same fitted model from last chapter instead of a new example:
+![Credibility is a fixed amount of water in a tray. The prior spreads it evenly; the data tilt the tray and it flows toward the values that explain what we saw.](images/bayesian-core-workflow_tilted-tray.png){#fig-workflow-tray fig-align="center" width="90%" fig-alt="Watercolor sketch of a long shallow glass tray tilted on a small wooden wedge. Teal water has pooled deeply at the lower end and thins to a faint film across the rest, with a few ochre droplets sliding along the surface and a dotted line above the tray marking where an even, flat layer would sit."}
+
+Because our prior here was flat (no existing scientific information behind it, remember), there's nothing for the likelihood to fight against. All the credibility reallocation is done by the data alone, so the posterior should end up looking almost exactly like the likelihood itself. Let's check that directly, using the same fitted model from last chapter instead of a new example:
 
 ```{r}
 #| label: fig-workflow_credibility_reallocation
@@ -39,10 +43,14 @@ library(parsnip)
 library(broom)
 library(posterior)
 
+# Same DPI 0 (SHAM) vs. DPI 3 (MCAO) subset of cell_data used in chapter 1,
+# rebuilt here because this is a fresh R session for this chapter.
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data_sub <- subset(cell_data, DPI %in% c(0, 3))
 cell_data_sub$Condition <- factor(cell_data_sub$Condition, levels = c("SHAM", "MCAO"))
 
+# Reload the exact brms fit from chapter 1 rather than refitting it:
+# file_refit = "never" means brms just reads the cached .rds if it exists.
 brms_model <- brm(
   Gfap_Intensity ~ Condition,
   data = cell_data_sub,
@@ -51,19 +59,25 @@ brms_model <- brm(
   file_refit = "never"
 )
 
+# Frequentist counterpart to the same model. We only need it here for its
+# point estimate and standard error, which stand in for the likelihood's
+# center and spread in the grid approximation below.
 parsnip_model <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Gfap_Intensity ~ Condition, data = cell_data_sub)
 
+# Pull out the ConditionMCAO coefficient's estimate and SE from the lm fit.
 freq_tidy <- tidy(parsnip_model)
 freq_est <- freq_tidy$estimate[freq_tidy$term == "ConditionMCAO"]
 freq_se  <- freq_tidy$std.error[freq_tidy$term == "ConditionMCAO"]
 
-# A grid of plausible values for the ischemia effect
+# A grid of 500 plausible values for the ischemia effect, spanning 5 standard
+# errors either side of the frequentist estimate. step is the grid spacing,
+# used below to keep each density properly normalized (area under curve = 1).
 grid <- seq(freq_est - 5 * freq_se, freq_est + 5 * freq_se, length.out = 500)
 step  <- mean(diff(grid))
 
-# brms's default prior on this coefficient is flat (improper) — every value
+# brms's default prior on this coefficient is flat (improper): every value
 # equally credible. A true flat prior has no density to plot, so we stand in
 # for it with a wide uniform over the same grid, purely for display.
 prior_density <- rep(1 / diff(range(grid)), length(grid))
@@ -74,84 +88,126 @@ prior_density <- rep(1 / diff(range(grid)), length(grid))
 likelihood_curve <- dnorm(grid, mean = freq_est, sd = freq_se)
 likelihood_curve <- likelihood_curve / (sum(likelihood_curve) * step)
 
+# Bayes' rule at its most literal: posterior is proportional to prior times
+# likelihood, computed pointwise over the grid, then renormalized so the
+# result is a proper density again (area under the curve equal to 1).
 posterior_grid <- prior_density * likelihood_curve
 posterior_grid <- posterior_grid / (sum(posterior_grid) * step)
+
+# One shared factor for all four curves, in display order. Mapping the
+# same variable to both color and linetype collapses them into a single
+# legend instead of two separate stacked ones.
+curve_levels <- c("Prior (flat)", "Likelihood", "Posterior (grid approximation)", "brms posterior draws (MCMC)")
 
 grid_df <- data.frame(
   beta1 = rep(grid, 3),
   density = c(prior_density, likelihood_curve, posterior_grid),
-  curve = factor(
-    rep(c("Prior (flat)", "Likelihood", "Posterior (grid approximation)"), each = length(grid)),
-    levels = c("Prior (flat)", "Likelihood", "Posterior (grid approximation)")
-  )
+  curve = factor(rep(curve_levels[1:3], each = length(grid)), levels = curve_levels)
 )
 
-# The actual posterior brms gave us, for comparison
+# The actual posterior brms gave us, computed as a plain density curve
+# rather than geom_density()'s filled-area layer, so its legend key is a
+# clean line to match the other three, not a solid box.
 actual_draws <- as_draws_df(brms_model)
+brms_dens <- density(actual_draws$b_ConditionMCAO)
+brms_df <- data.frame(
+  beta1 = brms_dens$x,
+  density = brms_dens$y,
+  curve = factor(curve_levels[4], levels = curve_levels)
+)
 
-ggplot() +
-  geom_line(data = grid_df, aes(x = beta1, y = density, color = curve), linewidth = 1) +
-  geom_density(
-    data = actual_draws, aes(x = b_ConditionMCAO, linetype = "brms posterior draws"),
-    color = "black", linewidth = 0.8
-  ) +
-  scale_color_manual(values = c("Prior (flat)" = "grey60", "Likelihood" = "#D55E00", "Posterior (grid approximation)" = "#0072B2")) +
-  labs(
-    x = "Plausible ischemia effect on GFAP intensity",
-    y = "Density",
-    color = "", linetype = ""
-  ) +
+# Stack the grid-based curves and the brms density curve into one long
+# data frame, ready for a single ggplot call keyed on the curve column.
+curve_df <- rbind(grid_df, brms_df)
+
+# The likelihood and grid-approximation posterior are, by construction,
+# almost exactly the same curve here (a flat prior changes nothing), and
+# both nearly coincide with brms's own posterior too. Plotting all three as
+# solid lines would bury two of them entirely, so distinct dash patterns
+# keep every layer visible even where they land on the same pixels.
+curve_colors <- c(
+  "Prior (flat)" = "grey60",
+  "Likelihood" = "#D55E00",
+  "Posterior (grid approximation)" = "#0072B2",
+  "brms posterior draws (MCMC)" = "black"
+)
+curve_linetypes <- c(
+  "Prior (flat)" = "solid",
+  "Likelihood" = "dashed",
+  "Posterior (grid approximation)" = "dotted",
+  "brms posterior draws (MCMC)" = "longdash"
+)
+
+# color and linetype both mapped to the same "curve" column, so ggplot
+# draws one combined legend instead of two separate ones.
+ggplot(curve_df, aes(x = beta1, y = density, color = curve, linetype = curve)) +
+  geom_line(linewidth = 0.9) +
+  scale_color_manual(values = curve_colors) +
+  scale_linetype_manual(values = curve_linetypes) +
+  labs(x = "Plausible ischemia effect on GFAP intensity", y = "Density", color = NULL, linetype = NULL) +
+  # Wrap the 4 legend entries into 2 rows instead of a single wide one
+  guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
   Plot_theme +
-  theme(legend.position = "bottom", legend.box = "vertical")
+  theme(legend.position = "bottom")
 ```
 
-The grey line — the flat prior — is going nowhere; it treats every value on the x-axis as equally worth believing. The red curve is the likelihood, and it's already doing the real work: it's tall and narrow right around where the data actually points. And the blue posterior sits right on top of it, because multiplying by a flat line doesn't change a curve's shape. The black dashed outline — the real posterior `brms` handed you, drawn from the MCMC chains, not from our grid approximation — lands on the same spot. That agreement isn't a coincidence we got lucky with; it's the direct, visible consequence of starting with a prior that had no opinion.
+The grey line, the flat prior, is going nowhere; it treats every value on the x-axis as equally plausible going in. The dashed vermillion line is the likelihood, and it's already doing the real work: it's tall and narrow right around where the data actually points. The dotted blue posterior traces the exact same path, because multiplying by a flat line doesn't change a curve's shape. We gave it a different dash pattern specifically so it wouldn't just disappear underneath the likelihood. The long-dashed black line (the real posterior `brms` handed you, drawn from the MCMC chains, not from our grid approximation) traces that same path a third time. Three different dash patterns landing on the identical curve isn't a coincidence we got lucky with; it's the direct, visible consequence of starting with a prior that carried no existing scientific information to contribute.
 
-Worth flagging precisely, since it'll matter later: that flat default only applies to coefficients like `ConditionMCAO`. The intercept gets its own, different default — a weakly informative prior scaled to the data — so "`brms` used a flat prior" is a statement about this specific slope, not about the model as a whole.
+Worth flagging precisely, since it'll matter later: that flat default only applies to coefficients like `ConditionMCAO`. The intercept gets its own, different default (a weakly informative prior scaled to the data), so "`brms` used a flat prior" is a statement about this specific slope, not about the model as a whole.
 
 ::: callout-tip
 ### This won't always be this tidy
 
-We picked this example specifically because the prior does nothing, so the mechanics are easy to see. Once we start choosing priors deliberately in the next chapter instead of accepting `brms`'s flat default, the prior curve above won't be a flat line anymore — it'll have its own shape, and the posterior will visibly bend away from the likelihood, toward wherever the prior had concentrated its credibility beforehand. That's not a bug to route around; it's the entire mechanism that lets weak, noisy data borrow strength from what you already knew scientifically.
+We picked this example specifically because the prior does nothing, so the mechanics are easy to see. Once we start choosing priors deliberately in the next chapter instead of accepting `brms`'s flat default, the prior curve above won't be a flat line anymore. It'll have its own shape, and the posterior will visibly bend away from the likelihood, toward wherever the prior had concentrated its credibility beforehand. That's not a bug to route around; it's the entire mechanism that lets weak, noisy data borrow strength from what you already knew scientifically.
 :::
 
 ## The full workflow: model, infer, check, improve
 
 Here's an uncomfortable question: last chapter, we wrote down a model, fit it, and read off an answer. How much of a proper Bayesian analysis did we actually complete?
 
-If you've ever run a knockdown experiment, you know the answer to "did I finish the protocol?" isn't just "did I pipette everything in order" — it's "did I confirm the knockdown actually worked before I trusted anything downstream of it." Fitting a model is the pipetting. It's necessary, and it's the part that feels like progress, but it is not the whole protocol.
+If you've ever run a knockdown experiment, you know the answer to "did I finish the protocol?" isn't just "did I pipette everything in order": it's "did I confirm the knockdown actually worked before I trusted anything downstream of it." Fitting a model is the pipetting. It's necessary, and it's the part that feels like progress, but it is not the whole protocol.
 
-The textbook shorthand for the rest of the protocol is a four-step loop — model, infer, check, improve — and it's a genuinely useful first sketch, so let's use it:
+The textbook shorthand for the rest of the protocol is a four-step loop (model, infer, check, improve), and it's a genuinely useful first sketch, so let's use it:
 
-1. **Model.** Write down, in the language of probability, what you believe could have generated the data — a structural equation for GFAP intensity, an error distribution, and (whether stated or left to a software default) a prior over every unknown quantity. We did this: $\text{Gfap}_i = \beta_0 + \beta_1 \cdot \text{Condition}_i + \epsilon_i$.
-2. **Infer.** Confront that model with real data and let `brms` (or `lm`, on the frequentist side) produce estimates — a posterior distribution, or a point estimate with a standard error. We did this too: that's the `summary(brms_model)` and `tidy(parsnip_model)` output from last chapter.
-3. **Check.** Ask whether the fitted model actually behaves like the real world you're trying to describe. Does it predict data that looks like what you actually collected? Would it have made sense as a model even before you saw this specific dataset? We did *none* of this last chapter — we went straight from a coefficient table to an interpretation, which is exactly the habit worth breaking early.
-4. **Improve.** If checking reveals a problem — a systematic mismatch, an assumption the data clearly violates — revise the model and go back to step 1. This is not a failure state; it's the expected, ordinary shape of doing this work honestly.
+1. **Model.** Write down, in the language of probability, what current scientific understanding says could have generated the data: a structural equation for GFAP intensity, an error distribution, and (whether stated or left to a software default) a prior over every unknown quantity. We did this: $\text{Gfap}_i = \beta_0 + \beta_1 \cdot \text{Condition}_i + \epsilon_i$.
+2. **Infer.** Confront that model with real data and let `brms` (or `lm`, on the frequentist side) produce estimates: a posterior distribution, or a point estimate with a standard error. We did this too: that's the `summary(brms_model)` and `tidy(parsnip_model)` output from last chapter.
+3. **Check.** Ask whether the fitted model actually behaves like the real world you're trying to describe. Does it predict data that looks like what you actually collected? Would it have made sense as a model even before you saw this specific dataset? We did *none* of this last chapter. We went straight from a coefficient table to an interpretation, which is exactly the habit worth breaking early.
+4. **Improve.** If checking reveals a problem (a systematic mismatch, an assumption the data clearly violates), revise the model and go back to step 1. This is not a failure state; it's the expected, ordinary shape of doing this work honestly.
 
-But I'd be doing you a disservice if I let that tidy four-word loop stand as the whole truth, because it isn't — and knowing that now will save you from feeling like a failure later, the first time your own workflow doesn't look like a clean loop. Gelman, Vehtari, McElreath, and colleagues, in the book that gives this chapter its second half its name, are explicit that real practice is messier than any slogan: not four stops on a single lap, but what they call a "virtuous tangle" of statistical and computational checks, usually applied to a whole *sequence* of related models rather than one model considered in isolation [@gelman2026]. Model-infer-check-improve is the useful cartoon version; the real thing has you circling back, comparing models side by side, and debugging your own code as much as your own assumptions. We're teaching you the cartoon first because you have to know the shape of the room before you can appreciate how much furniture is actually in it.
+But I'd be doing you a disservice if I let that tidy four-word loop stand as the whole truth, because it isn't. Knowing that now will save you from feeling like a failure later, the first time your own workflow doesn't look like a clean loop. Gelman, Vehtari, McElreath, and colleagues, in the book that gives this chapter its second half its name, are explicit that real practice is messier than any slogan: not four stops on a single lap, but what they call a "virtuous tangle" of statistical and computational checks, usually applied to a whole *sequence* of related models rather than one model considered in isolation [@gelman2026]. Model-infer-check-improve is the useful cartoon version; the real thing has you circling back, comparing models side by side, and debugging your own code as much as your own assumptions. We're teaching you the cartoon first because you have to know the shape of the room before you can appreciate how much furniture is actually in it.
 
-McElreath has his own, more visual way of saying something similar, one he calls ["Drawing the Bayesian Owl"]{style="color:green;"}: define what you're actually trying to estimate, design a scientific model of how the data could arise, build the statistical model that formalizes it, *test that pipeline on synthetic data where you already know the truth*, and only then turn it loose on your real data [@mcelreath2020]. Notice step four. That's not a footnote — it's the specific move we're about to spend the rest of this chapter on, and it's exactly what "check" and "improve" require *before* you have real data to check against.
+McElreath has his own, more visual way of saying something similar, one he calls ["Drawing the Bayesian Owl"]{style="color:green; font-weight:bold;"}: define what you're actually trying to estimate, design a scientific model of how the data could arise, build the statistical model that formalizes it, *test that pipeline on synthetic data where you already know the truth*, and only then turn it loose on your real data [@mcelreath2020]. Notice step four. That's not a footnote: it's the specific move we're about to spend the rest of this chapter on, and it's exactly what "check" and "improve" require *before* you have real data to check against.
+
+![First draw two circles, then draw the rest of the owl. The workflow is everything in between, including the faint construction lines you can still see under the finished drawing.](images/bayesian-core-workflow_owl-construction-lines.png){#fig-workflow-owl fig-align="center" width="90%" fig-alt="Watercolor sketch of an open sketchbook with a finished teal and ochre owl perched on a branch, faint pencil construction circles and guide lines still visible beneath it, and a second half-drawn owl outlined in pencil beside it. A pencil, an eraser and round spectacles rest on the wooden bench."}
 
 ## Generative models as probabilistic programs
 
-Before you run a new PCR protocol on a precious, irreplaceable sample, you run it on something you can afford to get wrong first — a positive control with a known, expected outcome. If the protocol can't correctly detect what you already know is there, you don't trust it on the sample that matters.
+Before you run a new PCR protocol on a precious, irreplaceable sample, you run it on something you can afford to get wrong first: a positive control with a known, expected outcome. If the protocol can't correctly detect what you already know is there, you don't trust it on the sample that matters.
 
-A statistical model can be tested the exact same way, and this is one of the more underused ideas in applied Bayesian work. Every model we write down — like $\text{Gfap}_i = \beta_0 + \beta_1 \cdot \text{Condition}_i + \epsilon_i$ — isn't just an equation to fit *to* data; read the other direction, it's also a recipe for *generating* fake data, if you're willing to pick specific numbers for $\beta_0$, $\beta_1$, and $\sigma$ yourself. McElreath puts it directly: "given only the parameters, the likelihood defines a distribution of possible observations that we can sample from, to simulate observation. In this way, Bayesian models are always [generative]{style="color:green;"}, capable of simulating predictions" [@mcelreath2020] — a probabilistic program you can run forward, not just fit backward. And because you chose the "true" answer yourself when generating the fake data, you know exactly what the fitting procedure *should* recover — which makes this the positive control of statistical modeling.
+A statistical model can be tested the exact same way, and this is one of the more underused ideas in applied Bayesian work. Every model we write down (like $\text{Gfap}_i = \beta_0 + \beta_1 \cdot \text{Condition}_i + \epsilon_i$) isn't just an equation to fit *to* data; read the other direction, it's also a recipe for *generating* fake data, if you're willing to pick specific numbers for $\beta_0$, $\beta_1$, and $\sigma$ yourself. McElreath puts it directly: "given only the parameters, the likelihood defines a distribution of possible observations that we can sample from, to simulate observation. In this way, Bayesian models are always [generative]{style="color:green; font-weight:bold;"}, capable of simulating predictions" [@mcelreath2020]: a probabilistic program you can run forward, not just fit backward. And because you chose the "true" answer yourself when generating the fake data, you know exactly what the fitting procedure *should* recover, which makes this the positive control of statistical modeling.
 
-Let's actually run that control on the model from this chapter, rather than describing it in the abstract. We'll invent a ground truth — a baseline GFAP intensity in sham animals, a specific size for the ischemia effect, and a specific amount of noise — generate a fake dataset from it, and see whether fitting our usual model recovers the numbers we planted.
+![Before searching where you don't know the answer, plant something yourself and see whether your detector finds it. That's a positive control for a model.](images/bayesian-core-workflow_planted-coin-detector.png){#fig-workflow-planted fig-align="center" width="90%" fig-alt="Watercolor sketch of a researcher in a white lab coat and green sweater crouching beside a small wooden sandbox, sweeping a metal detector over the sand. A half-buried ochre coin glows with soft teal rings beneath the coil, and a trowel and a tiny teal paper flag lie nearby."}
+
+Let's actually run that control on the model from this chapter, rather than describing it in the abstract. We'll invent a ground truth (a baseline GFAP intensity in sham animals, a specific size for the ischemia effect, and a specific amount of noise), generate a fake dataset from it, and see whether fitting our usual model recovers the numbers we planted.
 
 ```{r}
 #| label: tbl-workflow_sbc_truth
 #| tbl-cap: Ground-truth parameters used to simulate the fake dataset
 
+# Fix the random seed so the simulated dataset (and every number quoted in
+# the prose below, computed from it) is identical on every re-render.
 set.seed(2025)
 
 true_beta0 <- 30   # baseline GFAP intensity we're choosing for sham animals
 true_beta1 <- 107  # ischemia effect we're planting, on the same scale as ch. 1
 true_sigma <- 20   # noise we're choosing to add
 
-n_per_group <- 8
+n_per_group <- 8   # animals per group, matching the real dataset's scale
 
+# Build the same two-group design as chapter 1 (8 SHAM, 8 MCAO), then
+# generate Gfap_Intensity directly from the model equation
+# Gfap_i = beta0 + beta1 * Condition_i + noise, using OUR chosen true values
+# instead of estimating them from real data.
 sim_data <- data.frame(
   Condition = factor(rep(c("SHAM", "MCAO"), each = n_per_group), levels = c("SHAM", "MCAO"))
 )
@@ -166,14 +222,16 @@ gt(data.frame(
 ))
 ```
 
-Notice we picked realistic numbers — an effect size and noise level in the same ballpark as the real GFAP data from last chapter — rather than something arbitrary. A generative check is only as informative as the fake data is realistic; simulating an effect twenty times larger than anything biologically plausible would tell you nothing about whether the model can handle *your* data.
+Notice we picked realistic numbers (an effect size and noise level in the same ballpark as the real GFAP data from last chapter) rather than something arbitrary. A generative check is only as informative as the fake data is realistic; simulating an effect twenty times larger than anything biologically plausible would tell you nothing about whether the model can handle *your* data.
 
-Following our usual practice, let's fit that model both ways — the same `brms`/`parsnip` pairing from chapter 1 — on the fake data. Fitting it both ways here isn't just habit: it means we get to check, in a moment, whether the frequentist fit recovers the planted truth just as well as the Bayesian one does, or whether the two behave differently once we know the right answer in advance.
+Following our usual practice, let's fit that model both ways, the same `brms`/`parsnip` pairing from @sec-intro-applied-modeling, on the fake data. Fitting it both ways here isn't just habit: it means we get to check, in a moment, whether the frequentist fit recovers the planted truth just as well as the Bayesian one does, or whether the two behave differently once we know the right answer in advance.
 
 ::: panel-tabset
 ### brms
 
 ```{r}
+# Identical model formula to the real-data fit earlier in this chapter,
+# just pointed at sim_data instead of cell_data_sub.
 sbc_fit <- brm(
   Gfap_Intensity ~ Condition,
   data = sim_data,
@@ -186,6 +244,8 @@ sbc_fit <- brm(
 ### parsnip
 
 ```{r}
+# Same lm() fit as chapter 1, now on the simulated data, so we can check
+# whether the frequentist side also recovers the planted true_beta1.
 sbc_parsnip <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Gfap_Intensity ~ Condition, data = sim_data)
@@ -194,25 +254,32 @@ tidy(sbc_parsnip, conf.int = TRUE)
 ```
 :::
 
-Before we even look at whether either fit landed anywhere near 107, there's a prior question specific to the Bayesian side: did the sampler itself do its job? Think of it like checking that a balance is properly tared before you trust the weight it reports — a miscalibrated scale can hand you a perfectly confident-looking number that's simply wrong, and MCMC has its own version of that failure. `brms` doesn't just compute a posterior; it explores it by simulating a chain of draws, and that exploration can go badly even when nothing *looks* obviously broken in a summary table. Three numbers tell us whether to trust it: **Rhat**, which compares independent chains against each other and should sit under 1.01 if they've all converged on the same distribution; **effective sample size (ESS)**, which measures how many genuinely independent-ish draws we actually got out of possibly-correlated MCMC samples, and should clear 400 for both the bulk and the tails of the distribution; and the count of **divergent transitions**, which should be exactly zero — even one divergence means the sampler failed to explore some region of the posterior, and there's no way to tell from the outside which region.
+Before we even look at whether either fit landed anywhere near 107, there's a prior question specific to the Bayesian side: did the sampler itself do its job? Think of it like checking that a balance is properly tared before you trust the weight it reports: a miscalibrated scale can hand you a perfectly confident-looking number that's simply wrong, and MCMC has its own version of that failure. `brms` doesn't just compute a posterior; it explores it by simulating a chain of draws, and that exploration can go badly even when nothing *looks* obviously broken in a summary table. Three numbers tell us whether to trust it: **Rhat**, which compares independent chains against each other and should sit under 1.01 if they've all converged on the same distribution; **effective sample size (ESS)**, which measures how many genuinely independent-ish draws we actually got out of possibly-correlated MCMC samples, and should clear 400 for both the bulk and the tails of the distribution; and the count of **divergent transitions**, which should be exactly zero. Even one divergence means the sampler failed to explore some region of the posterior, and there's no way to tell from the outside which region.
 
 ```{r}
 #| label: tbl-workflow_sbc_diagnostics
 #| tbl-cap: MCMC diagnostics for the simulation-based calibration fit
 
+# Every posterior draw from every chain, in tidy data-frame form.
 sbc_draws <- as_draws_df(sbc_fit)
 
+# posterior::summarise_draws() computes Rhat and both effective sample
+# sizes per parameter in one call; we only keep the 3 model parameters
+# (dropping bookkeeping columns like lp__).
 sbc_diagnostics <- summarise_draws(sbc_draws, "rhat", "ess_bulk", "ess_tail")
 sbc_diagnostics <- subset(sbc_diagnostics, variable %in% c("b_Intercept", "b_ConditionMCAO", "sigma"))
 
+# nuts_params() exposes per-iteration NUTS sampler diagnostics; the
+# "divergent__" row flags, per draw, whether that transition diverged.
+# Summing it gives the total count of divergences across all chains.
 n_divergent <- sum(subset(nuts_params(sbc_fit), Parameter == "divergent__")$Value)
 
 gt(sbc_diagnostics)
 ```
 
-Every Rhat in that table sits at `r sprintf("%.2f", max(sbc_diagnostics$rhat))`, both effective sample sizes clear 400 by a comfortable margin, and we count `r n_divergent` divergent transitions across all chains. The sampler did its job — which means we can actually trust what comes next, instead of just hoping.
+Every Rhat in that table sits at `r sprintf("%.3f", max(sbc_diagnostics$rhat))`, both effective sample sizes clear 400 by a comfortable margin, and we count `r n_divergent` divergent transitions across all chains. The sampler did its job, which means we can actually trust what comes next instead of just hoping.
 
-With that settled, let's look at what the Bayesian fit actually recovered. A bare density curve would technically show us the posterior, but this entire chapter has been building the case that a hard-edged single number is the wrong way to represent uncertainty — so let's not undercut that argument in our own figure. We'll draw the full shape of the posterior alongside the same style of equal-tailed credible interval we used in chapter 1, so "did we recover the truth" has a precise, checkable answer instead of an eyeballed one.
+With that settled, let's look at what the Bayesian fit actually recovered. A bare density curve would technically show us the posterior, but this entire chapter has been building the case that a hard-edged single number is the wrong way to represent uncertainty, so let's not undercut that argument in our own figure. We'll draw the full shape of the posterior alongside the same style of equal-tailed credible interval we used in @sec-intro-applied-modeling, so "did we recover the truth" has a precise, checkable answer instead of an eyeballed one.
 
 ```{r}
 #| label: fig-workflow_sbc_recovery
@@ -222,17 +289,24 @@ With that settled, let's look at what the Bayesian fit actually recovered. A bar
 
 library(ggdist)
 
+# Posterior median and a 95% equal-tailed credible interval for the
+# recovered ischemia effect, computed directly from the MCMC draws.
 sbc_post_median <- median(sbc_draws$b_ConditionMCAO)
 sbc_post_lo <- quantile(sbc_draws$b_ConditionMCAO, 0.025)
 sbc_post_hi <- quantile(sbc_draws$b_ConditionMCAO, 0.975)
 
+# Same extraction as chapter 1's frequentist model, now on the simulated-
+# data fit, so we can quote the parsnip/lm result in the callout below too.
 sbc_freq_tidy <- tidy(sbc_parsnip, conf.int = TRUE)
 sbc_freq_est <- sbc_freq_tidy$estimate[sbc_freq_tidy$term == "ConditionMCAO"]
 sbc_freq_lo  <- sbc_freq_tidy$conf.low[sbc_freq_tidy$term == "ConditionMCAO"]
 sbc_freq_hi  <- sbc_freq_tidy$conf.high[sbc_freq_tidy$term == "ConditionMCAO"]
 
 ggplot(sbc_draws, aes(x = b_ConditionMCAO)) +
+  # Half-eye: full posterior density on top, point + 66%/95% interval below,
+  # so "did we recover the truth" has a precise interval to check against.
   stat_halfeye(fill = "#0072B2", alpha = 0.7, .width = c(0.66, 0.95)) +
+  # Vertical marker at the true value we planted when simulating sim_data.
   geom_vline(xintercept = true_beta1, color = "#D55E00", linewidth = 1, linetype = "dashed") +
   annotate("text", x = true_beta1, y = 0, label = "true value", vjust = -1, hjust = -0.1, color = "#D55E00") +
   labs(x = "Recovered ischemia effect (posterior)", y = NULL) +
@@ -240,19 +314,14 @@ ggplot(sbc_draws, aes(x = b_ConditionMCAO)) +
   theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
 ```
 
-The dashed line — the value we deliberately planted — falls inside the thick of that distribution, not out in a thin tail. In numbers: the posterior median lands at `r round(sbc_post_median, 1)`, with a 95% equal-tailed credible interval of [`r round(sbc_post_lo, 1)`, `r round(sbc_post_hi, 1)`] — comfortably bracketing the `r true_beta1` we planted, not just vaguely nearby. The model found its way back to something close to the truth we hid inside the noise, using nothing but the fake data and the same code we'll trust on real animals. That's the whole point of the exercise: if the recovered interval had missed the true value, or come out absurdly wide or narrow, we'd know *before* touching a single real animal that something in the model, the priors, or the code itself needed fixing — not after publishing a number we couldn't actually trust.
+The dashed line (the value we deliberately planted) falls inside the thick of that distribution, not out in a thin tail. In numbers: the posterior median lands at `r round(sbc_post_median, 1)`, with a 95% equal-tailed credible interval of [`r round(sbc_post_lo, 1)`, `r round(sbc_post_hi, 1)`], comfortably bracketing the `r true_beta1` we planted and not just vaguely nearby. The model found its way back to something close to the truth we hid inside the noise, using nothing but the fake data and the same code we'll trust on real animals. That's the whole point of the exercise: if the recovered interval had missed the true value, or come out absurdly wide or narrow, we'd know *before* touching a single real animal that something in the model, the priors, or the code itself needed fixing, not after publishing a number we couldn't actually trust.
 
 ::: callout-tip
 ### Frequentist equivalent
 
-This isn't a Bayesian-only habit. The `parsnip` fit recovered `r round(sbc_freq_est, 1)`, 95% CI [`r round(sbc_freq_lo, 1)`, `r round(sbc_freq_hi, 1)`] — essentially the same answer, for the same reason the two philosophies agreed in chapter 1: a flat prior lets the likelihood carry the inference almost entirely, so there's little room left for the two approaches to disagree. If you've ever run a power analysis by simulation — generating fake data under an assumed effect size to see whether your planned sample size and test would reliably detect it — you've already done a frequentist version of exactly this idea. The formal name for the more rigorous version of what we just did with `brms` is *simulation-based calibration*, introduced by @talts2018 and covered as a standard part of the computational workflow by @gelman2026, and it has direct analogues on the frequentist side, like parametric bootstrapping a fitting procedure to check its behavior under known conditions. Testing your pipeline against a case where you already know the answer is good scientific practice regardless of which statistical philosophy you're working in.
+This isn't a Bayesian-only habit. The `parsnip` fit recovered `r round(sbc_freq_est, 1)`, 95% CI [`r round(sbc_freq_lo, 1)`, `r round(sbc_freq_hi, 1)`]: essentially the same answer, for the same reason the two philosophies agreed in @sec-intro-applied-modeling. A flat prior lets the likelihood carry the inference almost entirely, so there's little room left for the two approaches to disagree. If you've ever run a power analysis by simulation, generating fake data under an assumed effect size to see whether your planned sample size and test would reliably detect it, you've already done a frequentist version of exactly this idea. The formal name for the more rigorous version of what we just did with `brms` is *simulation-based calibration*, introduced by @talts2018 and covered as a standard part of the computational workflow by @gelman2026, and it has direct analogues on the frequentist side, like parametric bootstrapping a fitting procedure to check its behavior under known conditions. Testing your pipeline against a case where you already know the answer is good scientific practice regardless of which statistical philosophy you're working in.
 :::
 
-We ran one simulated dataset here, for the sake of seeing the mechanics clearly. A rigorous version of this check would repeat it many times, with the true parameters drawn from the prior itself, and ask whether the posterior recovers the truth at the rate it should — but the logic scales up unchanged from the single pass you just watched.
+We ran one simulated dataset here, for the sake of seeing the mechanics clearly. A rigorous version of this check would repeat it many times, with the true parameters drawn from the prior itself, and ask whether the posterior recovers the truth at the rate it should. The logic, though, scales up unchanged from the single pass you just watched.
 
-That's the loop, closed once: we modeled, we inferred, and — using a generative check instead of real data — we verified that the machinery does what we're asking of it. The next few chapters go back and do this properly and thoroughly on the real GFAP data: the exploratory data analysis chapters that follow look hard at the data itself before any model touches it, the chapter on priors stops letting `brms` choose flat defaults for us, and the MCMC chapter after it gives you the tools to check a real fitted model the way we just checked a simulated one.
-
-## References
-
-::: {#refs-bayesian-core-workflow}
-:::
+That's the loop, closed once: we modeled, we inferred, and, using a generative check instead of real data, we verified that the machinery does what we're asking of it. The next two chapters go back and do this properly and thoroughly on the real GFAP data: @sec-priors-regularization stops letting `brms` choose flat defaults for us, and @sec-mcmc-model-checking gives you the tools to check a real fitted model the way we just checked a simulated one. A dedicated exploratory data analysis part follows after that, taking the same care with the data itself that we've just taken with the model.

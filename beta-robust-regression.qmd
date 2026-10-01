@@ -850,6 +850,36 @@ The two philosophies land close, again, for the reason of every chapter since @s
 The differences are the ones the book has been building toward. First, the precision of the beta-binomial is estimated from sixty mice, each with ten trials, and its posterior is wide and skewed (see the interval above); a maximum-likelihood point estimate and a posterior median are two summaries of a skewed thing, and a weakly informative prior on $\phi$ keeps it from wandering to enormous values (which would mean "no overdispersion") when a sample happens to be tame. Second, the tail parameter $\nu$ of the Student-*t* is a parameter that maximum likelihood can find hard to pin down when the data have few extreme values, because its likelihood is then flat over a wide range of large values and the estimate can run off to the boundary. Here there are plenty of lapses and both approaches find it; with a cleaner dataset, the prior would be doing something practical, not only philosophical. Third, intervals for the Bayesian effects come out directly as statements about the parameter, and the average predictive comparison and the ratio of reaction times inherit their uncertainty from the same draws, which with `glmmTMB` would take the delta method or a bootstrap.
 :::
 
+## Can we trust the sampling?
+
+Nine `brms` fits went by in this chapter, one of them with a custom likelihood I wrote myself, and I said "sampling is healthy" in passing about several of them. A custom family is exactly where I'd like something firmer than my word, so here are the three checks of @sec-mcmc-model-checking for every fit: Rhat below 1.01, both effective sample sizes above 400, and no divergent transitions.
+
+```{r}
+#| label: tbl-beta_mcmc
+#| tbl-cap: MCMC diagnostics for every model fitted in this chapter
+
+source("functions/mcmc_check.R")
+
+beta_checks <- mcmc_check(list(
+  "Binomial" = fit_binom,
+  "Beta-binomial (custom family)" = fit_bb,
+  "Gaussian, time in zone" = fit_zone_gauss,
+  "Beta, time in zone" = fit_zone,
+  "Beta with phi ~ group" = fit_zone_phi,
+  "Gaussian, log reaction time" = fit_rt_gauss,
+  "Student-t, Gamma(2, 0.1) on nu" = fit_rt_t,
+  "Student-t, Kruschke prior on nu" = fit_rt_t_kruschke,
+  "Student-t, nu fixed at 7" = fit_rt_t_nu7
+))
+stopifnot(all(beta_checks$ok))
+
+gt(beta_checks) |>
+  fmt_number(columns = max_rhat, decimals = 3) |>
+  fmt_number(columns = c(min_ess_bulk, min_ess_tail), decimals = 0)
+```
+
+All nine pass: the worst Rhat is `r sprintf("%.3f", max(beta_checks$max_rhat))`, the smallest effective sample size is `r round(min(beta_checks$min_ess_bulk, beta_checks$min_ess_tail))`, and there are `r sum(beta_checks$divergences)` divergent transitions in total. That includes the custom beta-binomial, whose sampler behaves like a built-in family's; what I could not take on trust there was the likelihood, which is why it went through the side-by-side check against `glmmTMB` earlier instead.
+
 ## Where this leaves us, and where we go from here
 
 We came into this chapter with a promise about the noise, and it took three families to keep it. A **beta-binomial** is a binomial whose probability varies from mouse to mouse, and its precision $\phi$, through $\rho = 1/(\phi+1)$, says how much: the same idea as the negative binomial, applied to successes out of trials, and the answer to the overdispersion that @sec-glm-intro found and @sec-logistic-regression could not. A **beta** regression is for a proportion that is the measurement itself, with a variance that depends on the mean and a shape that bends at the walls. And a **Student-*t*** likelihood, on the log scale where a reaction time behaves, lets the model be honest about occasional lapses without either deleting them or letting them drag the estimate.
@@ -857,8 +887,3 @@ We came into this chapter with a promise about the noise, and it took three fami
 Step back from the chapter to the whole of this part. The mean model changed very little between chapters: a group, an age, a treatment, entered as a linear predictor and read through a link. What kept changing was the family, which is a statement about the noise, and in every case the noise, not the mean, was what broke first: cells that varied more than a Poisson allows, silent neurons that a negative binomial couldn't explain, mice that differ from each other beyond a binomial, and lapses of a Gaussian's imagination. Choosing a family is choosing a model of variability, and the honest way to choose is to ask the fitted model what data it believes in and see whether we recognize them.
 
 And there is something else all these chapters have in common, and I flagged it three times in the last three chapters. In every one of them I treated observations as independent when they weren't: the units of an electrophysiology rig come from a handful of animals, the trials of a behavioral session come from sixty mice, and, if you look back at the histology arc, the cells we count come from sections that come from animals. Each shortcut made the intervals narrower than the data deserve, and each time I told you the repair was for later. Later has arrived. Part 4 begins with @sec-multilevel-varying-intercepts, where the structure that this whole part has been ignoring becomes the thing we model, and where the pseudoreplication of cells within animals, the problem that motivated this book in the first place, gets its own chapter. The families you have just met come with you: @sec-multilevel-glmm brings them back, with the mouse as a level of the model.
-
-## References
-
-::: {#refs-beta-robust-regression}
-:::

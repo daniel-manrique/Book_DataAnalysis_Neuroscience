@@ -13,6 +13,4 @@ Encoding: UTF-8
 RnwWeave: Sweave
 LaTeX: pdfLaTeX
 
-BuildType: None
-
 MarkdownWrap: Sentence

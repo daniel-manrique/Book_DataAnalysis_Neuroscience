@@ -45,6 +45,8 @@ book:
         - count-regression.qmd
         - beta-robust-regression.qmd
 
+    - references.qmd
+
   appendices:
     - appendix-open-science.qmd
     - appendix-p-values.qmd

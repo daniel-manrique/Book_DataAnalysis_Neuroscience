@@ -182,7 +182,9 @@ families <- data.frame(
   Family = c("Gaussian", "Binomial", "Poisson / negative binomial",
              "Beta", "Student-t", "Cumulative"),
   Link = c("Identity", "Logit", "Log", "Logit", "Identity", "Logit"),
-  Chapter = c("3.1 to 3.4", "3.6", "3.7", "3.8", "3.8", "4.4")
+  Chapter = c("Linear regression chapters", "Logistic regression", "Count regression",
+              "Beta and robust regression", "Beta and robust regression",
+              "Ordinal regression (planned)")
 )
 
 gt(families)
@@ -499,6 +501,31 @@ share_outside <- mean(check$outside)
 
 The bars are very narrow, because with hundreds or thousands of cells counted per animal, a binomial thinks a proportion should be pinned down almost exactly. The animals don't cooperate: `r round(100 * share_outside)`% of them fall outside their 95% interval, where about 5% should, and the dispersion statistic is about `r round(disp_binom)` against an ideal of 1. It's the same story as the counts, told in a different family: the binomial has no room for animal-to-animal differences in the underlying proportion, and there are plenty. The remedy is again a change of family, to one that lets the proportion itself vary across animals, and it comes with the rest of the toolkit for proportions in @sec-logistic-regression and @sec-beta-robust-regression.
 
+## Can we trust the sampling?
+
+Four `brms` fits went by in this chapter, and I commented on the sampler for only the first. Since the whole argument here rests on comparing models (Gaussian against Poisson against negative binomial), I'd like to know that each one explored its posterior properly before I compare what they believe. One table covers all four, using the thresholds from @sec-mcmc-model-checking: Rhat below 1.01, both effective sample sizes above 400, and no divergent transitions.
+
+```{r}
+#| label: tbl-glm_mcmc
+#| tbl-cap: MCMC diagnostics for every model fitted in this chapter
+
+source("functions/mcmc_check.R")
+
+glm_checks <- mcmc_check(list(
+  "Gaussian" = fit_gauss,
+  "Poisson" = fit_pois,
+  "Negative binomial" = fit_nb,
+  "Binomial" = fit_binom
+))
+stopifnot(all(glm_checks$ok))
+
+gt(glm_checks) |>
+  fmt_number(columns = max_rhat, decimals = 3) |>
+  fmt_number(columns = c(min_ess_bulk, min_ess_tail), decimals = 0)
+```
+
+All four pass: the worst Rhat is `r sprintf("%.3f", max(glm_checks$max_rhat))`, the smallest effective sample size is `r round(min(glm_checks$min_ess_bulk, glm_checks$min_ess_tail))`, and there are `r sum(glm_checks$divergences)` divergent transitions. So the differences we saw between families come from the families themselves, not from a sampler that gave up halfway.
+
 ## Modeling more than the mean
 
 Step back and notice what changed across this chapter, and what didn't. The *mean* model, one mean per day, stayed almost exactly the same throughout. What kept changing was the family, which is a statement about the noise: how much scatter to expect, and how that scatter depends on the mean. The Gaussian said "the same everywhere". The Poisson said "as big as the mean". The negative binomial said "bigger than the mean, and growing with it". Choosing a family is choosing a model for the variance, and in every case here it was the variance, not the mean, that broke first.
@@ -516,8 +543,3 @@ That's the same lesson @sec-linear-regression-multiple ended on, seen from a dif
 We started with a simple question about counting cells and found that the tool from the last four chapters couldn't answer it honestly. A Gaussian model on counts predicts impossible values and one spread for every group. A GLM is the general fix: a family for the noise, a linear predictor you already know, and a link that translates between them. The Poisson with a log link kept counts positive and still underestimated the noise by two orders of magnitude, and a negative binomial with the same link and the same formula got it right. The binomial with a logit link repeated the same lesson for proportions, and it's waiting for the same kind of rescue.
 
 None of that machinery has been unpacked yet, and that's what the next two chapters do. @sec-logistic-regression takes the logit link on its own terms: what log-odds mean, how to read them, and how to report them to a reader who has never met one. @sec-count-regression returns to the counts, with a closer look at the negative binomial, at what to do when the counting window isn't the same size for every animal, and at the excess zeros that spike counts, unlike these, are known for.
-
-## References
-
-::: {#refs-glm-intro}
-:::

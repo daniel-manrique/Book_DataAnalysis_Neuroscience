@@ -411,6 +411,33 @@ Reading the log-scale coefficient takes a translation: `Gfap_log2` is the change
 Dividing GFAP by 100, or centering DPI at day 7, are linear changes: they shift and stretch the axis but leave the shape of the relationship alone, so the fit is identical and only the meaning of the coefficients moves. A log changes the *shape*, which is why it needs justification and rescaling doesn't.
 :::
 
+## Can we trust the sampling?
+
+Before I lean on any of these fits, a housekeeping check I have only done informally so far. `summary()` shows Rhat and the effective sample sizes, but one model at a time, and I have quoted them for only some of the six. A single table across every model in the chapter is cheaper than trusting my eye six times, and it uses the same thresholds as @sec-mcmc-model-checking: Rhat below 1.01, both effective sample sizes above 400, and zero divergent transitions.
+
+```{r}
+#| label: tbl-multiple_mcmc
+#| tbl-cap: MCMC diagnostics for every model fitted in this chapter
+
+source("functions/mcmc_check.R")
+
+multiple_checks <- mcmc_check(list(
+  "DPI" = fit_dpi,
+  "GFAP alone" = fit_gfap_alone,
+  "DPI + GFAP" = fit_dpi_gfap,
+  "DPI (categorical)" = fit_dpi_factor,
+  "DPI x GFAP" = fit_interaction,
+  "DPI + log2 GFAP" = fit_log
+))
+stopifnot(all(multiple_checks$ok))
+
+gt(multiple_checks) |>
+  fmt_number(columns = max_rhat, decimals = 3) |>
+  fmt_number(columns = c(min_ess_bulk, min_ess_tail), decimals = 0)
+```
+
+All six fits clear the bar: the worst Rhat is `r sprintf("%.3f", max(multiple_checks$max_rhat))`, the smallest effective sample size is `r round(min(multiple_checks$min_ess_bulk, multiple_checks$min_ess_tail))`, and there are `r sum(multiple_checks$divergences)` divergent transitions in total. That settles the sampling side; whether the *models* describe the biology is the next question.
+
 ## Does this model's story match the data?
 
 The GFAP model is not the one I'd take forward as the best description of tissue area (the baseline says the same with fewer parameters), but it is the natural place to run the check that started the chapter. The question was whether a second predictor could absorb the day-3 spread that left the single-predictor model's predictive check with a second hump. @sec-mcmc-model-checking gives us `pp_check()` for the overall shape, and a grouped version lets us look at the day-3 spread directly.
@@ -479,8 +506,3 @@ Every `parsnip` table above lands close to its `brms` counterpart (the Bayesian 
 A second predictor turned out to be a lesson in reading coefficients rather than a better model. GFAP looked related to tissue loss until we asked what it added once we knew the day; the answer was nothing, because both had been moving with time. A categorical `DPI` confirmed the straight line was fair. The interaction we could actually fit was small and uncertain, and the one I wanted (`Condition * DPI`) turned out to be a design question that no analysis could rescue. A log transformation earned nothing. And the variance problem from the last chapter is still with us, now a bit more precisely located.
 
 Next, @sec-glm-intro steps outside the Gaussian world entirely. Everything so far assumed an outcome that can, in principle, take any real value. Many of the outcomes neuroscientists care about (did the animal respond, how many spikes fired) can't, and the linear model needs a new set of clothes to handle them.
-
-## References
-
-::: {#refs-linear-regression-multiple}
-:::

@@ -583,13 +583,35 @@ The finite number is regularization, not discovery: @tbl-logistic_separation sho
 `glm()` and `brms` agree for the treatment models in this chapter for the reason they've agreed since @sec-linear-regression-what: with a weakly informative prior and sixty mice, the likelihood does almost all the work, so the `glm()` log-odds (`r round(coef(glm_age)["grouptreated"], 2)` for treatment) and the `brms` posterior median (`r round(b_age["grouptreated", "Estimate"], 2)`) are close. They aren't identical: with only sixty mice, the `Normal(0, 1.5)` prior shrinks the coefficient a little toward zero, which is the same effect the sensitivity table showed. Their intervals differ in interpretation more than in size: `glm()`'s (from `confint()`, a profile likelihood) is a statement about the procedure, and the `brms` interval is a probability statement about the coefficient, which is what lets us say "the posterior probability that the effect is positive is `r round(100 * apc_prob_pos)`%" about the APC. The methods diverge in exactly the situation of the previous section: with separation, maximum likelihood has no answer, while the prior gives the Bayesian fit a finite, honest one. Frequentist workarounds exist (penalized likelihood, for instance, which is mathematically a close relative of a prior), but they're a patch on a method that otherwise assumes a well-behaved likelihood. The average predictive comparison is also easier to obtain on the Bayesian side, since it inherits an interval from the posterior draws; with `glm()`, you'd need a bootstrap or the delta method.
 :::
 
+## Can we trust the sampling?
+
+I have leaned on six `brms` fits in this chapter and said "the sampling is fine" in passing for a few of them. That is the kind of claim worth backing with a number, and it matters most for the two separation fits, where a flat likelihood is exactly the situation that makes a sampler struggle. Same thresholds as @sec-mcmc-model-checking: Rhat below 1.01, both effective sample sizes above 400, no divergent transitions.
+
+```{r}
+#| label: tbl-logistic_mcmc
+#| tbl-cap: MCMC diagnostics for every model fitted in this chapter
+
+source("functions/mcmc_check.R")
+
+logistic_checks <- mcmc_check(list(
+  "Group, Normal(0, 1.5)" = fit_group,
+  "Group, Normal(0, 0.5)" = fit_narrow,
+  "Group, Normal(0, 5)" = fit_wide,
+  "Group + age" = fit_age,
+  "Separation, Normal(0, 2.5)" = fit_sep,
+  "Separation, Normal(0, 10)" = fit_sep_wide
+))
+stopifnot(all(logistic_checks$ok))
+
+gt(logistic_checks) |>
+  fmt_number(columns = max_rhat, decimals = 3) |>
+  fmt_number(columns = c(min_ess_bulk, min_ess_tail), decimals = 0)
+```
+
+All six pass: the worst Rhat is `r sprintf("%.3f", max(logistic_checks$max_rhat))`, the smallest effective sample size is `r round(min(logistic_checks$min_ess_bulk, logistic_checks$min_ess_tail))` (the separation fits are the ones that come closest to the floor), and there are `r sum(logistic_checks$divergences)` divergent transitions. So the prior-dependence we saw in the sensitivity and separation tables is a property of the data, not a sampling artifact.
+
 ## Where this leaves us
 
 We started with the model @sec-glm-intro left waiting: the logit link, and one yes/no per animal. The logit is the log of the odds, and the odds are what a bookmaker quotes; writing a linear model on that scale gives a model that can't predict impossible probabilities. Reading it takes three translations, log-odds for the machinery, odds ratios for comparing across studies, and probabilities for the sentence you'd say to a colleague. Because the probability scale is curved, the effect of a treatment depends on who you're talking about, and the *average predictive comparison* gives a single honest number by averaging over the mice you actually studied. Checking a binary model means checking summaries (the share of ones, AUC, Brier) instead of densities, and choosing a prior on the link scale carefully matters most exactly when the data are extreme.
 
 Two loose ends, both on purpose. The overdispersion of @sec-glm-intro's binomial model, a proportion whose scatter is bigger than the family allows, is still unresolved: the trial-level data in this chapter's file will let us meet it again in @sec-multilevel-glmm, and the beta family of @sec-beta-robust-regression is a different way of allowing it. And before that, @sec-count-regression returns to counts, to the negative binomial we met in @sec-glm-intro, and to what to do when the counting window isn't the same size for every animal.
-
-## References
-
-::: {#refs-logistic-regression}
-:::

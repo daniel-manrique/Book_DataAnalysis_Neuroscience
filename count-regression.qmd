@@ -630,13 +630,36 @@ The rate effect is nearly indifferent to my choice: the narrow prior shrinks it 
 Two differences are worth knowing. `shape` is where they drift: `glm.nb` reports `theta` = `r round(glm_offset$theta, 1)` for the histology offset model where `brms` reports a posterior median of `r round(summary(fit_offset)$spec_pars["shape", "Estimate"], 1)`. The posterior of a dispersion parameter with 49 animals is skewed, and a maximum-likelihood point estimate and a posterior summary are two different summaries of a skewed thing, which is also why a frequentist fit of a dispersion parameter from a few animals per group can be unstable. The second difference is more consequential: zero-inflated likelihoods can be flat or multimodal in the parameters of the zero part, especially with few silent units, and a frequentist fit may then return a silence probability at the boundary (exactly 0 or 1) or fail to converge. In our data, `glmmTMB` gives a silence coefficient of `r round(fixef(glmm_zinb)$zi["grouptreated"], 2)` and a Wald interval for it of `r paste0("[", paste(round(confint(glmm_zinb)["zi.grouptreated", c("2.5 %", "97.5 %")], 2), collapse = ", "), "]")`, close to the Bayesian one; with fewer units, the weakly informative prior on the silence coefficient would be doing something practical, keeping the estimate away from the edge, and not just something philosophical.
 :::
 
+## Can we trust the sampling?
+
+This chapter has fitted seven `brms` models, and I said "sampling is healthy" about a few of them and warned you about one chain that wandered off in another. A vague reassurance is cheap. A table isn't, so here are the same three checks as in @sec-mcmc-model-checking for every fit in the chapter: Rhat below 1.01, both effective sample sizes above 400, and no divergent transitions. It also confirms that the `init = 0` fix of the spike-count model did its job.
+
+```{r}
+#| label: tbl-count_mcmc
+#| tbl-cap: MCMC diagnostics for every model fitted in this chapter
+
+source("functions/mcmc_check.R")
+
+count_checks <- mcmc_check(list(
+  "Offset (histology)" = fit_offset,
+  "Free log-area coefficient" = fit_free,
+  "Negative binomial (spikes)" = fit_nb_spk,
+  "Zero-inflated NB" = fit_zinb,
+  "Hurdle NB" = fit_hurdle,
+  "Zero-inflated NB, narrow prior" = fit_zinb_narrow,
+  "Zero-inflated NB, wide prior" = fit_zinb_wide
+))
+stopifnot(all(count_checks$ok))
+
+gt(count_checks) |>
+  fmt_number(columns = max_rhat, decimals = 3) |>
+  fmt_number(columns = c(min_ess_bulk, min_ess_tail), decimals = 0)
+```
+
+All seven pass: the worst Rhat is `r sprintf("%.3f", max(count_checks$max_rhat))`, the smallest effective sample size is `r round(min(count_checks$min_ess_bulk, count_checks$min_ess_tail))`, and there are `r sum(count_checks$divergences)` divergent transitions in total. The spike-count model that misbehaved with default starting values is now among the cleanest, which is the whole argument for fixing the start instead of running the chains longer.
+
 ## Where this leaves us
 
 We started with two loose ends from the previous chapters and they turned out to be the same kind of lesson. The `shape` of a negative binomial is a statement about how different the *units* are from each other before you count anything, and it sets a floor on the noise that counting more cannot lower, which is a statement about your experimental design. An **offset** gives a count its denominator: it fixes the coefficient of $\log(\text{exposure})$ to 1, turns the model into one for a rate, and, in the histology data, changed the size of the time course because the tissue shrank while the cells piled up. It's an assumption of the design, and the data could not tell us whether it was right, so I used it for the reason that we counted over a known window. And when a count has more zeros than any negative binomial can honestly explain, the honest model separates two kinds of silence, the neurons that can't fire from the ones that didn't, and lets you ask two questions of a drug instead of one.
 
 One shortcut runs through the whole chapter, and I've flagged it twice: every unit and every animal was treated as independent of the others. Real units come from a few animals, and the count of an animal's units is not the same as the number of independent pieces of evidence. @sec-multilevel-glmm is the chapter that repairs it. Before that, @sec-beta-robust-regression turns to outcomes that are continuous but bounded (proportions of time in a zone) or heavy-tailed (reaction times), the last two families of this part.
-
-## References
-
-::: {#refs-count-regression}
-:::
