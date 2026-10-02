@@ -50,7 +50,7 @@ fit_dpi <- brm(
 summary(fit_dpi)
 ```
 
-Same story as before: tissue area drops by about 0.67 units per day (95% credible interval roughly $-0.83$ to $-0.52$), and `sigma`, the typical distance between an animal and the line, sits around 1.85. Last chapter's posterior predictive check left us with a loose end: the observed density had a faint second hump that a single Gaussian couldn't reproduce, and I put it down to the fact that "one dataset" is really three DPI groups, day 3 being noticeably more spread out than the others. So here is the question this chapter keeps circling: can something *else we measured* absorb some of that leftover variation?
+Same story as before: tissue area drops by about 0.67 units per day (95% credible interval roughly $-0.83$ to $-0.52$), and `sigma`, the typical distance between an animal and the line, sits around 1.85. Last chapter's posterior predictive check left us with a loose end: the model's single `sigma` was a compromise, too large for days 7 and 14 and too small for day 3, which is noticeably more spread out than the other two days. So here is the question this chapter keeps circling: can something *else we measured* absorb some of that leftover variation?
 
 ## A second predictor: does GFAP add anything?
 
@@ -498,7 +498,7 @@ The variance problem is real and unsolved. The fix is to model `sigma` itself as
 ::: callout-tip
 ### Frequentist equivalent
 
-Every `parsnip` table above lands close to its `brms` counterpart (the Bayesian intervals run a touch wider, since they also carry the uncertainty in `sigma`), for the reason @sec-linear-regression-single-continuous gave: with the default, nearly flat priors, the posterior is shaped almost entirely by the likelihood, which is what `lm` maximizes on its own [@gelman2020]. The two approaches would start to disagree where the data are thin relative to the model. With 31 animals, an interaction model spends four parameters, and a weakly informative prior would pull an unstable interaction estimate toward zero where `lm` reports it at face value. Here the interaction is small either way, so there's nothing for the prior to rescue, but it's the place to look if you ever fit a richer model to fewer animals.
+Every `parsnip` table above lands close to its `brms` counterpart (the Bayesian intervals run a touch wider, since they also carry the uncertainty in `sigma`), for the reason @sec-linear-regression-single-continuous gave: with 31 animals the likelihood is far sharper than a default, nearly flat prior (or even a weak informative one), so the posterior is shaped almost entirely by it, which is what `lm` maximizes on its own [@gelman2020]. The two approaches would start to disagree where the data are thin relative to the model. With 31 animals, an interaction model spends four parameters, and a weakly informative prior would pull an unstable interaction estimate toward zero where `lm` reports it at face value. Here the interaction is small either way, so there's nothing for the prior to rescue, but it's the place to look if you ever fit a richer model to fewer animals.
 :::
 
 ## Where this leaves us

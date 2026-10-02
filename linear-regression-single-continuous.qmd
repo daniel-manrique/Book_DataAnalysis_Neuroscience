@@ -1,8 +1,9 @@
 ---
 bibliography: references.bib
+subtitle: Linear regression with a single continuous predictor
 ---
 
-# Linear regression with a single continuous predictor {#sec-linear-regression-single-continuous}
+# Tracking tissue loss after ischemia {#sec-linear-regression-single-continuous}
 
 ```{r}
 #| include: false
@@ -15,97 +16,77 @@ Plot_theme <- Plot_theme$value
 
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI <- as.numeric(cell_data$DPI)
+
+f1 <- function(x) sprintf("%.1f", x)
+f2 <- function(x) sprintf("%.2f", x)
 ```
 
-@sec-linear-regression-assumptions left us with a diagnosis and a plan, not a finished model. The straight line across the full 0–30 DPI range of `cell_data` failed linearity and homoscedasticity for a reason that looks biological: an early bump at day 3 (I read it as acute edema, though this file cannot prove it, since the day-0 animals are shams), then a decline that flattens after day 14, a shape no single slope can honestly summarize. The plan was to restrict the range to where a straight line is actually a defensible description of the biology, then take that narrower model all the way through: fit it, check it, interpret it, and say what it tells us about the effect of time on tissue after ischemia. That's this chapter.
+Remember the question from the lab meeting: not "does it go up?" but *how much, per day, and how sure are you?* So far we have answered only half of it. @sec-linear-regression-what gave us the words for the answer (an intercept, a slope, a leftover), and @sec-linear-regression-assumptions told us, with some embarrassment, that the line we drew across the whole 30 days of the ischemia study does not deserve our trust. It failed linearity and equal spread for a reason that looks biological: an early bump at day 3 (I read it as acute edema, though this file cannot prove it, since the day-0 animals are shams), followed by a decline that flattens after day 14. This chapter keeps the promise made there. We shrink the window to where a straight line is an honest description, fit it with both lenses, and finally put a number with a margin around it on *how much tissue is lost per day*.
 
 ## The full range, once more
 
-Here's `Tissue_Area` (hemispheric tissue area) against `DPI` again, this time with marginal density plots attached so we can also see how each variable is distributed on its own, not just how they relate.
+Before cutting anything, I want you to see what we are cutting. `DPI` takes only five values, so a plain scatter stacks the animals into five columns. The honest way to look is to nudge the points sideways a little, mark each day's mean, and draw the straight line the previous chapters fitted across everything. If that line were a good summary, the means would sit on it. (I left out the marginal histograms from the EDA chapters: for `DPI` they would only show five spikes.)
 
 ```{r}
-#| label: fig-cell_data_hemisphere_scatter
-#| fig-cap: Tissue area against days post-ischemia, full range
-#| fig-width: 5
-#| fig-height: 5
-#| warning: false
-#| message: false
-#| results: false
+#| label: fig-single_continuous_full_range
+#| fig-cap: "Tissue area by day after ischemia, with the straight line fitted across all days. Orange diamonds mark each day's mean; the shaded band is the window we keep."
+#| fig-width: 6.5
+#| fig-height: 4.5
 
-library(ggExtra)
+means_full <- aggregate(Tissue_Area ~ DPI, data = cell_data, FUN = mean)
+m <- setNames(means_full$Tissue_Area, means_full$DPI)
 
-Area_scatter <- ggplot(
-  data = cell_data,
-  aes(x = DPI, y = Tissue_Area)
-) +
-  geom_smooth(method = lm, color = "black", fill = "#56B4E9", se = TRUE) +
-  geom_point() +
+ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
+  annotate("rect", xmin = 3, xmax = 14, ymin = -Inf, ymax = Inf,
+           fill = "#56B4E9", alpha = 0.15) +
+  geom_jitter(width = 0.4, height = 0, color = "grey35", alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 0.8) +
+  geom_point(data = means_full, shape = 18, size = 5, color = "#D55E00") +
   scale_x_continuous(breaks = c(0, 3, 7, 14, 30)) +
   labs(x = "Days post-ischemia (DPI)", y = "Tissue area (mm²)") +
   Plot_theme
-
-Area_scatter_Marginal <- ggMarginal(
-  Area_scatter,
-  type = "densigram",
-  colour = "black",
-  fill = "#56B4E9",
-  alpha = .9
-)
-
-Area_scatter_Marginal
 ```
 
-This is the line @sec-linear-regression-what drew and @sec-linear-regression-assumptions diagnosed, and the same conclusion holds: a single straight line, drawn across the entire 30-day window, splits the difference between an early bump and a later, flattening decline instead of honestly describing either. That's not a flaw specific to this dataset; it's what happens whenever a biological process changes character partway through the timeline you're modeling, and cerebral ischemia's inflammation-then-degeneration arc does exactly that. So we do what the last chapter's diagnostics recommended: narrow the window to a stretch where the biology is closer to monotonic, and model that stretch honestly instead of the whole thing dishonestly.
+The diamonds tell the story the line cannot. Mean tissue area goes from `r f1(m["0"])` mm² at day 0 (the shams) up to `r f1(m["3"])` at day 3, then down through `r f1(m["7"])` and `r f1(m["14"])`, and ends at `r f1(m["30"])` by day 30, where the decline has flattened. A single slope has to split the difference between a rise, a fall and a plateau, so it is too high for some days and too low for others. That is not a flaw of this dataset. It is what happens whenever a biological process changes character partway along the axis you are modeling, and the inflammation-then-degeneration arc of cerebral ischemia does exactly that.
+
+## Keeping the stretch where a line is honest
+
+The shaded band marks the stretch I keep: days 3, 7 and 14, the three days with a decline and nothing else going on. I also drop the sham animals, since they exist only at day 0 and would sneak a condition contrast into what should be a pure time slope.
 
 ```{r}
-#| label: tbl-cell_data_sub_tbl
-#| tbl-cap: Cell data table subset (DPI 3, 7, 14)
+#| label: tbl-single_continuous_days
+#| tbl-cap: Tissue area by day within the DPI 3 to 14 window
 
 library(gt)
+
 cell_data_sub <- subset(cell_data, DPI %in% c(3, 7, 14))
-gt(head(cell_data_sub))
+cell_data_sub$DPI_c <- cell_data_sub$DPI - 3
+
+day_summary <- do.call(rbind, lapply(split(cell_data_sub, cell_data_sub$DPI), function(d) {
+  data.frame(DPI = d$DPI[1], Animals = nrow(d),
+             Mean = mean(d$Tissue_Area), SD = sd(d$Tissue_Area))
+}))
+
+gt(day_summary) |>
+  fmt_number(columns = c(Mean, SD), decimals = 2)
 ```
 
 ```{r}
-#| label: fig-cell_data_sub_hemisphere_scatter
-#| fig-cap: Tissue area against days post-ischemia, DPI 3-14 subset
-#| fig-width: 5
-#| fig-height: 5
-#| warning: false
-#| message: false
-#| results: false
-#| echo: false
+#| include: false
 
-Area_sub_scatter <- ggplot(
-  data = cell_data_sub,
-  aes(x = DPI, y = Tissue_Area)
-) +
-  geom_smooth(method = lm, color = "black", fill = "#56B4E9", se = TRUE) +
-  geom_point() +
-  scale_x_continuous(breaks = c(3, 7, 14)) +
-  labs(x = "Days post-ischemia (DPI)", y = "Tissue area (mm²)") +
-  Plot_theme
-
-Area_sub_scatter_Marginal <- ggMarginal(
-  Area_sub_scatter,
-  type = "densigram",
-  colour = "black",
-  fill = "#56B4E9",
-  alpha = .9
-)
-
-Area_sub_scatter_Marginal
+drop_3_7 <- (day_summary$Mean[1] - day_summary$Mean[2]) / 4
+drop_7_14 <- (day_summary$Mean[2] - day_summary$Mean[3]) / 7
 ```
 
-Restricted to DPI 3–14, the decline looks far closer to a straight line than the full-range version did, which is exactly the point of subsetting: not to make the data prettier, but to only ask a linear model a question it can honestly answer. Notice, too, that day 3 still shows a noticeably wider spread of points than day 7 or 14: the same wide day-3 spread @sec-linear-regression-assumptions flagged in the full dataset hasn't disappeared just because we narrowed the range. Keep that in mind; it's going to matter again in a moment.
+Two things in @tbl-single_continuous_days matter. First, the loss per day is close to the same in both stretches: about `r f2(drop_3_7)` mm² per day between days 3 and 7 and `r f2(drop_7_14)` between days 7 and 14. That is exactly what a straight line claims, and it is why this window is defensible. Second, there is one row per animal (`r day_summary$Animals[1]`, `r day_summary$Animals[2]` and `r day_summary$Animals[3]` animals per day), so the independence assumption from @sec-linear-regression-assumptions is not the worry here. The worry is in the last column: the spread at day 3 is visibly larger than at days 7 and 14. We will come back to it, because it is going to matter.
 
 ::: callout-tip
-### Why this subset, and not a wider or narrower one
+### I chose this window after looking at the data
 
-DPI 3–14 isn't an arbitrary trim; it's the stretch where the data show one thing (a steady decline) instead of two (a day-3 bump that I read as edema, then a decline that flattens). A narrower window would waste data without buying anything; a wider one, reaching back toward day 0 or out toward day 30, would drag the bump or the later plateau back into a model that can't represent either. It also leaves the sham animals out, since they exist only at day 0, so no condition contrast sneaks into the time slope.
+I picked days 3 to 14 *after* seeing the means in @fig-single_continuous_full_range. That is a decision made with the data in hand, and a different analyst might have drawn the window elsewhere. So the slope below is a statement about this stretch of the time course, not a law of ischemia. The honest way to cover the whole 30 days is not to keep trimming until a line fits, but to use a model that can bend, which is what @sec-longitudinal-timeseries does. <!-- TODO: @sec-longitudinal-timeseries (Part 4, chapter planned) does not exist yet; keep this reference until it does. -->
 :::
 
-## Fitting the model
+## Writing the model down
 
 Running this regression answers the same question this book keeps coming back to:
 
@@ -113,27 +94,98 @@ Running this regression answers the same question this book keeps coming back to
 ***What's the value of knowing A if I know B?***
 :::
 
-Here, knowing $B$ = days since ischemia, how much does that tell us about $A$ = hemispheric tissue area? The model takes the now-familiar shape:
+Here $B$ is the number of days since ischemia, and $A$ is hemispheric tissue area. How much does knowing the day tell us about the area? The model has the shape you already know, with one change I will explain in a moment:
 
 $$
-\text{Area}_i = \beta_0 + \beta_1 \cdot \text{DPI}_i + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
-$$
+\text{Area}_i = \beta_0 + \beta_1 \cdot (\text{DPI}_i - 3) + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
+$$ {#eq-single-continuous}
 
-$\text{Area}_i$ is the tissue area for animal $i$, and $\text{DPI}_i$ its measurement day, both real, numeric, continuous variables, unlike the categorical `Condition` from @sec-intro-applied-modeling. $\beta_0$ is still the intercept: the area the model predicts at $\text{DPI} = 0$, even though day 0 isn't actually in this subset anymore; the model will happily extrapolate an intercept for it regardless, which is worth remembering before you lean on that number too hard. $\beta_1$ is the slope: how much tissue area changes per additional day within this window. And $\epsilon_i$ is everything else, same as always.
+$\text{Area}_i$ is the tissue area of animal $i$ and $\text{DPI}_i$ its measurement day, both real, numeric, continuous variables (unlike the categorical `Condition` of @sec-intro-applied-modeling). $\beta_1$ is the slope: how much area changes per additional day. $\epsilon_i$ is everything else, same as always.
+
+The change is the "$-3$". In @eq-linear-regression-simple, $\beta_0$ is the value of $y$ when $x = 0$, and here $x = 0$ is day 0, the one day this window leaves out. The model would happily extrapolate to a day it never saw, and the answer would be a number that nobody can check against anything. Think of it as setting the zero of a ruler. You can put the zero where the table of measurements ends, or at the start of the stretch you actually measured. Centering `DPI` at day 3 does the second: $\beta_0$ becomes the expected area *at day 3*, a number we can hold up against the animals we really measured. It costs nothing, because shifting $x$ changes only the intercept and leaves the slope untouched (see @tbl-single_continuous_centering).
+
+```{r}
+#| label: tbl-single_continuous_centering
+#| tbl-cap: Centering DPI at day 3 moves the intercept into the data and leaves the slope alone
+
+coef_raw <- coef(lm(Tissue_Area ~ DPI, data = cell_data_sub))
+coef_cen <- coef(lm(Tissue_Area ~ DPI_c, data = cell_data_sub))
+
+gt(data.frame(
+  Version = c("DPI (zero = day 0, outside the window)", "DPI minus 3 (zero = day 3, inside the window)"),
+  Intercept = c(coef_raw[[1]], coef_cen[[1]]),
+  Slope = c(coef_raw[[2]], coef_cen[[2]])
+)) |>
+  fmt_number(columns = c(Intercept, Slope), decimals = 2)
+```
+
+The uncentered intercept, `r f1(coef_raw[[1]])` mm², is higher than anything we measured in sham animals at day 0 (`r f1(m["0"])` mm²), because it extrapolates a line fitted on the way down from the day-3 bump. The centered intercept, `r f1(coef_cen[[1]])` mm², sits where the data are.
+
+## What I believed before looking
+
+@sec-priors-regularization taught us that leaving a prior at its default is a decision, so this time I make it on purpose. In my own data and in the ischemia models I have worked with before, hemispheric tissue shrinks on the order of 1 mm² per day through the first two weeks. That number comes from my experience and my earlier data, not from a paper, and I would rather say so than dress it up. So the slope prior is centered at $-1$ mm² per day, with a small spread: a standard deviation of 0.5 mm² per day. Written on the scale of the outcome, that prior says three things. A loss of 2 mm² per day sustained over 11 days would remove more tissue than any section in this file contains (the largest is `r f1(max(cell_data$Tissue_Area))` mm²), and the prior gives it little weight. A *gain* is nearly ruled out, since only about `r round(100 * (1 - pnorm(0, -1, 0.5)))`% of the prior probability sits above zero. And everything between no change and a loss of 2 mm² per day is allowed to compete.
+
+```{r}
+#| label: tbl-single_continuous_priors
+#| tbl-cap: Priors for the tissue-loss model, with their reading on the scale of the outcome
+
+area_range <- range(cell_data$Tissue_Area)
+
+gt(data.frame(
+  Parameter = c("Intercept (area at day 3)", "Slope (mm² per day)", "sigma (spread around the line)"),
+  Prior = c("Normal(15, 4)", "Normal(-1, 0.5)", "Exponential(0.5)"),
+  Reading = c(
+    sprintf("95%% of belief between 7 and 23 mm²; the sections in this file run from %.1f to %.1f mm²", area_range[1], area_range[2]),
+    "About 95% of belief between a loss of 2 mm² per day and no change",
+    sprintf("Mean of 2 mm²; only %.0f%% of belief above 6 mm², an implausible typical distance from the line when areas run from %.1f to %.1f mm²", 100 * exp(-0.5 * 6), area_range[1], area_range[2])
+  )
+))
+```
+
+The intercept and `sigma` priors are deliberately loose; they only keep the sampler away from absurd regions (areas of 100 mm², say). Only the slope carries real prior knowledge, and the sensitivity check below tells us how much that knowledge changes the answer. One `brms` detail: by default it places the intercept prior on a version of the intercept with the predictors centered at their mean, which here would be day 8.7, not day 3. Writing `0 + Intercept` in the formula puts the prior on the intercept we actually named.
+
+## Fitting it twice
+
+A plain `lm()` gives us the likelihood-only answer: the same line a flat prior would produce, with an interval that cannot use anything we knew beforehand. `brms` fits the same linear model but hands back the full posterior for every quantity we care about, including derived ones (we will compute the percentage lost between days 3 and 14 in a moment), and lets the prior in the table above enter the calculation. Putting the two side by side is also how we see what the prior did.
 
 ```{r}
 library(brms)
 
+priors <- c(
+  prior(normal(15, 4), class = b, coef = Intercept),
+  prior(normal(-1, 0.5), class = b, coef = DPI_c),
+  prior(exponential(0.5), class = sigma)
+)
+
 brms_model <- brm(
-  Tissue_Area ~ DPI,
+  Tissue_Area ~ 0 + Intercept + DPI_c,
   data = cell_data_sub,
+  prior = priors,
+  sample_prior = "yes",
   seed = 123,
   file = "models/linear-regression-single-continuous_fit1.rds",
   file_refit = "never"
 )
 ```
 
-We haven't specified any priors here: same deliberate choice as @sec-intro-applied-modeling's first model, so the coefficients below reflect the data with as little of our own opinion mixed in as `brms`'s defaults allow. @sec-priors-regularization is where we stop doing that on purpose.
+```{r}
+#| include: false
+
+library(posterior)
+
+draws <- as_draws_df(brms_model)
+conv <- summarise_draws(
+  subset_draws(draws, variable = c("b_Intercept", "b_DPI_c", "sigma")),
+  "rhat", "ess_bulk", "ess_tail"
+)
+n_div <- sum(subset(nuts_params(brms_model), Parameter == "divergent__")$Value)
+
+slope <- draws$b_DPI_c
+icpt <- draws$b_Intercept
+pred14 <- icpt + 11 * slope
+drop_pct <- 100 * (1 - pred14 / icpt)
+ci <- function(x) quantile(x, c(0.025, 0.975))
+```
 
 ::: panel-tabset
 ### brms
@@ -142,7 +194,7 @@ We haven't specified any priors here: same deliberate choice as @sec-intro-appli
 summary(brms_model)
 ```
 
-Rhat is 1.00 or 1.01 for every parameter, both bulk and tail effective sample sizes clear 2,200 (comfortably past the 400 minimum), and there's no divergent-transition warning, a fit worth trusting on the sampling side, which is a separate question from whether the *model* itself is a good description of the biology (more on that shortly).
+The sampler did its job: the largest Rhat is `r sprintf("%.3f", max(conv$rhat))` (under the 1.01 threshold), the smallest bulk and tail effective sample sizes are `r format(round(min(conv$ess_bulk)), big.mark = ",")` and `r format(round(min(conv$ess_tail)), big.mark = ",")` (well past 400), and there are `r n_div` divergent transitions. That vouches for the *sampling*, which is a separate question from whether the *model* describes the biology; we get to that at the end.
 
 ### parsnip
 
@@ -150,9 +202,9 @@ Rhat is 1.00 or 1.01 for every parameter, both bulk and tail effective sample si
 library(parsnip)
 library(broom)
 
-parsnip_model <- linear_reg() %>%
-  set_engine("lm") %>%
-  fit(Tissue_Area ~ DPI, data = cell_data_sub)
+parsnip_model <- linear_reg() |>
+  set_engine("lm") |>
+  fit(Tissue_Area ~ DPI_c, data = cell_data_sub)
 
 tidy(parsnip_model, conf.int = TRUE)
 ```
@@ -160,56 +212,164 @@ tidy(parsnip_model, conf.int = TRUE)
 
 ## Reading the coefficients
 
-Both fits agree closely: an intercept around 18.8 mm² and a `DPI` slope around $-0.67$ mm² per day, with `brms`'s 95% credible interval (roughly $-0.83$ to $-0.52$) and `parsnip`'s 95% confidence interval (roughly $-0.81$ to $-0.53$) both sitting comfortably away from zero. Concretely, that slope says tissue area falls by about 0.67 mm² for every additional day in this window: predicted area drops from around 16.8 mm² at day 3 to around 9.4 mm² by day 14, a decline of roughly 44% over eleven days.
+The slope is about $`r f2(median(slope))`$ mm² per day (95% credible interval $`r f2(ci(slope)[1])`$ to $`r f2(ci(slope)[2])`$): for each additional day inside this window, hemispheric area falls by roughly two thirds of a square millimeter. The intercept says an animal at day 3 is expected to have about `r f1(median(icpt))` mm² (95% credible interval `r f1(ci(icpt)[1])` to `r f1(ci(icpt)[2])`), close to the `r f1(day_summary$Mean[1])` mm² we actually averaged at day 3. That is the check the uncentered intercept could not offer. And because we hold the whole posterior, any quantity built from the parameters comes with its own uncertainty for free: computed draw by draw, the expected area at day 14 is `r f1(median(pred14))` mm², a loss of about `r round(median(drop_pct))`% over eleven days (95% credible interval `r round(ci(drop_pct)[1])`% to `r round(ci(drop_pct)[2])`%).
 
-::: callout-warning
-### Before you trust this too far
-
-Subsetting fixed the problem it was meant to fix (linearity), but it didn't fix everything. A quick residual check on this exact model shows the same day-3 excess variability we just saw in @fig-cell_data_sub_hemisphere_scatter carrying through into the residuals, and a Shapiro-Wilk test flags the resulting residual distribution as non-normal ($W = 0.88$, $p = 0.002$), driven by that same wider spread at the acute timepoint. With only 31 animals across three groups, chasing this further with a transformation would cost more in interpretability than it would buy in normality, and @sec-beta-robust-regression gives us purpose-built machinery (robust, heavier-tailed likelihoods) for exactly this shape of problem later in the book. File this under "known, honest limitation," not "fatal flaw": the effect direction and its distance from zero are not in question, but the precision quoted above is probably a little optimistic.
-:::
-
-Let's actually look at the posterior for that slope, rather than just quoting its interval.
+A table of coefficients is easy to read past, so let me draw the line itself. I show the uncertainty as nested bands (50%, 80% and 95%) instead of a single hard-edged interval, so the eye reads a gradient of plausibility rather than a boundary. One caution about what the bands are: they describe our uncertainty about the *average* tissue area at each day, not about where an individual animal will land, which is far wider.
 
 ```{r}
-#| label: fig-single_continuous_posterior_halfeye
-#| fig-cap: Posterior distribution for the DPI slope on tissue area
-#| fig-width: 6
-#| fig-height: 3.5
+#| label: fig-single_continuous_fit
+#| fig-cap: Posterior mean line for tissue area against days post-ischemia (50%, 80% and 95% credible bands), with the animals behind it
+#| fig-width: 6.5
+#| fig-height: 4.5
 
 library(ggdist)
-library(posterior)
 
-draws <- as_draws_df(brms_model)
+grid <- data.frame(DPI = seq(3, 14, length.out = 50))
+grid$DPI_c <- grid$DPI - 3
+mu <- posterior_epred(brms_model, newdata = grid)
+line_draws <- data.frame(DPI = rep(grid$DPI, each = nrow(mu)), mu = c(mu))
 
-ggplot(draws, aes(x = b_DPI, y = 0)) +
-  stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", point_interval = "median_qi") +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
-  labs(x = "Posterior for the DPI slope on tissue area", y = NULL) +
-  Plot_theme +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+ggplot(line_draws, aes(x = DPI, y = mu)) +
+  stat_lineribbon(.width = c(0.5, 0.8, 0.95), linewidth = 0.8, color = "#0072B2") +
+  scale_fill_brewer(palette = "Blues") +
+  geom_jitter(data = cell_data_sub, aes(x = DPI, y = Tissue_Area),
+              width = 0.25, height = 0, color = "grey25", alpha = 0.7, size = 2,
+              inherit.aes = FALSE) +
+  scale_x_continuous(breaks = c(3, 7, 14)) +
+  labs(x = "Days post-ischemia (DPI)", y = "Tissue area (mm²)", fill = "Credible level") +
+  Plot_theme
 ```
 
-The whole mass of that distribution sits well below zero: every plausible value for the slope, weighted by how well it fits what we observed, points the same direction. That's the Bayesian answer to "how sure are we?", in the same sense @sec-intro-applied-modeling walked through in detail: a direct probability statement about the effect itself, not a long-run frequency claim about a procedure.
+## How far did the data move us?
+
+A prior is only honest if you show how much it mattered. @fig-single_continuous_prior_posterior overlays what I believed before looking (dashed) and what I believe after (solid) for the slope.
+
+```{r}
+#| label: fig-single_continuous_prior_posterior
+#| fig-cap: Prior and posterior for the slope (mm² per day)
+#| fig-width: 6.5
+#| fig-height: 3.8
+
+overlay <- data.frame(
+  slope = c(draws$prior_b_DPI_c, draws$b_DPI_c),
+  distribution = rep(c("Prior", "Posterior"), each = nrow(draws))
+)
+
+ggplot(overlay, aes(x = slope, color = distribution, linetype = distribution)) +
+  geom_density(linewidth = 1.1) +
+  scale_color_manual(values = c(Prior = "#E69F00", Posterior = "#0072B2")) +
+  scale_linetype_manual(values = c(Prior = "dashed", Posterior = "solid")) +
+  annotate("text", x = -1.85, y = 0.5, label = "Prior", color = "#E69F00", size = 5) +
+  annotate("text", x = -0.45, y = 4.2, label = "Posterior", color = "#0072B2", size = 5, hjust = 0) +
+  labs(x = "Slope: change in tissue area per day (mm²/day)", y = "Density") +
+  Plot_theme +
+  theme(legend.position = "none")
+```
+
+The data did most of the work. A prior centered at $-1$ with a standard deviation of 0.5 became a posterior centered near $`r f2(median(slope))`$ with a standard deviation of about `r f2(sd(slope))`, several times narrower and shifted toward what the 31 animals say. My prior expected a slightly steeper loss than the animals show, and the data corrected it without a fight. The formal version of that check is to refit under a visibly different prior and ask whether the conclusion survives. I use a skeptical one, centered on *no effect*:
+
+```{r}
+brms_skeptic <- brm(
+  Tissue_Area ~ 0 + Intercept + DPI_c,
+  data = cell_data_sub,
+  prior = c(
+    prior(normal(15, 4), class = b, coef = Intercept),
+    prior(normal(0, 0.5), class = b, coef = DPI_c),
+    prior(exponential(0.5), class = sigma)
+  ),
+  seed = 123,
+  file = "models/linear-regression-single-continuous_fit2.rds",
+  file_refit = "never"
+)
+```
+
+```{r}
+#| label: tbl-single_continuous_sensitivity
+#| tbl-cap: The slope under three analyses (mm² per day)
+
+slope_row <- function(x, label) {
+  q <- unname(quantile(x, c(0.5, 0.025, 0.975)))
+  data.frame(Analysis = label, Estimate = q[1], Lower = q[2], Upper = q[3])
+}
+lm_slope <- tidy(parsnip_model, conf.int = TRUE)
+lm_slope <- lm_slope[lm_slope$term == "DPI_c", ]
+
+sens <- rbind(
+  slope_row(slope, "brms, informed prior Normal(-1, 0.5)"),
+  slope_row(as_draws_df(brms_skeptic)$b_DPI_c, "brms, skeptical prior Normal(0, 0.5)"),
+  data.frame(Analysis = "parsnip (lm), no prior", Estimate = lm_slope$estimate,
+             Lower = lm_slope$conf.low, Upper = lm_slope$conf.high)
+)
+
+gt(sens) |>
+  fmt_number(columns = c(Estimate, Lower, Upper), decimals = 2)
+```
+
+The conclusion does not depend on my prior. Even a prior that starts from *no effect* ends within a few hundredths of the others (@tbl-single_continuous_sensitivity), so the data, not my experience, carry this inference. That is worth knowing, because with other datasets it will not always be true.
 
 ::: callout-tip
 ### Frequentist equivalent
 
-`brms` and `lm` land on nearly identical numbers again, for the same reason as in @sec-intro-applied-modeling: with a flat prior, the posterior is shaped almost entirely by the likelihood, which is exactly what `lm` maximizes on its own [@gelman2020]. Thirty-one animals is a small sample by most standards, but it's enough here for the two approaches to agree; the divergence you'll start to see later in the book shows up with hierarchical structure or genuinely uninformative small samples, neither of which applies yet to this single-level model.
+`brms` and `lm` agree to the second decimal, and now we can say why. With 31 animals the likelihood is far sharper than my prior: the prior carries only about `r round(100 * (1 / 0.5^2) / ((1 / 0.5^2) + (1 / lm_slope$std.error^2)), 1)`% of the weight in the slope, so the posterior is almost exactly what `lm` maximizes on its own [@gelman2020]. The `lm` row is also, in effect, the answer a flat prior would give, so the table doubles as a check against the fully noncommittal analysis. The divergence you will see later in the book shows up with hierarchical structure, tiny samples, or priors that do real regularizing work; none of those applies yet to this single-level model.
 :::
 
-## Does the model's story match the data?
+## Is the line honest about the spread?
 
-@sec-mcmc-model-checking introduced the posterior predictive check as the way to ask whether a fitted model's simulated data actually resembles the real thing, rather than just trusting the coefficients on faith. Let's finally put that to use on a model with something at stake.
+Now the promise I made at the table of days: the spread at day 3. The model has one `sigma` for the whole window, so it assumes every animal scatters around the line by the same amount. @fig-single_continuous_residuals checks that, as @sec-linear-regression-assumptions taught us to: not with a test, with a picture.
+
+```{r}
+#| label: fig-single_continuous_residuals
+#| fig-cap: Residuals of the tissue-loss model by day (mm²)
+#| fig-width: 5.5
+#| fig-height: 4
+
+resid_df <- data.frame(
+  DPI = factor(cell_data_sub$DPI),
+  residual = residuals(brms_model)[, "Estimate"]
+)
+res_sd <- tapply(resid_df$residual, resid_df$DPI, sd)
+res3 <- resid_df$residual[resid_df$DPI == "3"]
+res3_sd_trimmed <- sd(res3[res3 > min(res3)])
+
+ggplot(resid_df, aes(x = DPI, y = residual)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  geom_jitter(width = 0.15, height = 0, color = "#0072B2", alpha = 0.8, size = 2) +
+  labs(x = "Days post-ischemia (DPI)", y = "Residual (mm²)") +
+  Plot_theme
+```
+
+The residuals at day 3 spread with a standard deviation of about `r f1(res_sd["3"])` mm², against `r f1(res_sd["7"])` at day 7 and `r f1(res_sd["14"])` at day 14. Subsetting fixed what it was meant to fix, the linearity, but not this. Part of the day-3 spread is one animal about `r f1(abs(min(res3)))` mm² below the line (the lone low point in @fig-single_continuous_fit), and with eight animals a single unusual mouse and a genuinely wider day are hard to tell apart. Without that animal the day-3 standard deviation falls to `r f1(res3_sd_trimmed)` mm², still well above the `r f1(res_sd["14"])` to `r f1(res_sd["7"])` of the other days, so some of the excess is a genuinely wider day and some is one unusual mouse, and with eight animals I cannot say how much is which. The single `sigma` (`r f1(median(draws$sigma))` mm²) averages over a noisy day 3 and two calm days, so it is too large for days 7 and 14 and too small for day 3 as we observed it. The slope itself is not in question, since its credible interval sits far from zero, but I would not trust the model to predict where a *new* day-3 animal will land. The direct fix is to let `sigma` depend on the day, a distributional model, which is what @sec-multivariate-distributional-regression does; @sec-appendix-assumption-tests shows what that change does on the full-range data. <!-- TODO: @sec-multivariate-distributional-regression (Part 4, chapter planned) does not exist yet; keep this reference until it does. -->
+
+@sec-mcmc-model-checking introduced the posterior predictive check as the way to ask whether a fitted model's simulated data resemble the real thing. A density overlay would not show the day-3 problem, so I check the quantity that matters: for each day, the standard deviation of the observed animals against the standard deviations of datasets the model replicated.
 
 ```{r}
 #| label: fig-single_continuous_ppcheck
-#| fig-cap: Posterior predictive check for the DPI model of tissue area
-#| fig-width: 6
-#| fig-height: 4
+#| fig-cap: Posterior predictive check of the standard deviation by day (observed value as a line, replicated datasets as histograms)
+#| fig-width: 7
+#| fig-height: 3.5
 
-pp_check(brms_model, ndraws = 50)
+library(bayesplot)
+
+yrep <- posterior_predict(brms_model, ndraws = 500)
+
+ppc_stat_grouped(
+  y = cell_data_sub$Tissue_Area,
+  yrep = yrep,
+  group = factor(cell_data_sub$DPI),
+  stat = "sd"
+)
 ```
 
-The replicated datasets (light lines) bracket the observed data (dark line) reasonably well: same center, same overall spread, no replicate wildly off from reality. Look closely, though, and the observed curve has a faint two-humped shape that no single replicate quite reproduces: a small echo of the fact that this "one" dataset is really three DPI groups stitched together, one of them (day 3) wider than the other two. A single Gaussian likelihood, by construction, can only ever propose one smooth hump; it has no way to represent "three groups with different spreads" as anything other than an approximation. That's the same day-3 variability from the callout above, showing up here a second way rather than as a new problem. A model doesn't have to be flawless to be useful; it has to be useful in a way you can name precisely, and now we can.
+```{r}
+#| include: false
 
-Two coefficients, an honestly-scoped range, a checked fit, and a named limitation: that's a complete linear regression, start to finish. @sec-linear-regression-multiple picks up the natural next question: what happens once we bring a second predictor into this same model? And further out, @sec-longitudinal-timeseries returns to the *entire* 0–30 DPI range we set aside at the start of this chapter, this time with a model built to actually represent a rise followed by a fall, instead of subsetting the problem away.
+obs_sd <- tapply(cell_data_sub$Tissue_Area, cell_data_sub$DPI, sd)
+share_as_large <- sapply(names(obs_sd), function(d) {
+  idx <- cell_data_sub$DPI == as.numeric(d)
+  mean(apply(yrep[, idx], 1, sd) >= obs_sd[[d]])
+})
+```
+
+The two ends of the figure pull in opposite directions, which is what a single `sigma` forces. At day 3 the observed standard deviation (`r f1(obs_sd["3"])` mm²) sits in the far right tail of what the model replicates: only about `r round(100 * share_as_large["3"])`% of replicated datasets scatter that much at day 3. At days 7 and 14 the observed values (`r f1(obs_sd["7"])` and `r f1(obs_sd["14"])` mm²) sit at the left edge, with about `r round(100 * mean(share_as_large[c("7", "14")]))`% of replicates scattering at least that much at each of them, because the model expects about `r f1(median(draws$sigma))` mm² everywhere. The model's one `sigma` is a compromise that is wrong in both directions. A density overlay would have looked fine and missed all of this, which is why the check should be built around the thing you suspect.
+
+Two coefficients, an honestly scoped window, a prior I can defend and a named limitation: that is a complete linear regression, start to finish. @sec-linear-regression-multiple picks up the natural next question: what happens once we bring a second predictor into this same model? And further out, @sec-longitudinal-timeseries returns to the *entire* 0 to 30 day range we set aside, this time with a model built to represent a rise followed by a fall, instead of subsetting the problem away.
