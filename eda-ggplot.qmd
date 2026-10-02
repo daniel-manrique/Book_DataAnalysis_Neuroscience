@@ -188,6 +188,8 @@ It is far too common to proceed under the [default assumption of normality]{styl
 Here, we have critical evidence to challenge such assumptions and prevent misguided analyses.
 I have no doubt that you can easily extrapolate this exercise to any data sets you are working with or will be working with in your research endeavors.
 
+![A normal curve is a neat bell jar for your data, until the data have a long tail. Forced over skewed measurements, part of them sticks out.](images/eda-ggplot_bell-jar-over-skewed-clay.png){#fig-eda-ggplot-bell-jar fig-align="center" width="90%" fig-alt="Watercolor sketch of a symmetric glass bell jar on a wooden bench covering a lumpy mound of ochre clay that is steep on the left, with a long thin tail of clay sticking out from under the right edge of the jar and trailing along the bench."}
+
 Some may argue that the apparent non-normality stems from a [small sample size]{style="color:red;"} and that, with a larger dataset, the values would eventually approximate a normal distribution as dictated by the [central limit theorem](https://www.statisticshowto.com/probability-and-statistics/normal-distributions/central-limit-theorem-definition-examples/).
 While it is true that many real-world phenomena tend toward normality when sufficiently sampled, this argument misses an essential point.
 **We have no way of predicting the true mean or standard deviation of this hypothetical larger dataset**.
@@ -327,6 +329,8 @@ The variability observed at early stages (0 or 3 DPI) is expected to be lower du
 Unfortunately, heteroskedasticity is often ignored in traditional, mindless statistical approaches that assume constant variance (homoskedasticity) across groups or predictors.
 Thus, it is not surprising that we are flowed with [biased estimates]{style="color:red;"}, [unreliable inferences]{style="color:red;"}, and [missed opportunities]{style="color:red;"} for meaningful scientific advance.
 
+![A trumpet starts narrow and ends wide, like the spread of our data over time: tight at the start, scattered later. One straight line, and one variance, can't describe both ends.](images/eda-ggplot_trumpet-widening-spread.png){#fig-eda-ggplot-trumpet fig-align="center" width="90%" fig-alt="Watercolor sketch of a brass trumpet lying on a wooden bench. Small teal and ochre dots come out along it, forming a tight narrow line near the mouthpiece and spreading into a wide scattered fan beyond the bell, with a thin straight arrow along the trumpet's axis."}
+
 Last but not least, the marginal density plot on the right offers additional insight into the overall distribution of intensity values.
 Here, we can observe that the distribution is a bit skewed toward lower intensity values, as indicated by the density lines.
 Nevertheless, there remains a considerable spread across the higher intensity range, suggesting a mix of low- and high-intensity observations.
@@ -428,6 +432,8 @@ This allows us to answer the following vital question:
 The raincloud plot reveals that while the variance at 0 and 3 DPI is relatively small for both markers, the variability at 30 DPI is strikingly large.
 Importantly, for GFAP at 30 DPI, we observe a bimodal distribution, where the mean value (indicated by the green diamond) does not correspond to either of the two density peaks.
 The mean here fails to represent the underlying data in any meaningful way, highlighting the risk of relying on the mean as a sole descriptor of central tendency in skewed or multimodal distributions.
+
+![A raincloud with two humps. The mean, the little diamond, floats in the gap between them, exactly where there is no cloud, no rain, and no data.](images/eda-ggplot_two-hump-raincloud.png){#fig-eda-ggplot-raincloud fig-align="center" width="90%" fig-alt="Watercolor sketch of two pale teal clouds side by side with a gap between them, each raining teal and ochre drops onto a strip of grass below. An ochre diamond-shaped kite floats alone in the gap, where there is neither cloud nor rain."}
 
 Additionally, we notice that the median (black line) and mean (green diamond) are closely aligned at 0 and 3 DPI, where the distributions are symmetric and narrow.
 However, at later time points, especially at 30 DPI for GFAP and 14 DPI for PDGFR-β, the two measures diverge considerably.

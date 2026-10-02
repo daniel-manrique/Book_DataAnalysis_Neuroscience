@@ -23,6 +23,8 @@ Here's an everyday version of the problem. Imagine you're triaging a stack of gr
 
 That table, applied to data instead of grant reviewers, is what a [correlation matrix]{style="color:green; font-weight:bold;"} gives you: a grid where every variable in your dataset is compared against every other variable at once, instead of one deliberately chosen pair at a time. It's the natural generalization of the single scatter plot from @sec-eda-ggplot: same idea, scaled up from "one relationship I already suspected" to "every relationship I haven't checked yet."
 
+![Two birds singing the same song are telling you the same thing twice. A correlation matrix is how you find them before you ask both to sing in the same model.](images/eda-ggpairs_two-birds-same-song.png){#fig-eda-ggpairs-birds fig-align="center" width="90%" fig-alt="Watercolor sketch of five songbirds perched on a wire, each with a trail of musical notes from its beak. The two identical blue tits in the middle sing the same pattern of teal notes, joined by a dashed line, while the chickadee, the robin and the wren on either side sing different patterns."}
+
 Why does this matter before you've fit a single model? Because two variables that are almost interchangeable (one that tells you almost nothing the other one doesn't already tell you) are a problem you want to catch in the exploration stage, not discover three chapters from now when a regression model hands you coefficients that make no sense. This chapter isn't about diagnosing an already-fitted model (that's a narrower, later question we'll pick back up in @sec-linear-regression-assumptions, once there's an actual model on the table to interrogate). Right now we're just asking the more general question: of the variables sitting in front of us, which ones are quietly duplicating each other?
 
 Let's load the data we've been building intuition about since the start of this part, and get looking.
@@ -110,6 +112,8 @@ heatmap(x = cell_data_sub_matrix, col = hcl.colors(20, "viridis"), symm = TRUE)
 ```
 
 @fig-cell_data_heatmap clusters the same two redundant pairs together along both axes, using color intensity in place of `corrplot`'s circles. Three plots, one finding, which is itself worth noticing. When three different visualizations of the same matrix all point at the same two pairs, that's not a coincidence of plotting choices; it's the data being genuinely unambiguous about where the redundancy lives.
+
+![Three instruments, one direction. When a grid of scatter plots, a bubble matrix and a heatmap all point at the same two pairs, it isn't a plotting accident.](images/eda-ggpairs_three-instruments-one-direction.png){#fig-eda-ggpairs-instruments fig-align="center" width="90%" fig-alt="Watercolor sketch of a brass compass, a small weathervane with an arrow and a striped orange-and-white windsock standing in a row on a wooden table, all pointing toward the right edge of the page along a faint dotted line."}
 
 ## What this does (and doesn't) tell us
 
