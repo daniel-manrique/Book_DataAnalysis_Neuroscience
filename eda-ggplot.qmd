@@ -21,7 +21,7 @@ Another powerful visualization is the violin plot, or [raincloud plot]{style="co
 When comparing GFAP intensity across time points or experimental conditions, these plots can highlight unexpected differences or [heterogeneity]{style="text-decoration: underline;"} in variability.
 
 Below, we will walk through an example of exploratory data analysis using a real dataset from my own research.
-Using [`ggplot2`](https://ggplot2.tidyverse.org/) [@wickham2016], we will create density plots, scatter plots and raincloud plots for two key variables: `Gfap_InDent` (GFAP integrated density) and `Pdgfrb_IntDen` (PDGFR-β integrated density).
+Using [`ggplot2`](https://ggplot2.tidyverse.org/) [@wickham2016], we will create density plots, scatter plots and raincloud plots for two key variables: `Gfap_IntDen` (GFAP integrated density) and `Pdgfrb_IntDen` (PDGFR-β integrated density).
 These intensity values, quantified in [FIJI](https://imagej.net/software/fiji/) [@schindelin2012], represent the fluorescence signal of the respective markers.
 The resulting plots will allow us to assess the distributions, spot anomalies, and generate hypotheses about the underlying biological processes.
 
@@ -47,48 +47,23 @@ gt(head(cell_data))
 ```
 
 We can see that this data table contains 20 variables and 49 observations in total.
-We'll focus the EDA on the variables of interest `Gfap_InDent` (GFAP integrated density) and `Pdgfrb_IntDen` (PDGFR-β integrated density).
+We'll focus the EDA on the variables of interest `Gfap_IntDen` (GFAP integrated density) and `Pdgfrb_IntDen` (PDGFR-β integrated density).
 
 ## Checking the data distribution with density plots
 
-Before we start plotting our data, we will use the [`theme`](https://ggplot2.tidyverse.org/reference/theme.html) function from `ggplot` to create a [personalised theme]{style="color:green; font-weight:bold;"} to add a systematic aesthetic to our plots.
-This will standardise the way we present the graphs and improve visualisation.
-We'll call this object `Plot_theme` and it will be available in the functions folder of the GitHub repo (XXX).
+Before we start plotting our data, it's worth naming something you'll see in every figure from here on: a [personalised theme]{style="color:green; font-weight:bold;"}, built once with ggplot2's [`theme`](https://ggplot2.tidyverse.org/reference/theme.html) function and reused everywhere, so every plot in this book shares the same typography, axis styling, and overall feel instead of looking like it came from a different author each chapter.
+We call this object `Plot_theme`, and it lives in `functions/plot_theme.R` in the book's repository; we load it once per chapter and apply it to every plot we build.
 
 ```{r}
+#| include: false
+
 library(ggplot2)
 
-Plot_theme <- theme_classic() +
-  theme(
-    plot.title = element_text(size=18, hjust = 0.5, face="bold"),
-    plot.subtitle = element_text(size = 14, color = "black", face="italic"),
-    plot.caption = element_text(size = 12, color = "black"),
-    plot.tag = element_text(size = 18),
-    
-    axis.line = element_line(colour = "black", linewidth = 1.5, linetype = "solid"),
-    axis.ticks.length=unit(7,"pt"),
-    
-    axis.title.x = element_text(colour = "black", size = 16),
-    axis.text.x = element_text(colour = "black", size = 16, angle = 0, hjust = 0.5),
-    axis.ticks.x = element_line(colour = "black", linewidth = 1),
-    
-    axis.title.y = element_text(colour = "black", size = 16),
-    axis.text.y = element_text(colour = "black", size = 16),
-    axis.ticks.y = element_line(colour = "black", linewidth = 1),
-    
-    legend.position="right",
-    legend.direction="vertical",
-    legend.title = element_text(colour="black", face="bold", size=12),
-    legend.text = element_text(colour="black", size=10),
-    
-    plot.margin = margin(t = 5,  # Top margin
-                         r = 5,  # Right margin
-                         b = 5,  # Bottom margin
-                         l = 5) # Left margin
-  ) 
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
 ```
 
-As I mentioned earlier, EDA is a dynamic process of asking ourselves fundamental questions and answering them with data, in this case data visualizations.
+As I mentioned when we first talked about exploratory data analysis, EDA is a dynamic process of asking ourselves fundamental questions and answering them with data, in this case data visualizations.
 A question we might have at the beginning of our research is:
 
 ::: {style="text-align: center"}
@@ -99,7 +74,7 @@ To answer this question, we can use [`geom_density`](https://ggplot2.tidyverse.o
 This gives us an overview of how the data is distributed, along with the lower and upper bounds.
 Our plot has the following components:
 
--   `data` where we specify the data frame, in this case the onject we have called `cell_data`.
+-   `data` where we specify the data frame, in this case the object we have called `cell_data`.
 -   `aes` specifies the content of the axes. Here, we only pass the argument for the x-axis (i.e. Pdgfrb_IntDen). By default, `geom_density` uses the y-axis to create a density distribution with the variable we specify on the x-axis.
 -   `geom_density`, which creates a density distribution for the variable specified previously.
 -   `plot_theme` is the custom theme we created to personalize our plots.
@@ -230,7 +205,7 @@ In this case, the `cell_data` dataset contains a fundamental grouping variable: 
 This variable reflects the time points at which the brain samples were harvested, processed, stained, and imaged following the ischemic injury.
 Specifically, the `DPI` variable includes the following levels: 0, 3, 7, 14, and 30, representing distinct biological stages of glial scar formation and cellular reactivity.
 
-In the previous visualizations, we treated the intensity variables (`Gfap_InDent` and `Pdgfrb_IntDen`) without conditioning on DPI.
+In the previous visualizations, we treated the intensity variables (`Gfap_IntDen` and `Pdgfrb_IntDen`) without conditioning on DPI.
 While these global plots provided a useful overview of the data's overall distribution, they did not account for this hierarchical structure.
 By conditioning on DPI, we can now answer an additional and biologically meaningful question:
 
@@ -326,7 +301,7 @@ We may agree that @fig-cell_data_scatter_EDA provides a more informative perspec
 The scatter plots reveal a clear [increasing trend]{style="color:green; font-weight:bold;"} for both PDGFR-β and GFAP intensity as a function of time (DPI).
 This trend aligns with my expectations as a researcher on this field, showing how marker expression increases as a [sign of glial and neurovascular reactivity]{style="text-decoration: underline;"} following the ischemic injury.
 
-However, while the graph includes the **best-fit line** that minimizes the [distance between the observed data points and the line itself]{style="text-decoration: underline;"} (more in later chapters), it is clear that [many points are not captured]{style="color:red;"}.
+However, while the graph includes the **best-fit line** that minimizes the [distance between the observed data points and the line itself]{style="text-decoration: underline;"} (we'll make this precise in @sec-linear-regression-what), it is clear that [many points are not captured]{style="color:red;"}.
 For PDGFR-β, the line fails to account for the values at 0 and 3 DPI, where the data points lie substantially below the trend.
 For GFAP, the situation is even more pronounced at 0 DPI, where the line does not cover any observed points.
 
@@ -347,7 +322,7 @@ At this baseline time point, the biological system is stable, with minimal patho
 Following ischemia, however, a variety of biological and experimental factors come into play, increasing the variability in marker intensities.
 These factors can include animal well-being, feeding behavior, injury size, neurodegeneration, and recovery processes, all of which introduce heterogeneity into the data.
 
-Critically, this biological understanding provides a sound [scientific basis]{style="text-decoration: underline;"} for anticipating [heteroskedasticity]{style="color:green; font-weight:bold;"}, a condition where the variability (or variance) of the data is not constant across different levels of a predictor variable (in this case, DPI).
+Critically, this biological understanding provides a sound [scientific basis]{style="text-decoration: underline;"} for anticipating [heteroskedasticity]{style="color:green; font-weight:bold;"}, a condition where the variability (or variance) of the data is not constant across different levels of a predictor variable (in this case, DPI); @sec-linear-regression-assumptions makes this a formal, checkable assumption rather than a passing observation.
 The variability observed at early stages (0 or 3 DPI) is expected to be lower due to the stability of the system, whereas later stages exhibit increased dispersion as the brain undergoes neurodegeneration and repair processes.
 Unfortunately, heteroskedasticity is often ignored in traditional, mindless statistical approaches that assume constant variance (homoskedasticity) across groups or predictors.
 Thus, it is not surprising that we are flowed with [biased estimates]{style="color:red;"}, [unreliable inferences]{style="color:red;"}, and [missed opportunities]{style="color:red;"} for meaningful scientific advance.
@@ -478,7 +453,7 @@ However, there are undoubtedly some models that are more [useful]{style="text-de
 What we can do as scientists is to ensure that our conclusions are **reliable**, **transparent**, and **reflective** of the biological reality we are studying.
 
 Our raincloud plots have reinforced key observations: our data by time points is not normally distributed, and there is non-uniform variability across DPI levels.
-This will be extremely helpful when considering further modelling strategies.
+This will be extremely helpful when considering further modelling strategies, and it's exactly the kind of observation @sec-linear-regression-assumptions will teach you to check formally rather than eyeball.
 
 ## Analyzing variable covariance
 
@@ -496,7 +471,7 @@ In other words, are PDGFR-β and GFAP intensities increasing simultaneously, or 
 Based on our previous visualizations, we may hypothesize that these two markers are strongly correlated.
 Thus, visualizing the relationship between them is a straightforward and effective way to verify this intuition and assess the strength and nature of their association.
 
-A static scatter plot would already show us the overall trend, but it would hide something we actually care about here: *which* points belong to which DPI, and which specific animal or slide a suspicious-looking point came from, exactly the kind of anomaly-hunting `eda-intro.qmd` flagged as one of EDA's core jobs. Rather than cluttering the plot with fifty text labels, we can let the reader hover to ask. That's the actual justification for reaching for interactivity here, not novelty for its own sake: to expand the use of visualization tools from the ggplot universe, we will make our graph interactive using the [`ggiraph`](https://davidgohel.github.io/ggiraph/index.html) package [@ggiraph]. So, our plot contains  the following features:
+A static scatter plot would already show us the overall trend, but it would hide something we actually care about here: *which* points belong to which DPI, and which specific animal or slide a suspicious-looking point came from, exactly the kind of anomaly-hunting we flagged early on as one of EDA's core jobs. Rather than cluttering the plot with fifty text labels, we can let the reader hover to ask. That's the actual justification for reaching for interactivity here, not novelty for its own sake: to expand the use of visualization tools from the ggplot universe, we will make our graph interactive using the [`ggiraph`](https://davidgohel.github.io/ggiraph/index.html) package [@ggiraph]. So, our plot contains  the following features:
 
 - `tooltip` (from ggiraph) defines the content displayed when we hover over a point. In our case, this include three variables: `Gfap_IntDen`, `Pdgfrb_IntDen`, and `DPI`.
 - `data_id` (from ggiraph) uniquely identifies each point for interactivity.
@@ -565,7 +540,7 @@ girafe(ggobj = Pdgfrb_Gfap_scatter,
 
 @fig-cell_data_scatter_covariance_EDA reveals that the covariation between PDGFR-β and GFAP intensities varies substantially depending on DPI. For example, at 0 DPI (dark purple), the points are tightly clustered near zero on both axes, indicating low variability and a lack of strong covariance at this baseline time point. In contrast, at 14 and 30 DPI (yellow-green tones), the points are more widely dispersed, suggesting greater variability and a different relationship between the markers at later stages of recovery (hover over any point to check its exact values and DPI). These aspects highlight the evolving nature of our markers in the dataset.
 
-Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction. This is an idea we will certainly explore in subsequent analyses.
+Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction, an idea @sec-linear-regression-multiple takes up directly.
 
 :::
 
@@ -606,7 +581,7 @@ Pdgfrb_Gfap_scatter_static
 
 @fig-cell_data_scatter_covariance_EDA-pdf reveals that the covariation between PDGFR-β and GFAP intensities varies substantially depending on DPI. At 0 DPI (dark purple), the points are tightly clustered near zero on both axes, indicating low variability and a lack of strong covariance at this baseline time point. In contrast, at 14 and 30 DPI (yellow-green tones), the points are more widely dispersed, suggesting greater variability and a different relationship between the markers at later stages of recovery. (The online edition of this book lets you hover over individual points to inspect their exact values.)
 
-Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction. This is an idea we will certainly explore in subsequent analyses.
+Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction, an idea @sec-linear-regression-multiple takes up directly.
 
 :::
 
