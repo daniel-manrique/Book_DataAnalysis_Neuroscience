@@ -17,7 +17,7 @@ cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI <- as.numeric(cell_data$DPI)
 ```
 
-@sec-linear-regression-assumptions left us with a diagnosis and a plan, not a finished model. The straight line across the full 0–30 DPI range of `cell_data` failed linearity and homoscedasticity for a real, biological reason: an early bump from acute edema, then a decline as neurodegeneration takes over, that no single slope can honestly summarize. The plan was to restrict the range to where a straight line is actually a defensible description of the biology, then take that narrower model all the way through: fit it, check it, interpret it, and say what it tells us about the effect of time on tissue after ischemia. That's this chapter.
+@sec-linear-regression-assumptions left us with a diagnosis and a plan, not a finished model. The straight line across the full 0–30 DPI range of `cell_data` failed linearity and homoscedasticity for a reason that looks biological: an early bump at day 3 (I read it as acute edema, though this file cannot prove it, since the day-0 animals are shams), then a decline that flattens after day 14, a shape no single slope can honestly summarize. The plan was to restrict the range to where a straight line is actually a defensible description of the biology, then take that narrower model all the way through: fit it, check it, interpret it, and say what it tells us about the effect of time on tissue after ischemia. That's this chapter.
 
 ## The full range, once more
 
@@ -55,7 +55,7 @@ Area_scatter_Marginal <- ggMarginal(
 Area_scatter_Marginal
 ```
 
-This is the same picture @sec-linear-regression-assumptions used to diagnose the problem, and the same conclusion holds: a single straight line, drawn across the entire 30-day window, splits the difference between an early rise and a later fall instead of honestly describing either. That's not a flaw specific to this dataset; it's what happens whenever a biological process changes character partway through the timeline you're modeling, and cerebral ischemia's inflammation-then-degeneration arc does exactly that. So we do what the last chapter's diagnostics recommended: narrow the window to a stretch where the biology is closer to monotonic, and model that stretch honestly instead of the whole thing dishonestly.
+This is the line @sec-linear-regression-what drew and @sec-linear-regression-assumptions diagnosed, and the same conclusion holds: a single straight line, drawn across the entire 30-day window, splits the difference between an early bump and a later, flattening decline instead of honestly describing either. That's not a flaw specific to this dataset; it's what happens whenever a biological process changes character partway through the timeline you're modeling, and cerebral ischemia's inflammation-then-degeneration arc does exactly that. So we do what the last chapter's diagnostics recommended: narrow the window to a stretch where the biology is closer to monotonic, and model that stretch honestly instead of the whole thing dishonestly.
 
 ```{r}
 #| label: tbl-cell_data_sub_tbl
@@ -97,12 +97,12 @@ Area_sub_scatter_Marginal <- ggMarginal(
 Area_sub_scatter_Marginal
 ```
 
-Restricted to DPI 3–14, the decline looks far closer to a straight line than the full-range version did, which is exactly the point of subsetting: not to make the data prettier, but to only ask a linear model a question it can honestly answer. Notice, too, that day 3 still shows a noticeably wider spread of points than day 7 or 14: the same acute-phase variability @sec-linear-regression-assumptions flagged in the full dataset hasn't disappeared just because we narrowed the range. Keep that in mind; it's going to matter again in a moment.
+Restricted to DPI 3–14, the decline looks far closer to a straight line than the full-range version did, which is exactly the point of subsetting: not to make the data prettier, but to only ask a linear model a question it can honestly answer. Notice, too, that day 3 still shows a noticeably wider spread of points than day 7 or 14: the same wide day-3 spread @sec-linear-regression-assumptions flagged in the full dataset hasn't disappeared just because we narrowed the range. Keep that in mind; it's going to matter again in a moment.
 
 ::: callout-tip
 ### Why this subset, and not a wider or narrower one
 
-DPI 3–14 isn't an arbitrary trim; it's the stretch where the biology is doing one thing (degeneration) instead of two (edema, then degeneration). A narrower window would waste data without buying anything; a wider one, reaching back toward day 0 or out toward day 30, would drag the edema bump or the later plateau back into a model that can't represent either.
+DPI 3–14 isn't an arbitrary trim; it's the stretch where the data show one thing (a steady decline) instead of two (a day-3 bump that I read as edema, then a decline that flattens). A narrower window would waste data without buying anything; a wider one, reaching back toward day 0 or out toward day 30, would drag the bump or the later plateau back into a model that can't represent either. It also leaves the sham animals out, since they exist only at day 0, so no condition contrast sneaks into the time slope.
 :::
 
 ## Fitting the model

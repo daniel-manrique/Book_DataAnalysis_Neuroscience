@@ -1,3 +1,60 @@
 ---
-title: Linear Models
+title: Estimating how much things change
+subtitle: Linear and generalized linear models
 ---
+
+Picture the lab meeting. You show the GFAP data from the ischemia study, and a labmate asks the question every one of us has been asked: "So, does it go up?" You say yes. Then comes the follow-up that decides whether your analysis was any good: "How much? Per day? And how sure are you?" A test that says the groups differ has nothing to offer here. It answers a question nobody at the bench was really asking. What your labmate wants is a number with an honest margin around it, something like "about this much per day, give or take that much," and a statement about whether the world could plausibly have produced it by chance.
+
+![A significance test is a light switch: on or off. A model is a dimmer: how bright, and give or take how much.](images/linear-models-intro_switch-and-dimmer.png){#fig-linear-models-intro-dimmer fig-align="center" width="90%" fig-alt="Watercolor sketch of a wall with two fixtures, each with a bare bulb hanging above it. On the left, a rocker light switch with a bulb glowing evenly. On the right, a round dimmer knob set at about two thirds, with a bulb whose glow fades through rings of ochre light into a soft translucent teal band."}
+
+Producing that number is the whole job of this part. In the last part we only looked: we learned what a row is, cleaned the table in a script, asked what a missing value was hiding, and drew every point by group. Now we ask a model to commit. And since the book is meant to be read by people who arrive with a question rather than a technique, I have named the chapters accordingly. From here on, each chapter title says what you are trying to *do* with your data (track tissue loss, count cells, test whether a treatment protects memory), and the technique comes second, as a subtitle. Nobody walks into the lab wanting a negative binomial. People walk in wanting to count cells, and the negative binomial is what turns out to be needed.
+
+## What you'll do in the next eight chapters
+
+The arc has two acts. In the first, we learn to *draw a line, trust it, and widen it*. In the second, we stay with the same logic but change what we mean by noise, because the things we count, score and time at the bench rarely scatter the way a bell curve says they should.
+
+**We start by describing a change** (@sec-linear-regression-what). Before any new technique, we stop and ask what the straight line you already fitted in the first part actually *is*: an intercept, a slope, and a leftover. We take the equation apart piece by piece, using the same data, and finish by drawing one line across the whole time course of the ischemia study. I will tell you right away that it looks wrong, and the next chapter is about why.
+
+**Then we check whether the line deserves our trust** (@sec-linear-regression-assumptions). A line is easy to draw and easy to believe. `lm()` and `brm()` will fit one to anything, without a murmur. Here we meet the assumptions behind it, and the first surprise is whose they are: not the equation's, but yours. The two that matter most, whether your data map onto your question and whom they represent, no plot can check. Then we watch several of the others fail on real data: the curve that a straight line cannot follow, and the spread that widens exactly where the injury is worst. We also ask why the habit of running a test for every assumption protects you so little (the evidence is in @sec-appendix-assumption-tests). Everything in the first part of the book that you noticed with your own eyes becomes, in this chapter, something with a name and a check.
+
+**Next we track tissue loss after ischemia** (@sec-linear-regression-single-continuous). Armed with the diagnosis, we restrict ourselves to the stretch of the time course where a straight line is a defensible description, and we estimate how much hemispheric tissue is lost per day, with a Bayesian fit and a frequentist one side by side.
+
+**Then we ask whether anything else explains the loss** (@sec-linear-regression-multiple). GFAP is the star of this dataset, so surely it explains tissue loss. I will show you how that hunch behaves when time is added to the model, and what the word "adjusting" really means once you have watched it eat an association. This is also where we meet interactions and transformations, and where the design of the experiment tells us, politely but firmly, which questions the data cannot answer.
+
+**The second act begins with counting reactive cells** (@sec-glm-intro). Cells are counted, not measured: they cannot be negative, and the more you expect, the more they scatter. We try the model we already know, watch it predict impossible values, and then change the likelihood and the link until the model fits what a count actually is. This chapter gives you the recipe, *pick a family, keep the linear predictor, choose the link*, that every later chapter in this part reuses.
+
+![Pick a family, keep the linear predictor, choose the link. One plug, a few adapters, and a socket for every kind of outcome.](images/linear-models-intro_one-plug-many-adapters.png){#fig-linear-models-intro-adapter fig-align="center" width="90%" fig-alt="Watercolor sketch of a wooden table with an electrical cord ending in a plug with a teal head, two loose adapter heads in ochre and blush-grey beside it, and three differently shaped wall sockets in teal, ochre and blush-grey on the wall behind."}
+
+**Then we test whether a treatment protects memory** (@sec-logistic-regression). A mouse passes the probe or it doesn't: a single yes or no is the coarsest measurement in science and the one we meet most often. We learn to say what a treatment did to the *chance* of passing in a sentence a reviewer can use, three different ways, and to check that the model behind the sentence is not fooling us.
+
+**Next we count cells and spikes properly** (@sec-count-regression). Back to counts, with two things they were missing. A denominator (a count of cells means little until you know how much tissue it came from) and a new kind of zero (a recorded neuron that is silent because it is silent, not because it was unlucky). Here the negative binomial of the previous counting chapter earns the interpretation I let you skip.
+
+**And we close by scoring behavior** (@sec-beta-robust-regression). Proportions of correct trials, the fraction of a session spent in the middle of an arena, and reaction times with the occasional spectacular lapse. Three outcomes, three small changes to the recipe, and a closing look at what this whole part has quietly assumed, which is where the next part picks up.
+
+@tbl-linear-models-map is the same arc as a lookup table, which I would keep open next to the data you actually have.
+
+| If your outcome is... | Example in this part | Model family | Chapter |
+|:---------------------------|:---------------------------|:-------------|:-------------|
+| A continuous measurement | Hemispheric tissue area | Gaussian | @sec-linear-regression-single-continuous, @sec-linear-regression-multiple |
+| A count of cells or spikes | PDGFR-β+ cells per animal | Poisson, negative binomial | @sec-glm-intro, @sec-count-regression |
+| A count with excess zeros | Spikes from silent and active neurons | Zero-inflated negative binomial | @sec-count-regression |
+| A yes or a no | Memory probe passed | Bernoulli (logistic) | @sec-logistic-regression |
+| Successes out of a known number of trials | Correct trials out of ten | Binomial, beta-binomial | @sec-beta-robust-regression |
+| A proportion strictly between 0 and 1 | Time in the centre zone | Beta | @sec-beta-robust-regression |
+| A positive, right-skewed value with outliers | Reaction time | Student-t on the log scale | @sec-beta-robust-regression |
+
+: From the kind of outcome you measured to the model that fits it. {#tbl-linear-models-map}
+
+## Three things to know before you start
+
+First, **the data keep growing**. The histology data, `cell_data`, are the same ones you got to know in the last part, and they carry the first four chapters and the first half of the counting chapter. The questions about memory tests, open-field behavior, reaction times and spikes come with their own datasets, each introduced in the chapter that uses it, with a plain account of what one row is and how it was obtained. That habit is the one we built in the last part, and it matters more as the outcomes get less familiar: before you trust a model for a spike count, you should know what was counted.
+
+Second, **the two lenses stay on**. Every applied model is fitted with `brms` and with its frequentist counterpart, in tabs, and each chapter closes by saying where the two agree and where they part ways. One practical note you will meet more than once: `parsnip` has no engine for some of the families in the second act (beta regression, beta-binomial, Student-t), so there the frequentist side is `glmmTMB`, and the chapter says so rather than quietly dropping the comparison.
+
+Third, **one thing is deliberately left for later**. Throughout this part, every row is treated as an independent observation: one row per animal in the histology data, one row per mouse in the behavioral data, one row per neuron in the spike data. Where a chapter touches data that really are nested (ten trials inside a mouse, for instance) it treats the trials as independent *on purpose*, and it tells you what that costs. Those are the cracks that the hierarchical models of the next part are built to seal. I'd rather you meet the problem once you can recognize it than have me hide it.
+
+::: callout-tip
+If you have never fitted a regression, the next chapter assumes nothing beyond the Bayesian vocabulary of the first part and the habits of the second. If you have, I'd still read the first two chapters: they fix the words (intercept, slope, residual, assumption) that every later chapter uses without stopping to re-explain.
+:::
+
+So let's go back to the question from the lab meeting: not "does it go up?" but *how much, per day, and how sure are we*. On to @sec-linear-regression-what.

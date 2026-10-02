@@ -1,8 +1,9 @@
 ---
 bibliography: references.bib
+subtitle: What is linear regression? Intercept, slope and error
 ---
 
-# What is linear regression? {#sec-linear-regression-what}
+# Describing the effect of ischemia with a line {#sec-linear-regression-what}
 
 ```{r}
 #| include: false
@@ -29,27 +30,37 @@ That's Richard McElreath's way of putting it, and it's worth sitting with, becau
 
 ## The anatomy of the equation you already ran
 
-Here's the model from @sec-intro-applied-modeling again:
+Before any symbols, think about the standard curve you have probably run more than once. You load known concentrations of a protein into a plate, read the absorbance, and draw a line through the points so you can translate the absorbance of your unknown samples into concentrations. That line is a linear regression, and you already know its three parts without having named them. Even the well with no protein gives a reading above zero (the background of the plate and the reagent): that is the [intercept]{style="color:green; font-weight:bold;"}. Every extra unit of concentration adds a roughly constant amount of signal: that is the [slope]{style="color:green; font-weight:bold;"}. And no point sits exactly on the line, because pipetting wobbles, the reader drifts and the plate is never perfectly uniform: that leftover is the [error]{style="color:green; font-weight:bold;"}. I remember the first time I realized that every standard curve I had drawn was this model in disguise; it made the equation feel a lot less foreign.
+
+![A standard curve is a linear regression in disguise: the faint tint of the blank is the intercept, the steady rise with concentration is the slope, and the wobble around the line is the error.](images/linear-regression-what_standard-curve-vials.png){#fig-what-vials fig-align="center" width="90%" fig-alt="Watercolor sketch of five glass vials on a wooden bench with solutions growing from nearly clear to deep teal, beside a card on a wooden stand showing a hand-drawn graph with five dots rising along a thin straight line that starts a little above the horizontal axis. A pencil lies in front."}
+
+Now the equation. Here is the model from @sec-intro-applied-modeling, written with the variables it actually used:
 
 $$
-y = \beta_0 + \beta_1x + \epsilon
+\text{Gfap}_i = \beta_0 + \beta_1 \cdot \text{Condition}_i + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
+$$
+
+Strip away the variable names and you get the general form that the rest of the book builds on:
+
+$$
+y_i = \beta_0 + \beta_1x_i + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
 $$ {#eq-linear-regression-simple}
 
-The first time you saw this, it was already filled in with real variables (`Gfap_Intensity`, `Condition`) and real numbers came out the other end. Let's now take it apart term by term, using that same fit as the running example rather than a fresh, abstract one.
+The subscript $i$ simply says "for animal number $i$": every animal gets its own $y$, its own $x$ and its own leftover $\epsilon$, while $\beta_0$, $\beta_1$ and $\sigma$ are shared by all of them. Let's take the pieces apart one at a time, with the GFAP fit as the running example.
 
--   $y$ is the [outcome]{style="color:green;"}: the thing you measured and want to explain. In that model, $y$ was `Gfap_Intensity`. Elsewhere in this book it'll be `Tissue_Area`, a cell count, a reaction time, whatever column in your dataset you're trying to account for.
+-   $y$ is the [outcome]{style="color:green; font-weight:bold;"}: the thing you measured and want to explain. In that model, $y$ was `Gfap_Intensity`. Elsewhere in this book it'll be `Tissue_Area`, a cell count, a reaction time, whatever column in your dataset you're trying to account for.
 
--   $x$ is the [predictor]{style="color:green;"}: the thing you believe moves $y$. There, $x$ was `Condition` (sham or ischemic, coded as $0$ or $1$). It could just as easily be `DPI`, drug dose, or any other column that might explain why $y$ varies from animal to animal.
+-   $x$ is the [predictor]{style="color:green; font-weight:bold;"}: the thing you believe moves $y$. There, $x$ was `Condition` (sham or ischemic, coded as $0$ or $1$). It could just as easily be `DPI`, drug dose, or any other column that might explain why $y$ varies from animal to animal.
 
-Both $y$ and $x$ come straight out of your dataset: nothing here is invented, which is exactly why the two EDA parts you just finished weren't a detour. Every distribution you looked at, every trend over `DPI` you spotted, was you getting acquainted with the raw material these two symbols are about to stand in for.
+Both $y$ and $x$ come straight out of your dataset: nothing here is invented, which is exactly why the two parts you just finished weren't a detour. Every distribution you looked at, every trend over `DPI` you spotted, was you getting acquainted with the raw material these two symbols are about to stand in for.
 
-The two coefficients are where the real information lives:
+The coefficients and the error are where the real information lives:
 
--   $\beta_0$, the [intercept]{style="color:green;"}, is the value of $y$ when $x$ is at its baseline: $y$'s "starting point" before whatever $x$ represents has had any effect. In the GFAP model, `Condition` = 0 meant `SHAM`, so $\beta_0$ was `summary(brms_model)`'s `Intercept` line: the expected GFAP intensity in an animal that never had a stroke. If $x$ is numeric instead of categorical (`DPI`, say), $\beta_0$ is the predicted value of $y$ at $x = 0$: day zero, dose zero, whatever "zero" means for that predictor.
+-   $\beta_0$, the intercept, is the value of $y$ when $x$ is at its baseline: the blank well, before whatever $x$ represents has had any effect. In the GFAP model, `Condition` = 0 meant `SHAM`, so $\beta_0$ was `summary(brms_model)`'s `Intercept` line: the expected GFAP intensity in an animal that went through surgery without the arterial occlusion. If $x$ is numeric instead of categorical (`DPI`, say), $\beta_0$ is the predicted value of $y$ at $x = 0$: day zero, dose zero, whatever "zero" means for that predictor.
 
--   $\beta_1$, the [slope]{style="color:green;"}, is how much $y$ moves for a one-unit change in $x$. For a categorical predictor like `Condition`, that "one unit" is simply the jump from one category to the other: $\beta_1$ was the `ConditionMCAO` row in that same `summary()` output, the amount GFAP intensity shifted going from sham to ischemic. For a numeric predictor, $\beta_1$ is the change in $y$ per one-unit increase in $x$: per additional day post-injury, per additional microgram of dose.
+-   $\beta_1$, the slope, is how much $y$ moves for a one-unit change in $x$. For a categorical predictor like `Condition`, that "one unit" is simply the jump from one category to the other: $\beta_1$ was the `ConditionMCAO` row in that same `summary()` output, the amount GFAP intensity shifted going from sham to ischemic. For a numeric predictor, $\beta_1$ is the change in $y$ per one-unit increase in $x$: per additional day post-injury, per additional microgram of dose.
 
--   Finally, $\epsilon$, the [error term]{style="color:green;"}, is everything $\beta_0$ and $\beta_1$ don't capture: measurement noise, animal-to-animal biology you haven't modeled, the wobble @sec-intro-applied-modeling already warned you a fluorescence reading carries. It isn't a defect in the model; it's the model being honest about what it doesn't know. You've actually already seen $\epsilon$'s size reported by name: it's `brms`'s `sigma`, sitting right there in the same `summary()` output as `Intercept` and `ConditionMCAO`.
+-   $\epsilon_i$, the error, is everything $\beta_0$ and $\beta_1$ don't capture: measurement noise, animal-to-animal biology you haven't modeled, the wobble @sec-intro-applied-modeling already warned you a fluorescence reading carries. It isn't a defect in the model; it's the model being honest about what it doesn't know. The second half of the equation, $\epsilon_i \sim \mathcal{N}(0, \sigma^2)$, makes a specific claim about that leftover: it scatters symmetrically around zero in a bell shape with a single spread, $\sigma$. You've already seen that spread reported by name: it's `brms`'s `sigma`, sitting right there in the same `summary()` output as `Intercept` and `ConditionMCAO`. Keep that claim in mind, because it is an assumption, not a fact of nature. The next chapter checks it, and the second half of this part is about what to do when the things you count, score and time don't scatter this way.
 
 ::: callout-tip
 Reading $\beta_0$ and $\beta_1$ off a fitted model is, quite literally, the entire payoff of running one: everything downstream in this book is a more elaborate way of getting an intercept and a slope (or several) out of increasingly interesting data. That pair of numbers is worth more than the [lowest p-value]{style="color:red;"} you'll ever see reported, for reasons @sec-appendix-p-values makes in full; the short version is that a p-value never tells you the size of an effect, and an intercept and a slope always do.
@@ -57,34 +68,54 @@ Reading $\beta_0$ and $\beta_1$ off a fitted model is, quite literally, the enti
 
 ## Seeing the line, not just the numbers
 
-A table of coefficients is honest, but it's also easy to read past. Let's put one on a picture instead, using a relationship you haven't fit yet but have already met in EDA: hemispheric tissue area (`Tissue_Area`) against days post-injury (`DPI`). We're not fitting anything here, just looking at what a line through data actually means before @sec-linear-regression-single-continuous fits one properly.
+A table of coefficients is honest, but it's also easy to read past. So let's put one on a picture, the way you would with a standard curve, using a relationship you haven't modeled yet but have already met in the exploration part: hemispheric tissue area (`Tissue_Area`, in mm²) against days post-injury (`DPI`). A scatterplot is the honest choice here because every animal is one point and there are few enough of them to see each one; the line on top is an ordinary least-squares line from `lm()`, used purely as a drawing aid so you can see what $\beta_0$ and $\beta_1$ look like. I deliberately did not reach for `brms` yet, and I switched off the shaded confidence band that `geom_smooth()` draws by default: that band is a frequentist device we haven't discussed, and the proper treatment of uncertainty belongs to @sec-linear-regression-single-continuous, where the line is fitted both ways.
 
 ```{r}
 #| label: fig-what_intercept_slope
-#| fig-cap: A straight line through tissue area and days post-injury, with intercept and slope marked
+#| fig-cap: A least-squares line through tissue area and days post-injury. The dot marks the intercept (the line's height at day 0) and the triangle shows how much the line drops over ten days, which is ten times the slope.
+
+line_fit <- lm(Tissue_Area ~ DPI, data = cell_data)
+b0 <- unname(coef(line_fit)[1])
+b1 <- unname(coef(line_fit)[2])
+
+y_start <- b0 + b1 * 12
+y_end <- b0 + b1 * 22
 
 ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
   geom_point(color = "#0072B2", alpha = 0.5, size = 2) +
-  geom_smooth(method = "lm", se = TRUE, color = "#D55E00", fill = "#D55E00", alpha = 0.2) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
+  geom_smooth(method = "lm", se = FALSE, color = "#D55E00") +
+  geom_point(aes(x = 0, y = b0), color = "#D55E00", size = 4) +
+  annotate("text", x = 0.8, y = b0 + 1.4, label = "beta[0]", parse = TRUE,
+           hjust = 0, size = 6, color = "#D55E00") +
+  annotate("segment", x = 12, xend = 22, y = y_start, yend = y_start,
+           color = "grey30") +
+  annotate("segment", x = 22, xend = 22, y = y_start, yend = y_end,
+           color = "grey30") +
+  annotate("text", x = 22.6, y = (y_start + y_end) / 2,
+           label = "10~beta[1]", parse = TRUE, hjust = 0, size = 6,
+           color = "grey30") +
   labs(x = "Days post-injury (DPI)", y = "Tissue area (mm²)") +
   Plot_theme
 ```
 
-The dashed vertical line marks $x = 0$, the day of injury itself. Wherever the orange line crosses it is $\beta_0$: the tissue area a line like this one predicts before any time has passed. The line's downward tilt is $\beta_1$: tissue area lost per additional day post-injury. Everything else (every point that doesn't sit exactly on the line) is $\epsilon$.
+The orange dot is $\beta_0$: the tissue area this line predicts at day 0, before any time has passed. The little triangle is $\beta_1$ at work: slide ten days along the horizontal side and the line drops by the vertical side, which is ten times the slope, in mm² of tissue lost. Everything else (every point that doesn't sit exactly on the line) is $\epsilon$.
 
 One honest caveat before we move on, since @sec-linear-regression-assumptions is about to make a whole chapter out of it: a single straight line across the *entire* `DPI` range is almost certainly the wrong call here, and this figure is illustrative, not a finished analysis. Whether a straight line is actually defensible (and over what range) is exactly the question the next chapter teaches you to ask before you trust one.
 
 ## When one predictor isn't enough
 
-Real questions rarely stop at a single predictor. What if you wanted `Condition` and `DPI` together, or wanted to control for one while estimating the other? @eq-linear-regression-simple generalizes directly:
+Real questions rarely stop at a single predictor. What if you wanted to know whether `Gfap_IntDen` tells you anything about tissue area once you already know the day post-injury? @eq-linear-regression-simple generalizes directly:
 
 $$
-y = \beta_0 + \beta_1x_1 + \beta_2x_2 + \dots + \beta_kx_k + \epsilon
+y_i = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \dots + \beta_kx_{ki} + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
 $$ {#eq-linear-regression-multiple}
 
-Nothing conceptually new happens here: $x_1, x_2, \dots, x_k$ are just more predictors, each with its own slope, and $\beta_0$ is still where $y$ sits when every predictor is at its baseline. What *does* change is the interpretation of each $\beta$: it now describes the effect of its predictor while holding the others fixed, letting you isolate one factor's contribution from another's rather than letting them get tangled together. We'll put this to work properly in @sec-linear-regression-multiple, once you've seen assumptions checked and a single-predictor model fit end to end.
+Nothing conceptually new happens here: $x_1, x_2, \dots, x_k$ are just more predictors, each with its own slope, and $\beta_0$ is still where $y$ sits when every predictor is at its baseline. What *does* change is the interpretation of each $\beta$: it is now the expected difference in $y$ for a one-unit difference in that predictor, comparing animals that have the same values of all the other predictors. That is a statement about comparisons within the data, not automatically about what would happen if you intervened on that predictor, a distinction we will keep honest as the book goes on. We'll put this to work properly in @sec-linear-regression-multiple, once you've seen assumptions checked and a single-predictor model fit end to end.
 
-It's also worth saying plainly, once, why this book doesn't reach for a t-test or an ANOVA here the way a lot of neuroscience training does: both are special cases of exactly this equation with a categorical predictor, nothing more [@gelman2020]. @sec-intro-applied-modeling already showed you that directly when the sham/MCAO comparison turned out to be a linear regression. There's no separate machinery to learn for "comparing groups"; you already have it.
+![Several predictors are several sliders on one mixing desk. Each coefficient says how the sound changes when you nudge one slider and leave the others where they are.](images/linear-regression-what_mixing-desk-sliders.png){#fig-what-mixer fig-align="center" width="90%" fig-alt="Watercolor sketch of a small mixing console with five vertical sliders at different heights and a hand with a teal sleeve nudging one ochre slider, while the other four stay put. A small speaker beside the console gives off teal and ochre sound arcs."}
 
-Two coefficients, an error term, and the question of whether the line they describe deserves your trust: that's next.
+It's also worth saying plainly, once, why this book doesn't reach for a t-test or an ANOVA here the way a lot of neuroscience training does: a two-group t-test is @eq-linear-regression-simple with a 0/1 predictor, and an ANOVA is @eq-linear-regression-multiple with one 0/1 indicator for each additional group [@gelman2020]. @sec-intro-applied-modeling already showed you that directly when the sham/MCAO comparison turned out to be a linear regression. There's no separate machinery to learn for "comparing groups"; you already have it.
+
+![A t-test, an ANOVA and a regression are tools on the same handle. Learn the handle, a linear model, and you already own the rest.](images/linear-regression-what_multitool-one-handle.png){#fig-what-multitool fig-align="center" width="85%" fig-alt="Watercolor sketch of a pocket multi-tool lying on a wooden bench with a blade, a screwdriver, a small saw, scissors and a bottle opener all unfolded from one teal handle."}
+
+Two coefficients, an error term with a specific shape, and the question of whether the line they describe deserves your trust: that's next.

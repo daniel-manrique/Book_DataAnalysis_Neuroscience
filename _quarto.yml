@@ -53,6 +53,7 @@ book:
   appendices:
     - appendix-open-science.qmd
     - appendix-p-values.qmd
+    - appendix-assumption-tests.qmd
     - appendix-ai-assisted-modeling.qmd
 
 format:
