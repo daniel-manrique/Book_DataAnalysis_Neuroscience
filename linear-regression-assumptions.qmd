@@ -292,7 +292,7 @@ You may be wondering why I have mostly drawn pictures when there is a test with 
 
 ```{r}
 #| label: tbl-assumptions_tests
-#| tbl-cap: The usual battery of assumption tests, run on the straight line through tissue area
+#| tbl-cap: The usual battery of assumption tests, run on the straight line through tissue area, with the size of each departure and what the design and the biology already told us
 
 set.seed(11)
 
@@ -303,18 +303,12 @@ shuffled <- cell_data[sample(nrow(cell_data)), ]
 shuffled_resid <- residuals(lm(Tissue_Area ~ DPI, data = shuffled))
 
 test_battery <- data.frame(
-  test = c("Shapiro-Wilk",
-           "Non-constant variance score test",
-           "Levene's test across the five days",
-           "Curvature test (RESET-style F test)",
-           "Lag-1 autocorrelation test, rows in file order",
+  test = c("Shapiro-Wilk (shape of the residuals)",
+           "Non-constant variance score test (spread changing with the fitted value)",
+           "Levene's test (spread differing between the five days)",
+           "Curvature test, RESET-style (does a curve in the fitted values help?)",
+           "Lag-1 autocorrelation test, rows in file order (do neighbors resemble each other?)",
            "Lag-1 autocorrelation test, rows shuffled"),
-  looks_at = c("Shape of the residuals",
-               "Whether spread changes with the fitted value",
-               "Whether spread differs between days",
-               "Whether a curve in the fitted values improves the fit",
-               "Whether neighboring rows have similar residuals",
-               "The same, after shuffling the rows"),
   p = c(shapiro.test(residuals(linearity_model))$p.value,
         car::ncvTest(linearity_model)$p,
         car::leveneTest(Tissue_Area ~ DPI_f, data = cell_data)[1, "Pr(>F)"],
@@ -326,8 +320,32 @@ test_battery <- data.frame(
 format_p <- function(p) ifelse(p < 0.001, "< 0.001", sprintf("%.3f", p))
 test_battery$p_text <- format_p(test_battery$p)
 
-gt(test_battery[, c("test", "looks_at", "p_text")]) |>
-  cols_label(test = "Test", looks_at = "What it looks at", p_text = "p-value") |>
+lag1 <- function(r) cor(head(r, -1), tail(r, -1))
+spread_by_day <- tapply(residuals(linearity_model), cell_data$DPI, sd)
+spread_ratio <- max(spread_by_day) / min(spread_by_day)
+shapiro_w <- unname(shapiro.test(residuals(linearity_model))$statistic)
+
+test_battery$how_big <- c(
+  sprintf("W = %.2f (1 would be perfectly normal)", shapiro_w),
+  "A chi-square statistic with no biological scale",
+  sprintf("Spread differs %.1f-fold between the widest and the narrowest day", spread_ratio),
+  sprintf("Residual SD falls from %.1f to %.1f mm² once curvature is allowed", sigma(linearity_model), sigma(reset_fit)),
+  sprintf("Lag-1 correlation of the residuals: %.2f", lag1(residuals(linearity_model))),
+  sprintf("Lag-1 correlation of the residuals: %.2f", lag1(shuffled_resid))
+)
+
+test_battery$known <- c(
+  "Nothing relevant here: normality barely matters for the line",
+  "The spread changes with time (exploration part)",
+  "The same: the spread was expected to change with time",
+  "A bump followed by a plateau is not a straight line",
+  "Each row is a different animal (one row per animal)",
+  "The same"
+)
+
+gt(test_battery[, c("test", "p_text", "how_big", "known")]) |>
+  cols_label(test = "Test (and what it looks at)", p_text = "p-value",
+             how_big = "How big the departure is", known = "What I knew before running it") |>
   cols_align(align = "right", columns = p_text)
 ```
 
@@ -339,7 +357,9 @@ n_runs <- length(rle(cell_data$DPI)$lengths)
 n_runs_random <- mean(replicate(2000, length(rle(sample(cell_data$DPI))$lengths)))
 ```
 
-Six rows, and the verdicts do not agree with each other. Shapiro-Wilk (p = `r format_p(test_battery$p[1])`) and the variance score test (p = `r format_p(test_battery$p[2])`) report nothing wrong, even though the residuals by day showed two clear problems. Levene's test across the five days objects, but only just (p = `r format_p(test_battery$p[3])`), the kind of verdict that can flip with a single animal. The curvature test rejects firmly (p `r format_p(test_battery$p[4])`), which is right. And the autocorrelation test on the rows in file order rejects too (p = `r format_p(test_battery$p[5])`), which would be alarming if it meant what it seems to mean. Shuffle the rows, which changes nothing about the animals or the model, and the p-value becomes `r format_p(test_battery$p[6])`. The rows of this file are stored in blocks of the same day (`r n_runs` blocks, against about `r round(n_runs_random)` you would expect in random order), and because the line's mistakes are shared by animals of the same day, neighbors in the file have similar leftovers. The test cannot tell that apart from dependence between animals, so the verdict depends on how a spreadsheet happened to be sorted.
+Six rows, and none of them answers the question you actually have: is this departure big enough to matter? Each p-value answers something narrower than its label suggests. Shapiro-Wilk (p = `r format_p(test_battery$p[1])`) asks how surprising residuals this far from a bell would be if they were exactly normal, and the shape of the residuals is not where our problems are. The variance score test (p = `r format_p(test_battery$p[2])`) is built to detect a spread that grows or shrinks steadily with the fitted value. Ours does neither: one day is wide and the rest are not. It was aimed at the wrong target, so its p-value is silence, not reassurance. Levene's test is the only one aimed at our problem, and with 7 to 12 animals per day it lands at p = `r format_p(test_battery$p[3])`, a hair below a line that has no biological meaning: a p-value of 0.053 would have described the same data. The curvature test rejects firmly (p `r format_p(test_battery$p[4])`), which is correct, but we did not need it to know that a bump followed by a plateau is not a straight line. And the autocorrelation test flips from p = `r format_p(test_battery$p[5])` to p = `r format_p(test_battery$p[6])` when the rows are shuffled, which changes nothing about the animals or the model. The rows of this file are stored in blocks of the same day (`r n_runs` blocks, against about `r round(n_runs_random)` you would expect in random order), and because the line's mistakes are shared by animals of the same day, neighbors in the file have similar leftovers. The test cannot tell that apart from dependence between animals, so its verdict depends on how a spreadsheet happened to be sorted.
+
+Now compare what the numbers added with what we already had. Before running any test, the design told us that day 0 is a sham group, and the exploration part told us the spread changes with time (last column of the table). The plots then showed how big each departure is, in units a biologist can weigh (the column before it): the line misses a day's mean by up to `r round(max(abs(resid_means)), 1)` mm², and the spread differs `r round(spread_ratio, 1)`-fold between days. In this analysis, no p-value changed a modeling decision, and two of them (Shapiro-Wilk and the variance score test) would have pushed us toward the wrong one by saying that nothing was wrong. There is also a reason this cannot be repaired with a better test. To call an assumption "met" you would have to say how much departure you can tolerate, and that margin comes from your science, not from the data. A p-value skips that step without telling you, and then draws its verdict at an arbitrary line (@sec-appendix-p-values says why that line has no special standing).
 
 That is a small example of three problems that run deeper, and the appendix measures each of them with data where the truth is known (@sec-appendix-assumption-tests).
 
@@ -347,7 +367,13 @@ That is a small example of three problems that run deeper, and the appendix meas
 2. **The alarm follows your sample size, not the damage.** With few observations a test cannot see problems; with many it flags trivial ones. The central-limit-theorem argument above runs the opposite way, so tests are loudest exactly where the problem matters least. And for independence, the one condition no residual plot can settle, a test works only if you already know the structure it is supposed to find.
 3. **Choosing a method by testing distorts the method.** Box compared testing variances before comparing means to putting to sea in a rowing boat to find out whether the water is calm enough for an ocean liner [@box1953], and later work has confirmed that such preliminary tests change the error rates of the analysis that follows [@rochon2012; @harrell2015].
 
-None of this is new. Anscombe made the case for pictures over summary numbers in 1973 with four datasets that share the same fitted line and look nothing alike [@anscombe1973]. The alternative to testing is not "no checking." It is checking with tools that show size and shape, and then relaxing the assumption to see whether your answer moves. The *Bayesian Workflow* authors prefer continuous model expansion, a final model that bridges between alternatives, to hard choices between them [@gelman2026]; McElreath asks you to judge whether a particular failure matters, not whether the model is true [@mcelreath2020]; Kruschke points out that in Bayesian software you can relax the usual normal-and-equal-variance assumptions directly [@kruschke2015]; and Inchausti, whose dual approach this book follows, relies on graphical diagnostics when he fits his models and skips formal pretests [@inchausti2023]. The appendix works through that last move on this dataset: freeing the mean and the spread of each day changes the answer a reader would care about, while Student-t errors change nothing.
+None of this is new. Anscombe made the case for pictures over summary numbers in 1973 with four datasets that share the same fitted line and look nothing alike [@anscombe1973]. And the alternative to testing is neither "no checking" nor "trust the biologist." It is a division of labor.
+
+**Knowledge decides what to expect, and it comes first.** McElreath is blunt that the validity of an inference relies on information outside the data, and that no statistical analysis can verify all of our assumptions [@mcelreath2020]. Huntington-Klein says the same about the assumptions that identify an effect: we argue about whether they apply, because we cannot test them [@huntingtonklein2021]. And Gelman and colleagues recommend letting the logic of the design and of causal identification choose the predictors wherever it can, rather than abstract statistical criteria [@gelman2026]. Harrell goes furthest: he recommends fully pre-specified models and warns that using the outcome to decide what to keep corrupts the inference that follows [@harrell2015]. I should be honest that this chapter bends that rule, because we looked at the residuals of the outcome to learn the shape. The defense is not that we did not look. It is that the exploration part told us, before any model, to expect a nonlinear time course and a spread that changes with time, that we say so here, and that the next chapter reports its choice of window and why, instead of hiding it.
+
+**Data then show whether, how much and where the model misses.** That is the job of the pictures, and of the posterior predictive checks below, with tools that show size and shape. **Finally, you relax the assumption and see whether your answer moves.** The *Bayesian Workflow* authors prefer continuous model expansion, a final model that bridges between alternatives, to hard choices between them [@gelman2026]; McElreath asks you to judge whether a particular failure matters, not whether the model is true [@mcelreath2020]; Kruschke points out that in Bayesian software you can relax the usual normal-and-equal-variance assumptions directly [@kruschke2015]; and Inchausti, whose dual approach this book follows, relies on graphical diagnostics when he fits his models and skips formal pretests [@inchausti2023].
+
+So these are the three questions I would ask in place of a battery of tests. What do the biology and the design lead me to expect? How big is the departure, in the units I care about? And does my answer move when I relax the assumption? The appendix works through the last one on this dataset: freeing the mean and the spread of each day changes the answer a reader would care about, while Student-t errors change nothing.
 
 ## Reading the same assumptions as a Bayesian
 
