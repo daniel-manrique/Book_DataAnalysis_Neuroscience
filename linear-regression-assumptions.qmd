@@ -43,7 +43,7 @@ Think about your own weight over your lifetime. From birth through childhood, it
 You've already watched this assumption fail, on real data, in the last chapter. @fig-what_intercept_slope fit one straight line across the full 0–30 DPI range of `cell_data`, and we flagged (without proving it yet) that this was probably the wrong call. Let's prove it. Here's that exact model:
 
 ```{r}
-linearity_model <- lm(Tisue_Area ~ DPI, data = cell_data)
+linearity_model <- lm(Tissue_Area ~ DPI, data = cell_data)
 ```
 
 If the straight-line assumption held, the residuals (what's left over after the line's prediction is subtracted from the real value) should scatter randomly around zero with no discernible shape. If they trace a curve instead, that curve is the line telling you exactly how it's wrong.
@@ -175,12 +175,6 @@ For outcomes where normal residuals genuinely aren't realistic to expect (reacti
 ## No multicollinearity
 
 The last assumption only comes up once you have two or more predictors: multicollinearity, where predictors are correlated highly enough that they're carrying largely redundant information about the response. Knowing one predictor's value then tells you most of what you'd need to know about the other, which makes it hard for the model to credit either one individually: coefficients become unstable, and their standard errors inflate, even though the model's overall fit might look fine.
-
-::: callout-note
-### A naming note before we go further
-
-This section uses `Tissue_Area`, not the `Tisue_Area` column the rest of this chapter has been using. They're not the same measurement expressed two ways by coincidence: a look at the raw CSV shows `Tisue_Area` is `Tissue_Area` scaled by exactly $10^6$, almost certainly a leftover unit-conversion duplicate in the data. We're using `Tissue_Area` here only because it's the column already alongside the PDGFR-β/GFAP predictors below; the scale doesn't change anything about how VIF is interpreted.
-:::
 
 You've already done the legwork for this one, back in @sec-eda-ggpairs: a pairwise correlation matrix on this dataset showed `Pdgfrb_Area`/`Pdgfrb_IntDen` and `Gfap_Area`/`Gfap_IntDen` each highly correlated (Pearson's $r$ of 0.94 and 0.98, respectively); each pair carries largely redundant information. That was a general finding, made before any model was on the table. With an actual regression model in front of us, the question sharpens from "are these correlated?" to "how much is that correlation distorting *this* model's coefficients?" That is what the variance inflation factor (VIF) answers directly.
 

@@ -112,7 +112,7 @@ The Poisson (dashed) says that a group averaging four thousand cells should be p
 
 Every scientist has had the following conversation. You report that treated animals have 1,900 PDGFR-β+ cells and the controls have 500. Somebody at the back asks: *per what?* A count is like a receipt with the shop's name torn off: it tells you how many, and it says nothing about how big the window was that you looked through. If sections differ in size, the count mixes two things: how dense the cells are, and how much tissue you counted.
 
-`cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it.) I assumed in @sec-glm-intro that this area was the same for every animal. It isn't.
+`cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it; @sec-eda-data-quality shows the check and explains the choice.) I assumed in @sec-glm-intro that this area was the same for every animal. It isn't.
 
 ```{r}
 #| label: fig-count_area

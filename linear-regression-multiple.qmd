@@ -21,7 +21,7 @@ cell_data$DPI <- as.numeric(cell_data$DPI)
 
 ## Picking up where the last model left off
 
-Same dataset, same window, same model. `cell_data_sub` is `cell_data` restricted to DPI 3, 7 and 14, the stretch where a straight line is a defensible description of tissue loss, and the outcome is hemispheric tissue area. One small housekeeping change: @sec-linear-regression-assumptions flagged that `Tisue_Area` is just `Tissue_Area` multiplied by $10^6$, so from here on I'll use `Tissue_Area`. The coefficients come out in readable units instead of strings of digits, and nothing about the biology changes.
+Same dataset, same window, same model. `cell_data_sub` is `cell_data` restricted to DPI 3, 7 and 14, the stretch where a straight line is a defensible description of tissue loss, and the outcome is hemispheric tissue area. The area is `Tissue_Area`, in mm², the same column and the same units used throughout the book (the µm² duplicate is explained in @sec-eda-data-quality).
 
 ```{r}
 #| label: tbl-multiple_data

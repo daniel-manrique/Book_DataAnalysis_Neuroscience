@@ -37,7 +37,7 @@ $$ {#eq-linear-regression-simple}
 
 The first time you saw this, it was already filled in with real variables (`Gfap_Intensity`, `Condition`) and real numbers came out the other end. Let's now take it apart term by term, using that same fit as the running example rather than a fresh, abstract one.
 
--   $y$ is the [outcome]{style="color:green;"}: the thing you measured and want to explain. In that model, $y$ was `Gfap_Intensity`. Elsewhere in this book it'll be `Tisue_Area`, a cell count, a reaction time, whatever column in your dataset you're trying to account for.
+-   $y$ is the [outcome]{style="color:green;"}: the thing you measured and want to explain. In that model, $y$ was `Gfap_Intensity`. Elsewhere in this book it'll be `Tissue_Area`, a cell count, a reaction time, whatever column in your dataset you're trying to account for.
 
 -   $x$ is the [predictor]{style="color:green;"}: the thing you believe moves $y$. There, $x$ was `Condition` (sham or ischemic, coded as $0$ or $1$). It could just as easily be `DPI`, drug dose, or any other column that might explain why $y$ varies from animal to animal.
 
@@ -57,17 +57,17 @@ Reading $\beta_0$ and $\beta_1$ off a fitted model is, quite literally, the enti
 
 ## Seeing the line, not just the numbers
 
-A table of coefficients is honest, but it's also easy to read past. Let's put one on a picture instead, using a relationship you haven't fit yet but have already met in EDA: hemispheric tissue area (`Tisue_Area`) against days post-injury (`DPI`). We're not fitting anything here, just looking at what a line through data actually means before @sec-linear-regression-single-continuous fits one properly.
+A table of coefficients is honest, but it's also easy to read past. Let's put one on a picture instead, using a relationship you haven't fit yet but have already met in EDA: hemispheric tissue area (`Tissue_Area`) against days post-injury (`DPI`). We're not fitting anything here, just looking at what a line through data actually means before @sec-linear-regression-single-continuous fits one properly.
 
 ```{r}
 #| label: fig-what_intercept_slope
 #| fig-cap: A straight line through tissue area and days post-injury, with intercept and slope marked
 
-ggplot(cell_data, aes(x = DPI, y = Tisue_Area)) +
+ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
   geom_point(color = "#0072B2", alpha = 0.5, size = 2) +
   geom_smooth(method = "lm", se = TRUE, color = "#D55E00", fill = "#D55E00", alpha = 0.2) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
-  labs(x = "Days post-injury (DPI)", y = "Tissue area") +
+  labs(x = "Days post-injury (DPI)", y = "Tissue area (mm²)") +
   Plot_theme
 ```
 

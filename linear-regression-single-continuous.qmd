@@ -21,7 +21,7 @@ cell_data$DPI <- as.numeric(cell_data$DPI)
 
 ## The full range, once more
 
-Here's `Tisue_Area` (hemispheric tissue area) against `DPI` again, this time with marginal density plots attached so we can also see how each variable is distributed on its own, not just how they relate.
+Here's `Tissue_Area` (hemispheric tissue area) against `DPI` again, this time with marginal density plots attached so we can also see how each variable is distributed on its own, not just how they relate.
 
 ```{r}
 #| label: fig-cell_data_hemisphere_scatter
@@ -36,12 +36,12 @@ library(ggExtra)
 
 Area_scatter <- ggplot(
   data = cell_data,
-  aes(x = DPI, y = Tisue_Area)
+  aes(x = DPI, y = Tissue_Area)
 ) +
   geom_smooth(method = lm, color = "black", fill = "#56B4E9", se = TRUE) +
   geom_point() +
   scale_x_continuous(breaks = c(0, 3, 7, 14, 30)) +
-  labs(x = "Days post-ischemia (DPI)", y = "Tissue area") +
+  labs(x = "Days post-ischemia (DPI)", y = "Tissue area (mm²)") +
   Plot_theme
 
 Area_scatter_Marginal <- ggMarginal(
@@ -78,12 +78,12 @@ gt(head(cell_data_sub))
 
 Area_sub_scatter <- ggplot(
   data = cell_data_sub,
-  aes(x = DPI, y = Tisue_Area)
+  aes(x = DPI, y = Tissue_Area)
 ) +
   geom_smooth(method = lm, color = "black", fill = "#56B4E9", se = TRUE) +
   geom_point() +
   scale_x_continuous(breaks = c(3, 7, 14)) +
-  labs(x = "Days post-ischemia (DPI)", y = "Tissue area") +
+  labs(x = "Days post-ischemia (DPI)", y = "Tissue area (mm²)") +
   Plot_theme
 
 Area_sub_scatter_Marginal <- ggMarginal(
@@ -125,7 +125,7 @@ $\text{Area}_i$ is the tissue area for animal $i$, and $\text{DPI}_i$ its measur
 library(brms)
 
 brms_model <- brm(
-  Tisue_Area ~ DPI,
+  Tissue_Area ~ DPI,
   data = cell_data_sub,
   seed = 123,
   file = "models/linear-regression-single-continuous_fit1.rds",
@@ -142,7 +142,7 @@ We haven't specified any priors here: same deliberate choice as @sec-intro-appli
 summary(brms_model)
 ```
 
-Rhat sits at 1.00 for every parameter, both bulk and tail effective sample sizes clear 2,600 (comfortably past the 400 minimum), and there's no divergent-transition warning, a fit worth trusting on the sampling side, which is a separate question from whether the *model* itself is a good description of the biology (more on that shortly).
+Rhat is 1.00 or 1.01 for every parameter, both bulk and tail effective sample sizes clear 2,200 (comfortably past the 400 minimum), and there's no divergent-transition warning, a fit worth trusting on the sampling side, which is a separate question from whether the *model* itself is a good description of the biology (more on that shortly).
 
 ### parsnip
 
@@ -152,7 +152,7 @@ library(broom)
 
 parsnip_model <- linear_reg() %>%
   set_engine("lm") %>%
-  fit(Tisue_Area ~ DPI, data = cell_data_sub)
+  fit(Tissue_Area ~ DPI, data = cell_data_sub)
 
 tidy(parsnip_model, conf.int = TRUE)
 ```
@@ -160,7 +160,7 @@ tidy(parsnip_model, conf.int = TRUE)
 
 ## Reading the coefficients
 
-Both fits agree closely: an intercept around 18.8 million and a `DPI` slope around $-670{,}000$, with `brms`'s 95% credible interval and `parsnip`'s 95% confidence interval both sitting comfortably away from zero (roughly $-813{,}000$ to $-528{,}000$). Concretely, that slope says tissue area falls by about 670,000 units for every additional day in this window: predicted area drops from around 16.8 million at day 3 to around 9.4 million by day 14, a decline of roughly 44% over eleven days. (The units themselves are the scaled `Tisue_Area` column flagged in @sec-linear-regression-assumptions's naming note; the direction and the size of the *change* is the meaningful part here, not the raw digit count.)
+Both fits agree closely: an intercept around 18.8 mm² and a `DPI` slope around $-0.67$ mm² per day, with `brms`'s 95% credible interval (roughly $-0.83$ to $-0.52$) and `parsnip`'s 95% confidence interval (roughly $-0.81$ to $-0.53$) both sitting comfortably away from zero. Concretely, that slope says tissue area falls by about 0.67 mm² for every additional day in this window: predicted area drops from around 16.8 mm² at day 3 to around 9.4 mm² by day 14, a decline of roughly 44% over eleven days.
 
 ::: callout-warning
 ### Before you trust this too far
