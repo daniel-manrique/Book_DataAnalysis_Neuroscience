@@ -428,7 +428,7 @@ Day 3 straddles the dashed line: no detectable change from the day-0 baseline. T
 
 ## The same idea for proportions
 
-`cell_data` gives us a second way to look at the same cells. `Pdgfrb_Total` is the total number of cells counted in the ROI and `Pdgfrb_Pos` is how many of those were PDGFR-β-positive, so the natural quantity for a different question ("what *fraction* of the cells I counted are positive?") is a proportion. (There's also a `Pdgfrb_Neg` column, and where it's present, `Pos + Neg = Total` exactly. One animal, Td79, has an empty `Neg` where the arithmetic says zero; since `Pos` and `Total` are complete, I use those two.)
+`cell_data` gives us a second way to look at the same cells. `Pdgfrb_Total` is the total number of cells counted in the ROI and `Pdgfrb_Pos` is how many of those were PDGFR-β-positive, so the natural quantity for a different question ("what *fraction* of the cells I counted are positive?") is a proportion. (There's also a `Pdgfrb_Neg` column, and where it's present, `Pos + Neg = Total` exactly. One animal, Td79, has an empty `Neg`, and its `Total` was computed as if that gap were zero, so for that animal `Pos` equals `Total` and its proportion is exactly 1, an artifact of the gap rather than a measurement; @sec-eda-missing-data tells the story. `Pos` and `Total` are complete, so I use those two, and I keep Td79 in as one animal out of 49, but remember it when a single proportion looks too perfect.)
 
 A proportion built from a known number of trials has its own family, the **binomial**, and its own link, the **logit**, which is the third doorway in @fig-glm_links. Every step is the same as before: choose a family, choose a link, keep the linear predictor. `brms` writes the trials into the formula.
 
