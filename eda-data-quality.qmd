@@ -112,6 +112,8 @@ This one I can answer without guessing, because I made the file. When I measured
 
 Here the evidence is thinner, so the reasoning has to be more careful. Every neighbor of this column spells the receptor `Pdgfrb` (`Pdgfrb_Area`, `Pdgfrb_sdInt`, `Pdgfrb_IntDen`), and the GFAP block has a complete `Gfap_Area`, `Gfap_MeanInt`, `Gfap_sdInt`, `Gfap_IntDen` set. The PDGFR-β block has a gap exactly where `Pdgfrb_MeanInt` would sit. That is a strong hint that `Pdgfbr_MeanInt` is a transposition of letters in that column's name, not a different quantity.
 
+![Every set has its place. When one outline sits empty and its lookalike hangs crooked elsewhere, the likeliest story is a mislabeled tool, not a new one.](images/eda-data-quality_pegboard-missing-tool.png){#fig-quality-pegboard fig-align="center" width="90%" fig-alt="Watercolor sketch of a pegboard with two rows of tools. The top row has a hammer, a wrench, a screwdriver and pliers in place, tinted ochre; the bottom row has the same tools tinted teal, but the pliers' outline is an empty dashed silhouette while the teal pliers hang crooked at the far right, outside any outline."}
+
 There is a test we can run. An integrated density is, by construction, an area multiplied by a mean intensity (up to a constant that depends on the software's units). If that holds for GFAP, and `Pdgfbr_MeanInt` behaves the same way against `Pdgfrb_IntDen` and `Pdgfrb_Area`, then it is playing the role of the PDGFR-β mean intensity.
 
 ```{r}
