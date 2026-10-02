@@ -21,7 +21,7 @@ f1 <- function(x) sprintf("%.1f", x)
 f2 <- function(x) sprintf("%.2f", x)
 ```
 
-Remember the question from the lab meeting: not "does it go up?" but *how much, per day, and how sure are you?* So far we have answered only half of it. @sec-linear-regression-what gave us the words for the answer (an intercept, a slope, a leftover), and @sec-linear-regression-assumptions told us, with some embarrassment, that the line we drew across the whole 30 days of the ischemia study does not deserve our trust. It failed linearity and equal spread for a reason that looks biological: an early bump at day 3 (I read it as acute edema, though this file cannot prove it, since the day-0 animals are shams), followed by a decline that flattens after day 14. This chapter keeps the promise made there. We shrink the window to where a straight line is an honest description, fit it with both lenses, and finally put a number with a margin around it on *how much tissue is lost per day*.
+Remember the question from the lab meeting: not "does it go up?" but *how much, per day, and how sure are you?* So far we have answered only half of it. @sec-linear-regression-what gave us the words for the answer (an intercept, a slope, a leftover), and @sec-linear-regression-assumptions told us, with some embarrassment, that the line we drew across the whole 30 days of the ischemia study does not deserve our trust. It failed linearity and equal spread for a reason that is biological: an early bump at day 3, followed by a decline that flattens after day 14. In my experience with cerebral ischemia, the injured brain first goes through an inflammatory phase that lasts from one to five days, depending on how large the lesion is, and the hemisphere swells during it. What follows is a long atrophy, with progressive loss of tissue. Inflammation first, atrophy after: that is the general course of the injury, and a straight line has no way to represent a rise followed by a fall. This chapter keeps the promise made there. We shrink the window to where a straight line is an honest description, fit it with both lenses, and finally put a number with a margin around it on *how much tissue is lost per day*.
 
 ## The full range, once more
 
@@ -47,11 +47,13 @@ ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
   Plot_theme
 ```
 
-The diamonds tell the story the line cannot. Mean tissue area goes from `r f1(m["0"])` mm² at day 0 (the shams) up to `r f1(m["3"])` at day 3, then down through `r f1(m["7"])` and `r f1(m["14"])`, and ends at `r f1(m["30"])` by day 30, where the decline has flattened. A single slope has to split the difference between a rise, a fall and a plateau, so it is too high for some days and too low for others. That is not a flaw of this dataset. It is what happens whenever a biological process changes character partway along the axis you are modeling, and the inflammation-then-degeneration arc of cerebral ischemia does exactly that.
+The diamonds tell the story the line cannot. Mean tissue area goes from `r f1(m["0"])` mm² at day 0 (the shams) up to `r f1(m["3"])` at day 3, then down through `r f1(m["7"])` and `r f1(m["14"])`, and ends at `r f1(m["30"])` by day 30, where the decline has flattened. A single slope has to split the difference between a rise, a fall and a plateau, so it is too high for some days and too low for others. That is not a flaw of this dataset. It is what happens whenever a biological process changes character partway along the axis you are modeling, and the inflammation-then-atrophy arc of cerebral ischemia does exactly that.
 
 ## Keeping the stretch where a line is honest
 
 The shaded band marks the stretch I keep: days 3, 7 and 14, the three days with a decline and nothing else going on. I also drop the sham animals, since they exist only at day 0 and would sneak a condition contrast into what should be a pure time slope.
+
+![Through the frame the path is straight; outside it, it bends. A straight line is honest only over the stretch you frame, and I framed this one after looking at the whole path.](images/linear-regression-single-continuous_frame-on-straight-stretch.png){#fig-single-continuous-frame fig-align="center" width="90%" fig-alt="Watercolor sketch of a dirt path over rolling green hills that climbs into a bump on the left, descends in a nearly straight line through an empty wooden picture frame standing on the path, then flattens out to the right under a pale blue sky."}
 
 ```{r}
 #| label: tbl-single_continuous_days
@@ -103,6 +105,8 @@ $$ {#eq-single-continuous}
 $\text{Area}_i$ is the tissue area of animal $i$ and $\text{DPI}_i$ its measurement day, both real, numeric, continuous variables (unlike the categorical `Condition` of @sec-intro-applied-modeling). $\beta_1$ is the slope: how much area changes per additional day. $\epsilon_i$ is everything else, same as always.
 
 The change is the "$-3$". In @eq-linear-regression-simple, $\beta_0$ is the value of $y$ when $x = 0$, and here $x = 0$ is day 0, the one day this window leaves out. The model would happily extrapolate to a day it never saw, and the answer would be a number that nobody can check against anything. Think of it as setting the zero of a ruler. You can put the zero where the table of measurements ends, or at the start of the stretch you actually measured. Centering `DPI` at day 3 does the second: $\beta_0$ becomes the expected area *at day 3*, a number we can hold up against the animals we really measured. It costs nothing, because shifting $x$ changes only the intercept and leaves the slope untouched (see @tbl-single_continuous_centering).
+
+![Where you put the zero of the ruler is up to you. Putting it at the start of the stretch you measured gives an intercept you can check against real animals.](images/linear-regression-single-continuous_sliding-the-zero.png){#fig-single-continuous-zero fig-align="center" width="85%" fig-alt="Watercolor sketch of two wooden rulers on a bench, one above the other. Three small stones sit along the top ruler, which has a teal flag at its far left end; the lower ruler is slid to the right so that an ochre flag marks its zero at the first stone, joined by a dashed line."}
 
 ```{r}
 #| label: tbl-single_continuous_centering
