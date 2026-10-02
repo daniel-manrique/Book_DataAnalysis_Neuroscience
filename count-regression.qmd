@@ -194,7 +194,7 @@ What did change is the story about the time course. Here are the fold changes re
 
 ```{r}
 #| label: fig-count_fold_offset
-#| fig-cap: Fold change relative to day 0 in PDGFR-β+ cells, as a raw count (model of @sec-glm-intro) and as a density per mm² (offset model). Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
+#| fig-cap: Fold change relative to day 0 in PDGFR-$\beta$+ cells, as a raw count (model of @sec-glm-intro) and as a density per mm² (offset model). Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
 #| fig-width: 6.5
 #| fig-height: 4
 #| warning: false

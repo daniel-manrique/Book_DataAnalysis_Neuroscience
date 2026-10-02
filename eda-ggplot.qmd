@@ -86,7 +86,7 @@ Also, we use `plot_annotation(tag_levels = 'A')` to include [tagging](https://pa
 
 ```{r}
 #| label: fig-cell_data_dens_EDA
-#| fig-cap: EDA for the distribution of PDGFRβ and GFAP expression (density plots)
+#| fig-cap: EDA for the distribution of PDGFR$\beta$ and GFAP expression (density plots)
 #| fig-width: 10
 #| fig-height: 5
 #| warning: false
@@ -233,7 +233,7 @@ Finally, we will use the [`cowplot`](https://wilkelab.org/cowplot/index.html) pa
 
 ```{r}
 #| label: fig-cell_data_scatter_EDA
-#| fig-cap: Exploratory data visualization for PDGFR-β and GFAP expression (scatterplot)
+#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP expression (scatterplot)
 #| fig-width: 10
 #| fig-height: 5
 #| warning: false
@@ -363,7 +363,7 @@ Once DPI is categorical, we can construct the raincloud plot using ggplot2 with 
 
 ```{r}
 #| label: fig-cell_data_rain_EDA
-#| fig-cap: Exploratory data visualization for PDGFR-β and GFAP expression (raincloud plot)
+#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP expression (raincloud plot)
 #| fig-width: 10
 #| fig-height: 5
 #| warning: false
@@ -492,7 +492,7 @@ This is also the first figure in the book where the HTML and PDF editions genuin
 
 ```{r}
 #| label: fig-cell_data_scatter_covariance_EDA
-#| fig-cap: Exploratory data visualization for PDGFR-β and GFAP covariation (scatter plot)
+#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP covariation (scatter plot)
 #| fig-width: 4
 #| fig-height: 4
 #| warning: false
@@ -554,7 +554,7 @@ Once again, we observe that the linear trend line does not adequately capture th
 
 ```{r}
 #| label: fig-cell_data_scatter_covariance_EDA-pdf
-#| fig-cap: Exploratory data visualization for PDGFR-β and GFAP covariation (scatter plot, static edition)
+#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP covariation (scatter plot, static edition)
 #| fig-width: 5
 #| fig-height: 5
 #| warning: false

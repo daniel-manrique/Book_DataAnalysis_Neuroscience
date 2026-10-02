@@ -329,7 +329,7 @@ This is @eq-glm with a beta family and the logit link of @sec-logistic-regressio
 
 ```{r}
 #| label: fig-beta_shapes
-#| fig-cap: Beta distributions with the same precision (φ = 15) and four different means. The shape, and not only the location, changes with the mean.
+#| fig-cap: Beta distributions with the same precision ($\phi$ = 15) and four different means. The shape, and not only the location, changes with the mean.
 #| fig-width: 8
 #| fig-height: 2.8
 #| warning: false

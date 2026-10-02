@@ -33,7 +33,7 @@ Before any model, let's look. I want every animal visible, not a summary, becaus
 
 ```{r}
 #| label: fig-glm_counts_by_dpi
-#| fig-cap: PDGFR-β-positive cell counts per animal, by day after ischemia (day 0 is the sham group)
+#| fig-cap: PDGFR-$\beta$-positive cell counts per animal, by day after ischemia (day 0 is the sham group)
 #| fig-width: 6.5
 #| fig-height: 4
 #| warning: false
@@ -402,7 +402,7 @@ Since the log link now gives us trustworthy uncertainty, let's finally read the 
 
 ```{r}
 #| label: fig-glm_fold_change
-#| fig-cap: Posterior fold change in PDGFR-β+ cell count relative to day 0 (negative binomial model). The dashed line at 1 means no change.
+#| fig-cap: Posterior fold change in PDGFR-$\beta$+ cell count relative to day 0 (negative binomial model). The dashed line at 1 means no change.
 #| fig-width: 6.5
 #| fig-height: 3.8
 #| warning: false
@@ -466,7 +466,7 @@ So does this family have the right idea about noise? Same question, same suspici
 
 ```{r}
 #| label: fig-glm_binom_check
-#| fig-cap: Observed proportion of PDGFR-β+ cells per animal (points) against the binomial model's 95% predictive interval for that animal (grey bars). Animals outside their interval are marked with a triangle.
+#| fig-cap: Observed proportion of PDGFR-$\beta$+ cells per animal (points) against the binomial model's 95% predictive interval for that animal (grey bars). Animals outside their interval are marked with a triangle.
 #| fig-width: 8
 #| fig-height: 3.8
 #| warning: false
