@@ -6,3 +6,26 @@ _book/
 /.Renviron
 /*.html
 /*_files/
+
+# LaTeX/PDF render leftovers. Rendering a single chapter to PDF (or keep-tex)
+# drops these in the project root; the book itself builds into _book/.
+# Anchored to the root so cached figures under _freeze/ are not affected.
+/*.aux
+/*.log
+/*.toc
+/*.lof
+/*.lot
+/*.out
+/*.tex
+/*.pdf
+/*.bbl
+/*.blg
+/*.fls
+/*.fdb_latexmk
+/*.synctex.gz
+/*.nav
+/*.snm
+/*.vrb
+
+# Quarto leaves this behind when a render is interrupted or a file is locked
+/site_libs/
