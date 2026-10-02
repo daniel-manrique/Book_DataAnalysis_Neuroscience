@@ -29,6 +29,9 @@ book:
 
     - part: eda-intro.qmd
       chapters:
+        - eda-first-look.qmd
+        - eda-data-quality.qmd
+        - eda-missing-data.qmd
         - eda-ggplot.qmd
         - eda-gwalkr.qmd
         - eda-ggpairs.qmd
@@ -50,6 +53,7 @@ book:
   appendices:
     - appendix-open-science.qmd
     - appendix-p-values.qmd
+    - appendix-ai-assisted-modeling.qmd
 
 format:
   html:
@@ -65,6 +69,13 @@ format:
     toc: true
     toc-depth: 2
     number-sections: true
+    # Vector PDF figures with alpha transparency (patchwork-combined
+    # plots especially) can trip XeLaTeX's picture inclusion with
+    # "requested image couldn't be read" errors on some TinyTeX/cairo
+    # combinations. Rasterizing to PNG for the PDF edition sidesteps
+    # the whole class of problem; quality loss is negligible at 300 DPI.
+    fig-format: png
+    fig-dpi: 300
     highlight-style: a11y
     colorlinks: true
     fig-pos: "H"
