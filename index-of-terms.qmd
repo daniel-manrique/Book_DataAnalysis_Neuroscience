@@ -20,23 +20,30 @@
 ## C {.unnumbered .unlisted}
 
 - **centering**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-centering-1)
-- **collinear**: [Exploratory data analysis](eda-intro.qmd#ix-collinear-1)
+- **chains**: [MCMC and model checking](mcmc-model-checking.qmd#ix-chains-1)
+- **collinear**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-collinear-1)
 - **complete separation**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-complete-separation-1)
-- **confounder**: [Exploratory data analysis](eda-intro.qmd#ix-confounder-1)
+- **confidence interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-confidence-interval-1)
+- **confounder**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-confounder-1)
 - **correlation matrix**: [EDA using ggpairs](eda-ggpairs.qmd#ix-correlation-matrix-1)
 - **coverage**: [Why testing your assumptions doesn't protect you](appendix-assumption-tests.qmd#ix-coverage-1)
+- **credible interval** ([glossary](glossary.qmd#gl-credible-interval)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-credible-interval-1)
 - **custom family**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-custom-family-1)
 
 ## D {.unnumbered .unlisted}
 
 - **dispersion statistic**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-dispersion-statistic-1); [Counting cells and spikes](count-regression.qmd#ix-dispersion-statistic-1); [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-dispersion-statistic-1)
 - **distribution**: [EDA using graphics](eda-ggplot.qmd#ix-distribution-1) ([2](eda-ggplot.qmd#ix-distribution-2))
+- **divergent transition**: [MCMC and model checking](mcmc-model-checking.qmd#ix-divergent-transition-1)
+- **divergent transitions**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-divergent-transitions-1)
 - **drawing the bayesian owl**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-drawing-the-bayesian-owl-1)
 
 ## E {.unnumbered .unlisted}
 
+- **effective sample size**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-effective-sample-size-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-effective-sample-size-1)
+- **equal-tailed interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-equal-tailed-interval-1)
 - **error**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-error-1)
-- **exploratory data analysis**: [Exploratory data analysis](eda-intro.qmd#ix-exploratory-data-analysis-1)
+- **exploratory data analysis**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-exploratory-data-analysis-1)
 
 ## F {.unnumbered .unlisted}
 
@@ -51,7 +58,8 @@
 - **hamiltonian monte carlo**: [MCMC and model checking](mcmc-model-checking.qmd#ix-hamiltonian-monte-carlo-1)
 - **heteroscedasticity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-heteroscedasticity-1)
 - **heteroskedasticity**: [EDA using graphics](eda-ggplot.qmd#ix-heteroskedasticity-1)
-- **histogram or density plot**: [Exploratory data analysis](eda-intro.qmd#ix-histogram-or-density-plot-1)
+- **highest-density interval (hdi)**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-highest-density-interval-hdi-1)
+- **histogram or density plot**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-histogram-or-density-plot-1)
 - **homoscedasticity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-homoscedasticity-1)
 - **hurdle**: [Counting cells and spikes](count-regression.qmd#ix-hurdle-1)
 
@@ -64,6 +72,7 @@
 
 ## L {.unnumbered .unlisted}
 
+- **likelihood** ([glossary](glossary.qmd#gl-likelihood)): [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-likelihood-1)
 - **linear predictor**: [Modeling what you count, score and time](glm-intro.qmd#ix-linear-predictor-1)
 - **linear probability model**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-linear-probability-model-1)
 - **linearity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-linearity-1)
@@ -72,6 +81,7 @@
 
 ## M {.unnumbered .unlisted}
 
+- **markov chain monte carlo**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-markov-chain-monte-carlo-1)
 - **missing at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-at-random-1)
 - **missing completely at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-completely-at-random-1)
 - **missing not at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-not-at-random-1)
@@ -88,12 +98,16 @@
 - **odds**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-odds-1)
 - **offset** ([glossary](glossary.qmd#gl-offset)): [Counting cells and spikes](count-regression.qmd#ix-offset-1) ([2](count-regression.qmd#ix-offset-2))
 - **outcome**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-outcome-1)
-- **outliers**: [Exploratory data analysis](eda-intro.qmd#ix-outliers-1)
+- **outliers**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-outliers-1)
 
 ## P {.unnumbered .unlisted}
 
+- **posterior distribution** ([glossary](glossary.qmd#gl-posterior-distribution)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-posterior-distribution-1)
+- **posterior predictive check**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-posterior-predictive-check-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-posterior-predictive-check-1)
 - **precision**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-precision-1)
 - **predictor**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-predictor-1)
+- **prior** ([glossary](glossary.qmd#gl-prior)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-prior-1)
+- **prior distribution**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-prior-distribution-1)
 - **prior predictive check**: [Specifying priors and regularization](priors-regularization.qmd#ix-prior-predictive-check-1)
 
 ## R {.unnumbered .unlisted}
@@ -106,6 +120,7 @@
 - **representativeness**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-representativeness-1)
 - **researcher degrees of freedom**: [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-researcher-degrees-of-freedom-1)
 - **residuals**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-residuals-1)
+- **rhat**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-rhat-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-rhat-1)
 - **ridge regression**: [Specifying priors and regularization](priors-regularization.qmd#ix-ridge-regression-1)
 - **robust regression**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-robust-regression-1)
 - **rootogram**: [Counting cells and spikes](count-regression.qmd#ix-rootogram-1)
@@ -113,6 +128,7 @@
 ## S {.unnumbered .unlisted}
 
 - **scatter plots**: [EDA using graphics](eda-ggplot.qmd#ix-scatter-plots-1) ([2](eda-ggplot.qmd#ix-scatter-plots-2))
+- **simulation-based calibration**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-simulation-based-calibration-1)
 - **skew**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-skew-1)
 - **slope**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
 - **smooth density plot**: [EDA using graphics](eda-ggplot.qmd#ix-smooth-density-plot-1)
@@ -121,9 +137,9 @@
 ## V {.unnumbered .unlisted}
 
 - **validity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-validity-1)
-- **variability**: [Exploratory data analysis](eda-intro.qmd#ix-variability-1)
+- **variability**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-variability-1)
 - **variance inflation factor**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-variance-inflation-factor-1)
-- **visualization**: [Exploratory data analysis](eda-intro.qmd#ix-visualization-1)
+- **visualization**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-visualization-1)
 
 ## W {.unnumbered .unlisted}
 

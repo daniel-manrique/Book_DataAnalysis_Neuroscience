@@ -10,6 +10,12 @@ A range of parameter values that holds a stated share (for example 95%) of the p
 
 *See also:* [posterior distribution](#gl-posterior-distribution)
 
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Why model? A first worked example](intro-applied-modeling.qmd#ix-credible-interval-1)
+
+:::
+
 ## Likelihood {#gl-likelihood .unnumbered .unlisted}
 
 How probable the data you observed would be for each possible value of the parameter. It is the part of the model that carries the evidence in your data.
@@ -17,6 +23,12 @@ How probable the data you observed would be for each possible value of the param
 *Think of it as:* A detective ranking suspects by how well each one explains the clues on the table.
 
 *See also:* [prior](#gl-prior), [posterior distribution](#gl-posterior-distribution)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-likelihood-1)
+
+:::
 
 ## Offset {#gl-offset .unnumbered .unlisted}
 
@@ -48,6 +60,12 @@ The prior updated by the data through Bayes' theorem: a full distribution showin
 
 *See also:* [prior](#gl-prior), [likelihood](#gl-likelihood), [credible interval](#gl-credible-interval)
 
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Why model? A first worked example](intro-applied-modeling.qmd#ix-posterior-distribution-1)
+
+:::
+
 ## Prior {#gl-prior .unnumbered .unlisted}
 
 The probability distribution you give a parameter before seeing the data. It states which values you consider plausible and how strongly.
@@ -55,4 +73,10 @@ The probability distribution you give a parameter before seeing the data. It sta
 *Think of it as:* The hunch you carry into the lab before you open the results: a colleague mentioned a similar finding, or a pilot run pointed that way. It is worth something, but it is not proof.
 
 *See also:* [posterior distribution](#gl-posterior-distribution), [likelihood](#gl-likelihood)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Why model? A first worked example](intro-applied-modeling.qmd#ix-prior-1)
+
+:::
 
