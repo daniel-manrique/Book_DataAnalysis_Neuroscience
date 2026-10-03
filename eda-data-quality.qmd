@@ -11,6 +11,7 @@ library(here)
 library(dplyr)
 library(gt)
 
+# Read the raw file; it is never modified in this book
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 ```
 
@@ -24,7 +25,7 @@ The tempting answer is to open the spreadsheet, correct the names, delete the ex
 
 ## Why the fix belongs in code
 
-Think about how you treat a gel or a microscope image. You never "improve" the original file. You keep the raw acquisition untouched, you apply a documented adjustment (a crop, a brightness change applied to the whole image), and you can say exactly what was done. Editing a gel image by hand, with no record, is the textbook example of what a reviewer should not accept. A hand-corrected spreadsheet is the same act in a different medium: the raw measurement is overwritten, and the only evidence of what changed lives in your memory.
+Think about how you treat a gel or a microscope image. You never "improve" the original file. You keep the raw acquisition untouched, you apply a documented adjustment (a crop, a brightness change applied to the whole image), and you can say exactly what was done. Editing a gel image by hand, with no record, is the textbook example of what a reviewer should not accept. A hand-corrected spreadsheet is the same act in a different medium: the raw measurement is overwritten, and the only evidence of what changed lives in your memory (@fig-quality-glass).
 
 ![The raw file is the original gel image: it stays under glass, byte for byte as it arrived. Every repair happens on a copy, in a script.](images/eda-data-quality_raw-under-glass.png){#fig-quality-glass fig-align="center" width="90%" fig-alt="Watercolor sketch of a pristine sheet of gridded paper resting on a dark cushion inside a glass display case on a wooden pedestal. At a worktable beside it, a smiling researcher in a lab coat and green sweater, chin on one hand, makes pencil marks on a copy of the same sheet, with an eraser, a pencil cup and an open notebook nearby."}
 
@@ -40,7 +41,7 @@ I made that choice deliberately. The models in the linear-model chapters and bey
 
 ## Tidying names and finding duplicates with `janitor`
 
-Base R can do most of what follows, and I have written the `gsub()` calls to prove it. I reach for `janitor` [@janitor] anyway, for the same reason I reach for a labeled multichannel pipette instead of a handwritten tip box: the common operations have names that say what they do, so the script reads like a protocol. The first one is `clean_names()`, which converts every column to consistent `snake_case`. The reason to want it is not aesthetics. Mixed conventions such as `Centroid.Y`, `Gfap_sdInt` and `PdgfrbHigh_Intensity` are a steady source of "object not found" errors, because you have to remember which style each column happens to use.
+Base R can do most of what follows, and I have written the `gsub()` calls to prove it. I reach for `janitor` [@janitor] anyway, for the same reason I reach for a labeled multichannel pipette instead of a handwritten tip box: the common operations have names that say what they do, so the script reads like a protocol. The first one is `clean_names()`, which converts every column to consistent `snake_case`. The reason to want it is not aesthetics. Mixed conventions such as `Centroid.Y`, `Gfap_sdInt` and `PdgfrbHigh_Intensity` are a steady source of "object not found" errors, because you have to remember which style each column happens to use. @tbl-quality-names shows what it does to the names in `cell_data`.
 
 ```{r}
 #| label: tbl-quality-names
@@ -48,12 +49,14 @@ Base R can do most of what follows, and I have written the `gsub()` calls to pro
 
 library(janitor)
 
+# Pair every original name with its cleaned version, keeping only the ones that change
 names_map <- tibble(
   original = names(cell_data),
   cleaned = names(clean_names(cell_data))
 ) |>
   filter(original != cleaned)
 
+# Show the pairs as a table
 names_map |>
   gt() |>
   cols_label(original = "Original name", cleaned = "After clean_names()")
@@ -64,6 +67,7 @@ That last point matters. `clean_names()` is a style tool, and no function can kn
 ```{r}
 #| label: dupes-mouseid
 
+# Rows that share a MouseID (none expected: one row per animal)
 get_dupes(cell_data, MouseID)
 
 # the stricter question: are any two rows identical across all columns?
@@ -77,6 +81,7 @@ One more `janitor` tool deserves a mention for this dataset specifically. `remov
 ```{r}
 #| label: remove-constant
 
+# Keep only MCAO animals, drop columns with a single value, count what is left
 cell_data |>
   filter(Condition == "MCAO") |>
   remove_constant(quiet = FALSE) |>
@@ -96,7 +101,10 @@ If `Tisue_Area` is really the same measurement in µm², then multiplying `Tissu
 ```{r}
 #| label: check-area-units
 
+# Do mm2 x 10^6 and the um2 column agree, allowing for floating-point error?
 all.equal(cell_data$Tissue_Area * 1e6, cell_data$Tisue_Area)
+
+# The largest absolute gap between the two, so you can judge it yourself
 max(abs(cell_data$Tissue_Area * 1e6 - cell_data$Tisue_Area))
 ```
 
@@ -110,7 +118,7 @@ This one I can answer without guessing, because I made the file. When I measured
 
 ### `Pdgfbr_MeanInt`
 
-Here the evidence is thinner, so the reasoning has to be more careful. Every neighbor of this column spells the receptor `Pdgfrb` (`Pdgfrb_Area`, `Pdgfrb_sdInt`, `Pdgfrb_IntDen`), and the GFAP block has a complete `Gfap_Area`, `Gfap_MeanInt`, `Gfap_sdInt`, `Gfap_IntDen` set. The PDGFR-β block has a gap exactly where `Pdgfrb_MeanInt` would sit. That is a strong hint that `Pdgfbr_MeanInt` is a transposition of letters in that column's name, not a different quantity.
+Here the evidence is thinner, so the reasoning has to be more careful. Every neighbor of this column spells the receptor `Pdgfrb` (`Pdgfrb_Area`, `Pdgfrb_sdInt`, `Pdgfrb_IntDen`), and the GFAP block has a complete `Gfap_Area`, `Gfap_MeanInt`, `Gfap_sdInt`, `Gfap_IntDen` set. The PDGFR-β block has a gap exactly where `Pdgfrb_MeanInt` would sit. That is a strong hint that `Pdgfbr_MeanInt` is a transposition of letters in that column's name, not a different quantity (@fig-quality-pegboard).
 
 ![Every set has its place. When one outline sits empty and its lookalike hangs crooked elsewhere, the likeliest story is a mislabeled tool, not a new one.](images/eda-data-quality_pegboard-missing-tool.png){#fig-quality-pegboard fig-align="center" width="90%" fig-alt="Watercolor sketch of a pegboard with two rows of tools. The top row has a hammer, a wrench, a screwdriver and pliers in place, tinted ochre; the bottom row has the same tools tinted teal, but the pliers' outline is an empty dashed silhouette while the teal pliers hang crooked at the far right, outside any outline."}
 
@@ -119,9 +127,12 @@ There is a test we can run. An integrated density is, by construction, an area m
 ```{r}
 #| label: check-meanint
 
+# Integrated density divided by (area x mean intensity), per animal;
+# for a true mean-intensity column this ratio is a constant
 ratio_gfap <- cell_data$Gfap_IntDen / (cell_data$Gfap_Area * cell_data$Gfap_MeanInt)
 ratio_pdgfrb <- cell_data$Pdgfrb_IntDen / (cell_data$Pdgfrb_Area * cell_data$Pdgfbr_MeanInt)
 
+# Compare the two ratios side by side
 rbind(GFAP = summary(ratio_gfap), `PDGFR-β` = summary(ratio_pdgfrb))
 ```
 
@@ -147,6 +158,8 @@ The plausible range for the area is the one rule I want to flag as my own judgme
 
 library(assertr)
 
+# Five rules in a pipeline; the data pass through unchanged if all hold,
+# and the pipeline stops with an error if one fails
 cell_data |>
   assert(is_uniq, MouseID) |>
   assert(within_bounds(5, 25), Tissue_Area) |>
@@ -160,18 +173,20 @@ All five rules passed, so the data came through and `nrow()` reports its 49 rows
 
 You may have noticed what is *not* on the list: a rule demanding that no value be missing. `Pdgfrb_Neg` has one `NA` (animal `Td79`), and `assert(not_na, Pdgfrb_Neg)` would stop the pipeline on it. But that `NA` is not a data-entry error to repair; it is a question about how the number came to be missing, and a rule that simply halts on it would hide the question instead of asking it. (A different kind of rule, one checking that a derived column agrees with the columns it is computed from, turns out to matter for exactly this animal; the next chapter shows why.) We take it up properly in @sec-eda-missing-data. The last rule is my favorite, because it guards the decision from the previous section: the day someone updates the file and the two area columns stop agreeing, the script will refuse to drop one of them without telling me.
 
-A validation that has never failed has never been shown to work, just as a positive control that you have never seen light up is not yet a control. So let me break a copy of the data on purpose, with three planted errors: a negative tissue area, a duplicated animal ID, and a SHAM animal at day 7.
+A validation that has never failed has never been shown to work, just as a positive control that you have never seen light up is not yet a control. So let me break a copy of the data on purpose, with three planted errors: a negative tissue area, a duplicated animal ID, and a SHAM animal at day 7 (@fig-quality-alarm).
 
 ![A validation that has never failed has never been shown to work. Test the alarm: plant a deliberate error and listen for it to go off.](images/eda-data-quality_smoke-alarm-test.png){#fig-quality-alarm fig-align="center" width="85%" fig-alt="Watercolor sketch of a researcher in a lab coat standing on a small wooden stepstool, holding a lit candle up under a round smoke detector on the ceiling while covering one ear and grinning. Teal and ochre sound arcs and a small orange light show the detector sounding."}
 
 ```{r}
 #| label: rules-broken
 
+# A deliberately broken copy: a negative area, a repeated ID, a SHAM animal after day 0
 cell_broken <- cell_data
 cell_broken$Tissue_Area[3] <- -1
 cell_broken$MouseID[5] <- cell_broken$MouseID[4]
 cell_broken$Condition[7] <- "SHAM"
 
+# Run one rule on it and print the error message instead of stopping the render
 tryCatch(
   assert(cell_broken, within_bounds(5, 25), Tissue_Area),
   error = function(e) cat(conditionMessage(e))
@@ -183,6 +198,7 @@ This is what a failure looks like: the error names the column, the rule it viola
 ```{r}
 #| label: rules-broken-all
 
+# Collect every violation at once instead of stopping at the first
 cell_broken |>
   chain_start() |>
   assert(is_uniq, MouseID) |>
@@ -200,6 +216,7 @@ With the checks defined, assembling `cell_clean` is a single pipeline: validate 
 ```{r}
 #| label: build-clean
 
+# Validate the raw data, standardize names, then apply the two repairs
 cell_clean <- cell_data |>
   assert(is_uniq, MouseID) |>
   assert(within_bounds(5, 25), Tissue_Area) |>
@@ -212,6 +229,7 @@ cell_clean <- cell_data |>
   # Pdgfbr_MeanInt is a transposition of Pdgfrb_MeanInt (IntDen = Area x MeanInt check)
   rename(pdgfrb_mean_int = pdgfbr_mean_int)
 
+# Rows and columns of the cleaned object, and which column was dropped
 dim(cell_clean)
 setdiff(names(clean_names(cell_data)), names(cell_clean))
 ```
@@ -221,12 +239,17 @@ Forty-nine rows and nineteen columns: one fewer than the raw file, and the one t
 ```{r}
 #| label: raw-untouched
 
+# The raw object still has all its columns and the original typo
 c(ncol = ncol(cell_data), has_typo = "Tisue_Area" %in% names(cell_data))
 ```
 
 Twenty columns, typo intact. That is not a bug in this chapter; it is the convention working. The next chapters read `cell_data` from the CSV with its original names, and `cell_clean` ends here.
 
 In your own project the same pipeline would not live inside a chapter. I keep it in a short `clean_data.R` script (or a function in `functions/`) that reads the raw file, runs the rules, and returns the cleaned table; every analysis starts by calling it. That way the raw file stays untouched, the repairs have one home, and a new export of the same experiment goes through exactly the same checks.
+
+::: {.callout-note title="How to report it"}
+**Methods.** The raw data file was never edited. Before analysis it was checked in an R script with `assertr` rules: animal identifiers unique; tissue area between 5 and 25 mm²; day post-ischemia in {0, 3, 7, 14, 30}; sham animals only at day 0; and tissue area in mm² equal to the area in µm² divided by 10^6. All rules passed for the `r nrow(cell_data)` animals. The redundant µm² column was dropped and a misspelled column name was corrected in code.
+:::
 
 ## Take home message
 
