@@ -17,9 +17,11 @@ library(gt)
 library(parsnip)
 library(broom)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 
+# Read the histology data
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI_f <- factor(cell_data$DPI)
 # Centering log-area makes the intercept describe a section of typical size
@@ -50,6 +52,7 @@ Two things about how I'm treating the histology counts for now, so you can hold 
 I could tell you why a Gaussian is a bad idea for counts, and you'd nod. I'd rather show you, because seeing a model fail on your own data teaches more than being warned about it. So here is the straight linear model, one mean per day and one common `sigma`, fit with the flat `brms` defaults, the same deliberate choice @sec-linear-regression-multiple made, so the data speak with as little interference as possible, and beside its `lm` counterpart.
 
 ```{r}
+# The Gaussian model the last part would have used: one mean per day, one sigma (cached)
 fit_gauss <- brm(
   Pdgfrb_Pos ~ DPI_f,
   data = cell_data,
@@ -63,6 +66,7 @@ fit_gauss <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: day means and a single sigma
 summary(fit_gauss)
 ```
 
@@ -71,6 +75,7 @@ The `Intercept` is the day-0 mean (about `r round(fixef(fit_gauss)["Intercept", 
 ### parsnip
 
 ```{r}
+# The same Gaussian model by ordinary least squares
 parsnip_gauss <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Pdgfrb_Pos ~ DPI_f, data = cell_data)
@@ -79,7 +84,7 @@ tidy(parsnip_gauss, conf.int = TRUE)
 ```
 :::
 
-The coefficients aren't wrong. What a model *believes* about the world lives in the data it would simulate, and that's what @sec-mcmc-model-checking taught us to check. So let's ask the model to generate fake animals, day by day, and see whether they look like real counts. I'm using `posterior_predict()` to draw new observations (not just new means) and `ggdist`'s graded intervals to show where the model thinks a new animal would land, with the real animals on top and a dashed line at zero.
+The coefficients aren't wrong. What a model *believes* about the world lives in the data it would simulate, and that's what @sec-mcmc-model-checking taught us to check. So let's ask the model to generate fake animals, day by day, and see whether they look like real counts. I'm using `posterior_predict()` to draw new observations (not just new means) and `ggdist`'s graded intervals to show where the model thinks a new animal would land, with the real animals on top and a dashed line at zero (@fig-count_gauss_predictive).
 
 ```{r}
 #| label: fig-count_gauss_predictive
@@ -88,13 +93,16 @@ The coefficients aren't wrong. What a model *believes* about the world lives in 
 #| fig-height: 4
 #| warning: false
 
+# New simulated animals (not just new means) from the fitted Gaussian model
 pp_gauss <- posterior_predict(fit_gauss, ndraws = 1000)
 
+# One row per simulated animal, with the day it belongs to
 pp_long <- data.frame(
   y = as.vector(pp_gauss),
   DPI_f = rep(cell_data$DPI_f, each = nrow(pp_gauss))
 )
 
+# Predictive bands per day, the observed animals on top, a dashed line at zero
 ggplot(pp_long, aes(x = DPI_f, y = y)) +
   stat_interval(.width = c(0.5, 0.8, 0.95)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey30") +
@@ -107,6 +115,7 @@ ggplot(pp_long, aes(x = DPI_f, y = y)) +
 ```
 
 ```{r}
+# Share of simulated animals with a negative count, and the real spread, per day
 neg_share <- tapply(colMeans(pp_gauss < 0), cell_data$DPI_f, mean)
 sd_day <- tapply(cell_data$Pdgfrb_Pos, cell_data$DPI_f, sd)
 ```
@@ -120,6 +129,7 @@ One quieter thing before we move on: the *means* stayed sensible. The Gaussian's
 The smallest change that respects what a count *is* is to swap the family for the Poisson, the distribution for counts of independent events at a steady rate, and the link for the log. That's it: same formula, same predictor, two changes. In `brms` it's one argument. I'm using the `brms` defaults again while we learn the structure; remember the warning from the introduction about priors on the link scale, because later in this chapter I set one deliberately.
 
 ```{r}
+# Same formula, Poisson family (log link is the default)
 fit_pois <- brm(
   Pdgfrb_Pos ~ DPI_f,
   data = cell_data,
@@ -134,12 +144,14 @@ fit_pois <- brm(
 ### brms
 
 ```{r}
+# Posterior summary on the log scale
 summary(fit_pois)
 ```
 
 ### glm
 
 ```{r}
+# The same model by maximum likelihood
 glm_pois <- glm(Pdgfrb_Pos ~ DPI_f, family = poisson(), data = cell_data)
 
 tidy(glm_pois, conf.int = TRUE)
@@ -147,12 +159,13 @@ tidy(glm_pois, conf.int = TRUE)
 :::
 
 ```{r}
+# Posterior estimates of the Poisson model, for the text
 b_pois <- fixef(fit_pois)
 ```
 
 Read these coefficients carefully, because they're not on the scale you're used to. They're on the *link* scale, the log scale. The `Intercept` of about `r round(b_pois["Intercept", "Estimate"], 2)` is $\log(\mu)$ for day 0, so the expected day-0 count is $e^{`r round(b_pois["Intercept", "Estimate"], 2)`} \approx `r round(exp(b_pois["Intercept", "Estimate"]))`$, the same mean the Gaussian gave. The `DPI_f7` coefficient of about `r round(b_pois["DPI_f7", "Estimate"], 2)` isn't "`r round(b_pois["DPI_f7", "Estimate"], 2)` more cells", it's "`r round(b_pois["DPI_f7", "Estimate"], 2)` more on the log scale", and adding on the log scale means multiplying on the count scale: $e^{`r round(b_pois["DPI_f7", "Estimate"], 2)`} \approx `r round(exp(b_pois["DPI_f7", "Estimate"]), 1)`$, so day 7 has about `r round(exp(b_pois["DPI_f7", "Estimate"]))` times as many PDGFR-β+ cells as day 0. This is the price of the doorway: you can't read a coefficient off the summary and add it to a count anymore, you have to translate through the inverse link. What you gain is that the model can never predict fewer than zero cells.
 
-The floor problem is gone. What about the fan? Let's find out whether the Poisson family's *own* idea of how variance should behave matches the data. A Poisson count has one defining property: its variance equals its mean. Here are the two side by side, one point per day, on log axes, with the variance each family says a group should have.
+The floor problem is gone. What about the fan? Let's find out whether the Poisson family's *own* idea of how variance should behave matches the data. A Poisson count has one defining property: its variance equals its mean. Here are the two side by side (@fig-count_pois_variance), one point per day, on log axes, with the variance each family says a group should have.
 
 ```{r}
 #| label: fig-count_pois_variance
@@ -161,11 +174,13 @@ The floor problem is gone. What about the fan? Let's find out whether the Poisso
 #| fig-height: 4.5
 #| warning: false
 
+# Mean and variance of the counts on each day
 day_stats <- aggregate(Pdgfrb_Pos ~ DPI_f, data = cell_data,
                        FUN = function(x) c(m = mean(x), v = var(x)))
 day_stats <- do.call(data.frame, day_stats)
 names(day_stats) <- c("DPI_f", "m", "v")
 
+# The variance each family assumes over a range of means
 sigma_gauss <- summary(fit_gauss)$spec_pars["sigma", "Estimate"]
 mu_grid <- exp(seq(log(350), log(4000), length.out = 100))
 
@@ -179,8 +194,10 @@ var_lines <- rbind(
   data.frame(mu = var_lines$mu, v = var_lines$Gaussian, family = "Gaussian")
 )
 
+# Labels at the right end of each line, so no legend is needed
 line_labels <- var_lines[var_lines$mu == max(var_lines$mu), ]
 
+# Family variance lines (log axes) and the observed variance of each day as points
 ggplot() +
   geom_line(data = var_lines, aes(x = mu, y = v, color = family, linetype = family),
             linewidth = 1) +
@@ -195,19 +212,21 @@ ggplot() +
   scale_color_manual(values = c(Poisson = "#D55E00", Gaussian = "grey40")) +
   labs(x = "Mean of the day's counts", y = "Variance of the day's counts") +
   Plot_theme +
-  theme(legend.position = "none")
+  legend_none()
 
+# Variance divided by mean on each day (1 for a Poisson)
 vm_ratio <- day_stats$v / day_stats$m
 ```
 
 The Gaussian says the variance should be the same no matter the mean: that's the flat grey line, and the points refuse to lie on it. The Poisson says the variance should equal the mean: the orange diagonal. The points *do* climb with the mean, so the Poisson has the right instinct, but they sit about two orders of magnitude above the line: each day's variance is between `r round(min(vm_ratio))` and `r round(max(vm_ratio))` times its mean, where a Poisson says 1. The day-7 group, for instance, has a variance near `r format(round(day_stats$v[day_stats$DPI_f == "7"], -4), big.mark = ",")` where a Poisson expects about `r format(round(day_stats$m[day_stats$DPI_f == "7"], -2), big.mark = ",")`. The standard summary is the [dispersion statistic]{style="color:green; font-weight:bold;"}, the sum of squared Pearson residuals divided by the residual degrees of freedom, which should be near 1 for a well-specified Poisson [@inchausti2023; @gelman2020].
 
 ```{r}
+# Dispersion statistic: near 1 when the family's variance is right
 dispersion <- function(m) sum(residuals(m, type = "pearson")^2) / df.residual(m)
 disp_pois <- dispersion(glm_pois)
 ```
 
-Ours is about `r round(disp_pois)`. To see what that means for the predictions, I'll do what we did for the Gaussian: ask the fitted model to generate data and compare. This time I'm using `pp_check()`, and truncating the axis at 6,000 because a few Poisson replicates wander out further than any real animal.
+Ours is about `r round(disp_pois)`. To see what that means for the predictions, I'll do what we did for the Gaussian: ask the fitted model to generate data and compare. This time I'm using `pp_check()` (@fig-count_pois_ppcheck), and truncating the axis at 6,000 because a few Poisson replicates wander out further than any real animal.
 
 ```{r}
 #| label: fig-count_pois_ppcheck
@@ -216,8 +235,11 @@ Ours is about `r round(disp_pois)`. To see what that means for the predictions, 
 #| fig-height: 4
 #| warning: false
 
+# 50 replicated datasets (light lines) against the observed counts (dark line)
 pp_check(fit_pois, ndraws = 50) +
-  coord_cartesian(xlim = c(0, 6000))
+  coord_cartesian(xlim = c(0, 6000)) +
+  Plot_theme +
+  legend_inside(0.85, 0.8)
 ```
 
 The replicates (light lines) are lumpy little spikes, one cluster for the low days and one for the high ones, because the model believes each day's counts cluster tightly around their mean. The observed density (dark line) is a single broad plateau. The Poisson family fixed the floor and got the direction of the variance right, and it is still off by a factor of hundreds, which means every interval it reports would be wildly too narrow. A GLM isn't a spell: it gives you a family, and if the family's idea of noise is wrong, the model is wrong, just in a more respectable-looking way.
@@ -230,9 +252,10 @@ Why is the Poisson too tight? Think about what it assumes. It describes what you
 
 ![Two kinds of noise. Which seeds land inside the hoop is luck. How thickly each field was sown, before you threw the hoop, is the animal itself.](images/count-regression_throwing-the-hoop.png){#fig-count-hoop fig-align="center" width="90%" fig-alt="Watercolor bird's-eye sketch of three garden plots side by side, sown sparsely, moderately and thickly with teal and ochre seeds, each with the same wooden hoop on the soil enclosing about six seeds, and a small trowel at the lower right."}
 
-The [negative binomial]{style="color:green; font-weight:bold;"} family adds exactly that second source. It is a Poisson whose rate varies from animal to animal, and it does so with one extra parameter that lets the variance exceed the mean: $\text{Var}(y) = \mu + \mu^2/\phi$, where a larger $\phi$ means less extra scatter, and $\phi \to \infty$ gives the Poisson back [@inchausti2023]. Same linear predictor, same log link. In `brms`, the change is one word.
+The [negative binomial]{style="color:green; font-weight:bold;"} family adds exactly that second source. It is a Poisson whose rate varies from animal to animal, and it does so with one extra parameter that lets the variance exceed the mean: $\text{Var}(y) = \mu + \mu^2/\phi$, where a larger $\phi$ means less extra scatter, and $\phi \to \infty$ gives the Poisson back [@inchausti2023]. Same linear predictor, same log link. In `brms`, the change is one word (@fig-count-hoop pictures the two kinds of noise).
 
 ```{r}
+# Same formula, negative binomial family: one extra parameter, shape
 fit_nb <- brm(
   Pdgfrb_Pos ~ DPI_f,
   data = cell_data,
@@ -247,19 +270,21 @@ fit_nb <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: same means as the Poisson, plus shape
 summary(fit_nb)
 ```
 
 ### glm.nb
 
 ```{r}
+# The same model by maximum likelihood (theta is brms's shape)
 glm_nb <- MASS::glm.nb(Pdgfrb_Pos ~ DPI_f, data = cell_data)
 
 tidy(glm_nb, conf.int = TRUE)
 ```
 :::
 
-The coefficient table looks almost the same as the Poisson's: the same log-scale means, the same fourfold jump at day 7. That's the point: the *mean model* didn't change. What changed is `shape` (the $\phi$ above), which the Poisson didn't have, and which is now estimated to be around `r round(summary(fit_nb)$spec_pars["shape", "Estimate"], 1)`: small enough that the extra variance is substantial. Now the same check as before, side by side with the Poisson.
+The coefficient table looks almost the same as the Poisson's: the same log-scale means, the same fourfold jump at day 7. That's the point: the *mean model* didn't change. What changed is `shape` (the $\phi$ above), which the Poisson didn't have, and which is now estimated to be around `r round(summary(fit_nb)$spec_pars["shape", "Estimate"], 1)`: small enough that the extra variance is substantial. Now the same check as before, side by side with the Poisson (@fig-count_ppcheck_compare).
 
 ```{r}
 #| label: fig-count_ppcheck_compare
@@ -268,18 +293,24 @@ The coefficient table looks almost the same as the Poisson's: the same log-scale
 #| fig-height: 3.5
 #| warning: false
 
+# Left: the Poisson check; the legend is kept only on the right-hand panel
 p_pois <- pp_check(fit_pois, ndraws = 50) +
   coord_cartesian(xlim = c(0, 6000)) +
-  labs(title = "Poisson")
+  labs(title = "Poisson") +
+  Plot_theme +
+  legend_none()
 
+# Right: the negative binomial check
 p_nb <- pp_check(fit_nb, ndraws = 50) +
   coord_cartesian(xlim = c(0, 6000)) +
-  labs(title = "Negative binomial")
+  labs(title = "Negative binomial") +
+  Plot_theme +
+  legend_inside(0.8, 0.8)
 
 p_pois + p_nb
 ```
 
-Now the replicates are broad enough to cover the observed density instead of ignoring it. They aren't perfect: their right tail reaches past 6,000, further than any animal we counted, so the negative binomial is slightly generous with the high counts. That's a much smaller sin than being off by a factor of hundreds. And the mean-variance picture finally has a curve that runs through the points. I'm adding the negative binomial's variance function, $\mu + \mu^2/\phi$, to the same plot as before.
+Now the replicates are broad enough to cover the observed density instead of ignoring it. They aren't perfect: their right tail reaches past 6,000, further than any animal we counted, so the negative binomial is slightly generous with the high counts. That's a much smaller sin than being off by a factor of hundreds. And the mean-variance picture finally has a curve that runs through the points. I'm adding the negative binomial's variance function, $\mu + \mu^2/\phi$, to the same plot as before (@fig-count_nb_variance).
 
 ```{r}
 #| label: fig-count_nb_variance
@@ -288,6 +319,7 @@ Now the replicates are broad enough to cover the observed density instead of ign
 #| fig-height: 4.5
 #| warning: false
 
+# Add the negative binomial's variance function, mu + mu^2 / shape
 shape_nb <- summary(fit_nb)$spec_pars["shape", "Estimate"]
 
 var_lines_nb <- rbind(
@@ -312,12 +344,12 @@ ggplot() +
                                 "Negative binomial" = "#0072B2")) +
   labs(x = "Mean of the day's counts", y = "Variance of the day's counts") +
   Plot_theme +
-  theme(legend.position = "none")
+  legend_none()
 ```
 
 Strictly speaking, the negative binomial isn't "a Poisson that works": it's a different family. But nothing else in the model moved: the predictor, the log link, the formula, the way we read coefficients. That's what "generalized" buys you. The choice of noise is a dial you turn independently of the rest.
 
-Since the log link now gives us trustworthy uncertainty, let's finally read the effect the way it deserves to be read: as a ratio. Each `DPI_f` coefficient exponentiates to a fold change relative to day 0. A half-eye shows the whole posterior for each ratio, not just an interval, on a log axis so that "twice as many" and "half as many" are the same distance from 1.
+Since the log link now gives us trustworthy uncertainty, let's finally read the effect the way it deserves to be read: as a ratio. Each `DPI_f` coefficient exponentiates to a fold change relative to day 0. A half-eye shows the whole posterior for each ratio, not just an interval, on a log axis so that "twice as many" and "half as many" are the same distance from 1 (@fig-count_fold_raw).
 
 ```{r}
 #| label: fig-count_fold_raw
@@ -326,6 +358,7 @@ Since the log link now gives us trustworthy uncertainty, let's finally read the 
 #| fig-height: 3.8
 #| warning: false
 
+# Posterior draws; exponentiating a log-scale day coefficient gives a fold change vs. day 0
 draws_nb <- as.data.frame(posterior::as_draws_df(fit_nb))
 day_cols <- c("b_DPI_f3", "b_DPI_f7", "b_DPI_f14", "b_DPI_f30")
 
@@ -334,6 +367,7 @@ fold <- data.frame(
   fold_change = exp(unlist(draws_nb[, day_cols]))
 )
 
+# Half-eye per day on a log axis; dashed line at 1 = no change
 ggplot(fold, aes(x = fold_change, y = day)) +
   stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", point_interval = "median_qi") +
   geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
@@ -351,6 +385,7 @@ Day 3 straddles the dashed line: no detectable change from the day-0 baseline. T
 A few pages ago I reported the `shape` of the negative binomial, said it was "small enough that the extra variance is substantial", and moved on. That was a bit like handing you a thermometer reading without saying which way is hot. So before we add anything, let me go back to that fit and read it properly.
 
 ```{r}
+# Posterior draws of the negative binomial shape
 shape_draws <- as.data.frame(posterior::as_draws_df(fit_nb))$shape
 ```
 
@@ -362,7 +397,7 @@ $$
 \text{CV}(y) = \sqrt{\frac{1}{\mu} + \frac{1}{\phi}}
 $$ {#eq-cv-nb}
 
-The first term is the counting noise: it shrinks as the count grows. The second is the animal-to-animal noise: it doesn't depend on the count at all. I'll draw both against each other, with the Poisson (which has only the first term) for contrast, and the observed CV of each day's animals as points. I'm using the CV, not the variance as in the plot above, because the CV is on the scale a scientist thinks in ("the counts wobble by 40% or so"), and it turns the two noise terms into a picture: one keeps falling, the other is a floor.
+The first term is the counting noise: it shrinks as the count grows. The second is the animal-to-animal noise: it doesn't depend on the count at all. I'll draw both against each other (@fig-count_cv_floor), with the Poisson (which has only the first term) for contrast, and the observed CV of each day's animals as points. I'm using the CV, not the variance as in the plot above, because the CV is on the scale a scientist thinks in ("the counts wobble by 40% or so"), and it turns the two noise terms into a picture: one keeps falling, the other is a floor.
 
 ```{r}
 #| label: fig-count_cv_floor
@@ -371,6 +406,7 @@ The first term is the counting noise: it shrinks as the count grows. The second 
 #| fig-height: 4.2
 #| warning: false
 
+# Coefficient of variation over a range of means: counting noise plus animal-to-animal noise
 mu_grid <- exp(seq(log(300), log(4500), length.out = 80))
 phi_sub <- shape_draws[seq(1, length(shape_draws), length.out = 400)]
 
@@ -382,11 +418,13 @@ cv_band <- data.frame(
   pois = 1 / sqrt(mu_grid)
 )
 
+# Observed mean and CV of each day
 day_cv <- aggregate(Pdgfrb_Pos ~ DPI_f, data = cell_data,
                     FUN = function(x) c(m = mean(x), cv = sd(x) / mean(x)))
 day_cv <- do.call(data.frame, day_cv)
 names(day_cv) <- c("DPI_f", "m", "cv")
 
+# Band and line: negative binomial (levels off at a floor); dashed: Poisson (keeps falling)
 ggplot(cv_band, aes(x = mu)) +
   geom_ribbon(aes(ymin = lo, ymax = hi), fill = "#0072B2", alpha = 0.25) +
   geom_line(aes(y = mid), color = "#0072B2", linewidth = 1) +
@@ -416,9 +454,9 @@ The Poisson (dashed) says that a group averaging four thousand cells should be p
 
 ## "Per what?": the offset
 
-Every scientist has had the following conversation. You report that treated animals have 1,900 PDGFR-β+ cells and the controls have 500. Somebody at the back asks: *per what?* A count is like a receipt with the shop's name torn off: it tells you how many, and it says nothing about how big the window was that you looked through. If sections differ in size, the count mixes two things: how dense the cells are, and how much tissue you counted.
+Every scientist has had the following conversation. You report that treated animals have 1,900 PDGFR-β+ cells and the controls have 500. Somebody at the back asks: *per what?* A count is like a receipt with the shop's name torn off (@fig-count-receipt): it tells you how many, and it says nothing about how big the window was that you looked through. If sections differ in size, the count mixes two things: how dense the cells are, and how much tissue you counted.
 
-`cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it; @sec-eda-data-quality shows the check and explains the choice.) I set that aside earlier in the chapter, when I said the count was the count. It isn't.
+`cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it; @sec-eda-data-quality shows the check and explains the choice.) I set that aside earlier in the chapter, when I said the count was the count. It isn't, and @fig-count_area shows why.
 
 ![A count is a receipt with the shop's name torn off. It says how many, and nothing about how big the window was.](images/count-regression_receipt-without-a-shop.png){#fig-count-receipt fig-align="center" width="70%" fig-alt="Watercolor sketch of a long paper receipt on a wooden table with its top torn off in a jagged edge, rows of wavy lines with dotted amounts and a total drawn as three teal and three ochre dots, with the blank torn scrap and a pencil beside it."}
 
@@ -429,6 +467,7 @@ Every scientist has had the following conversation. You report that treated anim
 #| fig-height: 3.8
 #| warning: false
 
+# Counted area of every animal, with each day's mean as a bar
 ggplot(cell_data, aes(x = DPI_f, y = Tissue_Area)) +
   geom_jitter(aes(color = Condition, shape = Condition),
               width = 0.12, size = 2.5, alpha = 0.85) +
@@ -438,10 +477,11 @@ ggplot(cell_data, aes(x = DPI_f, y = Tissue_Area)) +
   scale_y_continuous(limits = c(0, NA)) +
   labs(x = "Days post-ischemia (DPI)", y = "Counted tissue area (mm²)") +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
 ```{r}
+# Mean counted area per day, for the text
 area_by_day <- tapply(cell_data$Tissue_Area, cell_data$DPI_f, mean)
 ```
 
@@ -460,12 +500,14 @@ The term $\log(A_i)$ is called an [offset]{style="color:green; font-weight:bold;
 Before fitting I need priors on the log scale, and I'd like to keep them judged on the *outcome* scale, per the warning in [the introduction to GLMs](glm-intro.qmd#sec-glm-intro). With the offset, the `Intercept` is the log of the density (cells per mm²) of a day-0 animal with a typical section size. Earlier in this chapter the day-0 mean was about `r round(fixef(fit_gauss)["Intercept", "Estimate"])` cells, over sections of about `r round(area_by_day["0"])` mm², so around `r round(fixef(fit_gauss)["Intercept", "Estimate"] / area_by_day["0"])` cells/mm². I'll use `Normal(4, 1.5)`, which puts 95% of its mass between roughly 3 and 1,100 cells/mm², a range that comfortably includes what we saw and is far from "anything goes". For the day coefficients, `Normal(0, 1.5)` allows fold changes from about 1/20 to 20, wider than anything the biology here would deliver (the largest change we saw earlier in this chapter was under tenfold). I keep `brms`'s default for `shape`, an inverse-gamma(0.4, 0.3), which is weakly informative and keeps the parameter away from zero.
 
 ```{r}
+# Priors judged on the density scale (cells per mm2)
 prior_hist <- c(
   prior(normal(4, 1.5), class = "Intercept"),
   prior(normal(0, 1.5), class = "b"),
   prior(inv_gamma(0.4, 0.3), class = "shape")
 )
 
+# offset(log(area)) fixes the area coefficient at 1, so the model describes a density
 fit_offset <- brm(
   Pdgfrb_Pos ~ DPI_f + offset(log(Tissue_Area)),
   data = cell_data,
@@ -481,6 +523,7 @@ fit_offset <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: coefficients now describe cells per mm2
 summary(fit_offset)
 ```
 
@@ -489,6 +532,7 @@ summary(fit_offset)
 ```{r}
 library(broom)
 
+# The same offset model by maximum likelihood
 glm_offset <- MASS::glm.nb(Pdgfrb_Pos ~ DPI_f + offset(log(Tissue_Area)),
                            data = cell_data)
 
@@ -498,7 +542,7 @@ tidy(glm_offset, conf.int = TRUE)
 
 Sampling is healthy. The `Intercept` of `r round(fixef(fit_offset)["Intercept", "Estimate"], 2)` is $\log$(cells per mm²) on day 0, which is about `r round(exp(fixef(fit_offset)["Intercept", "Estimate"]))` cells/mm², close to what I guessed from the raw numbers. And `shape` barely moved: `r round(summary(fit_offset)$spec_pars["shape", "Estimate"], 1)`, the same as before. The offset changed *what* is being modeled, but the animal-to-animal wobble, being a property of the animals, stayed where it was.
 
-What did change is the story about the time course. Here are the fold changes relative to day 0 from the negative binomial model on the raw counts (earlier in the chapter) and from this one (density), side by side.
+What did change is the story about the time course. Here are the fold changes relative to day 0 from the negative binomial model on the raw counts (earlier in the chapter) and from this one (density), side by side (@fig-count_fold_offset).
 
 ```{r}
 #| label: fig-count_fold_offset
@@ -507,10 +551,12 @@ What did change is the story about the time course. Here are the fold changes re
 #| fig-height: 4
 #| warning: false
 
+# Day coefficients from the raw-count model and from the density (offset) model
 day_cols <- c("b_DPI_f3", "b_DPI_f7", "b_DPI_f14", "b_DPI_f30")
 d_cnt <- as.data.frame(posterior::as_draws_df(fit_nb))[, day_cols]
 d_dens <- as.data.frame(posterior::as_draws_df(fit_offset))[, day_cols]
 
+# Stack both sets of fold changes
 fold <- rbind(
   data.frame(model = "Count per section", day = rep(day_cols, each = nrow(d_cnt)),
              fold = exp(unlist(d_cnt))),
@@ -519,6 +565,7 @@ fold <- rbind(
 )
 fold$day <- factor(sub("b_DPI_f", "", fold$day), levels = c(30, 14, 7, 3))
 
+# Point and interval per day for the two models, side by side
 ggplot(fold, aes(x = fold, y = day, color = model, shape = model)) +
   stat_pointinterval(.width = c(0.5, 0.95), position = position_dodge(width = 0.5),
                      point_size = 2.5) +
@@ -527,15 +574,23 @@ ggplot(fold, aes(x = fold, y = day, color = model, shape = model)) +
   scale_x_log10(breaks = c(0.5, 1, 2, 4, 8, 16)) +
   labs(x = "Fold change vs. day 0 (log scale)", y = "Days post-ischemia") +
   Plot_theme +
-  theme(legend.position = "top", legend.title = element_blank())
+  legend_top() +
+  theme(legend.title = element_blank())
 ```
 
 ```{r}
+# Day-14 fold change under both models, for the text
 fc14_cnt <- exp(d_cnt$b_DPI_f14)
 fc14_dens <- exp(d_dens$b_DPI_f14)
 ```
 
 At day 14, the number of PDGFR-β+ cells per section was about `r round(median(fc14_cnt), 1)` times the day-0 number (`r summ(fc14_cnt, 1)`); their density per mm² was about `r round(median(fc14_dens), 1)` times (`r summ(fc14_dens, 1)`). Both statements are true, and they answer different questions: *there are more cells in the section*, and *the tissue that's left is more crowded with them*. The second is bigger because the tissue shrank while the cells accumulated. If your hypothesis is about the density of pericytes in what remains of the tissue, which is what I'd usually want, then the raw count understates the effect at the later days (at day 7, where the area is close to the day-0 area, the two agree), in the same direction as the atrophy. That's the sense in which the offset is not a technicality: it changed the day-14 estimate by roughly 45%.
+
+::: {.callout-note title="How to report it"}
+**Results.** At day 14 after ischemia, PDGFR-β+ cells per mm² of tissue were `r summ(fc14_dens, 1)` times the day-0 (sham) density (posterior median and 95% credible interval), whereas the raw count per section was `r summ(fc14_cnt, 1)` times higher. Day 0 is the sham group, so these ratios mix the effect of ischemia with the passage of time.
+
+**Methods.** Counts were modeled with a negative binomial likelihood and a log link, with the log of the counted tissue area as an offset (coefficient fixed at 1) and one mean per day. Priors were Normal(4, 1.5) for the intercept on the log-density scale, Normal(0, 1.5) for the day coefficients and InvGamma(0.4, 0.3) for the shape. A model with a free coefficient for log area could not distinguish an exponent of 1 from 0, so the offset is a design assumption.
+:::
 
 ::: callout-note
 ### An offset is an assumption, not a discovery
@@ -544,6 +599,7 @@ The offset says the expected count is *exactly proportional* to the area. Nothin
 :::
 
 ```{r}
+# Check the offset: give log-area a free coefficient and see whether 1 is plausible
 prior_free <- c(prior_hist, prior(normal(0, 1), class = "b", coef = "log_area"))
 
 fit_free <- brm(
@@ -559,12 +615,13 @@ fit_free <- brm(
 b_area <- as.data.frame(posterior::as_draws_df(fit_free))$b_log_area
 ```
 
-The coefficient of log-area comes out at `r summ(b_area)`. The interval is wide enough to contain 1 (the value the offset imposes) and also 0 (the value that would say area doesn't matter at all). The data cannot tell those apart, and the reason is worth understanding: area and day are tangled up, since the sections get smaller as the days go by, and within a single day the areas are fairly similar. There isn't enough independent variation in area to learn what it does on its own. Comparing the two models by leave-one-out cross-validation says the same thing, that neither is predicting new animals better.
+The coefficient of log-area comes out at `r summ(b_area)`. The interval is wide enough to contain 1 (the value the offset imposes) and also 0 (the value that would say area doesn't matter at all). The data cannot tell those apart, and the reason is worth understanding: area and day are tangled up, since the sections get smaller as the days go by, and within a single day the areas are fairly similar. There isn't enough independent variation in area to learn what it does on its own. Comparing the two models by leave-one-out cross-validation says the same thing, that neither is predicting new animals better (@tbl-count_loo_area).
 
 ```{r}
 #| label: tbl-count_loo_area
 #| tbl-cap: Leave-one-out comparison of the offset model (coefficient fixed at 1) and the model with a free coefficient for log-area
 
+# Leave-one-out comparison of the two models
 loo_offset <- loo(fit_offset)
 loo_free <- loo(fit_free)
 cmp_area <- loo_compare(list("Offset (coefficient = 1)" = loo_offset, "Free coefficient" = loo_free))
@@ -590,10 +647,10 @@ Take the histology hat off and put on the electrophysiologist's. The data for th
 ::: callout-note
 ### `r format(nrow(spk), big.mark = ",")` rows, but not that many independent pieces of evidence
 
-Each of these rows is a neuron seen on one trial, so they come in bundles: about `r round(nrow(spk) / nlevels(spk$neuron))` trials per neuron, `r nlevels(spk$neuron)` neurons, `r length(unique(spk$patient))` patients. As in the rest of this part, I treat the rows as independent *on purpose* for most of the chapter, to keep it about counts, and I come back to what that costs near the end. The multilevel part of the book is where the bundles become part of the model. <!-- TODO: link @sec-multilevel-glmm once that chapter exists. -->
+Each of these rows is a neuron seen on one trial, so they come in bundles: about `r round(nrow(spk) / nlevels(spk$neuron))` trials per neuron, `r nlevels(spk$neuron)` neurons, `r length(unique(spk$patient))` patients. As in the rest of this part, I treat the rows as independent *on purpose* for most of the chapter, to keep it about counts, and I come back to what that costs near the end. @sec-multilevel-glmm is where the bundles become part of the model.
 :::
 
-Let me look at the exposure first, since the whole first half of this chapter was about it. The window is not a constant of nature here: it is a consequence of the design, and of the protocol each patient happened to run.
+Let me look at the exposure first, since the whole first half of this chapter was about it. The window is not a constant of nature here: it is a consequence of the design, and of the protocol each patient happened to run (@fig-count_spikes_window).
 
 ```{r}
 #| label: fig-count_spikes_window
@@ -602,10 +659,12 @@ Let me look at the exposure first, since the whole first half of this chapter wa
 #| fig-height: 3.8
 #| warning: false
 
+# One row per trial (not per neuron-trial), and the seconds per picture of each trial
 trials_spk <- spk[!duplicated(paste(spk$patient, spk$trial)), ]
 trials_spk$per_picture <- cut(trials_spk$window_s / trials_spk$load, breaks = c(0, 1.15, 2, 3),
                               labels = c("about 1 s", "1.2 to 1.5 s", "about 2.5 s"))
 
+# Every trial as a point, coloured by how long each picture stayed on screen
 set.seed(1)
 ggplot(trials_spk, aes(x = factor(load), y = window_s, color = per_picture, shape = per_picture)) +
   geom_jitter(width = 0.2, height = 0, size = 1.4, alpha = 0.6) +
@@ -613,15 +672,16 @@ ggplot(trials_spk, aes(x = factor(load), y = window_s, color = per_picture, shap
   scale_shape_manual(values = c(16, 17, 15), name = "Seconds per picture") +
   labs(x = "Pictures shown (load)", y = "Encoding window (s)") +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
-A neuron firing at a steady rate will emit more spikes in a longer window whatever the patient is remembering, and the longest windows belong to the highest loads. So a raw count of spikes will rise with load even if the firing rate does not move at all. That is the offset problem again, with the twist that here the exposure is tied to the very predictor we are asking about. The table puts the two summaries side by side.
+A neuron firing at a steady rate will emit more spikes in a longer window whatever the patient is remembering, and the longest windows belong to the highest loads. So a raw count of spikes will rise with load even if the firing rate does not move at all. That is the offset problem again, with the twist that here the exposure is tied to the very predictor we are asking about. @tbl-count_spikes_by_load puts the two summaries side by side.
 
 ```{r}
 #| label: tbl-count_spikes_by_load
 #| tbl-cap: Spikes per encoding window and spikes per second, by load (means over all neuron-trials)
 
+# For each load: window length, spikes per window and spikes per second
 by_load <- do.call(rbind, lapply(split(spk, spk$load), function(d) {
   data.frame(Load = d$load[1], `Neuron-trials` = nrow(d),
              `Median window (s)` = round(median(d$window_s), 1),
@@ -640,12 +700,14 @@ The count more than triples from one picture to three and the rate does not budg
 The setup is the one we used for the tissue area: $\log(\text{window}_i)$ as the offset, so that the coefficients describe the firing rate in spikes per second. Priors again on the outcome scale. The `Intercept` is the log firing rate of a typical neuron with one picture on screen, and `Normal(0.5, 1.5)` puts 95% of its mass between about 0.08 and 31 spikes per second, which is the span the original paper reports for these neurons (roughly 0.1 to 34). The load coefficients are log rate ratios: `Normal(0, 0.5)` allows rate ratios from about 0.4 to 2.7, a lot more change than I expect from a change in load. The `shape` keeps its default.
 
 ```{r}
+# Priors on the firing-rate scale (spikes per second)
 prior_spk <- c(
   prior(normal(0.5, 1.5), class = "Intercept"),
   prior(normal(0, 0.5), class = "b"),
   prior(inv_gamma(0.4, 0.3), class = "shape")
 )
 
+# Negative binomial with the window length as the offset (cached)
 fit_nb_spk <- brm(
   spikes ~ load_f + offset(log(window_s)),
   data = spk,
@@ -662,12 +724,14 @@ fit_nb_spk <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: log rate ratios for 2 and 3 pictures against 1
 summary(fit_nb_spk)
 ```
 
 ### glm.nb
 
 ```{r}
+# The same model by maximum likelihood
 glm_nb_spk <- MASS::glm.nb(spikes ~ load_f + offset(log(window_s)), data = spk)
 
 tidy(glm_nb_spk, conf.int = TRUE)
@@ -675,14 +739,17 @@ tidy(glm_nb_spk, conf.int = TRUE)
 :::
 
 ```{r}
+# Posterior draws of the pooled spike model
 draws_nb_spk <- as.data.frame(posterior::as_draws_df(fit_nb_spk))
 ```
 
-Look at `shape` first: `r round(median(draws_nb_spk$shape), 2)`. In the histology counts it was about five; here it is below one, and by @eq-cv-nb the neuron-to-neuron wobble of the true rate is about `r round(100 / sqrt(median(draws_nb_spk$shape)))`%, well over a hundred percent. Either these neurons really are wildly different from one another, or the model is using `shape` to absorb something it has no other way to say. The posterior predictive check is the place to ask. For counts, the right check isn't the density overlay of the earlier chapters: with discrete data and a spike at zero, a kernel density smooths away the one thing we care about. A [rootogram]{style="color:green; font-weight:bold;"} is designed for this [@gelman2026]. It compares, for each possible count, how many neuron-trials the model expects with how many we saw, on a square-root scale so that the rare high counts remain visible. In the "hanging" style, the bars hang from the model's expected curve down toward the zero line: a bar that stops short of the line means the model expected more neuron-trials with that count than we saw; one that crosses it means the model expected fewer. I add the simplest zero-specific check next to it, the share of zeros in replicated data against the observed share.
+Look at `shape` first: `r round(median(draws_nb_spk$shape), 2)`. In the histology counts it was about five; here it is below one, and by @eq-cv-nb the neuron-to-neuron wobble of the true rate is about `r round(100 / sqrt(median(draws_nb_spk$shape)))`%, well over a hundred percent. Either these neurons really are wildly different from one another, or the model is using `shape` to absorb something it has no other way to say. The posterior predictive check is the place to ask. For counts, the right check isn't the density overlay of the earlier chapters: with discrete data and a spike at zero, a kernel density smooths away the one thing we care about. A [rootogram]{style="color:green; font-weight:bold;"} is designed for this [@gelman2026]. It compares, for each possible count, how many neuron-trials the model expects with how many we saw, on a square-root scale so that the rare high counts remain visible. In the "hanging" style, the bars hang from the model's expected curve down toward the zero line: a bar that stops short of the line means the model expected more neuron-trials with that count than we saw; one that crosses it means the model expected fewer. I add the simplest zero-specific check next to it, the share of zeros in replicated data against the observed share (@fig-count_ppc_nb).
 
 ```{r}
+# Statistic for the zero check: the share of neuron-trials with no spikes
 zeros <- function(x) mean(x == 0)
 
+# Two checks side by side: rootogram of the counts and the share of zeros
 ppc_pair <- function(fit) {
   p1 <- pp_check(fit, type = "rootogram", style = "hanging", prob = 0.95, ndraws = 500) +
     coord_cartesian(xlim = c(0, 40)) +
@@ -701,6 +768,7 @@ ppc_pair <- function(fit) {
 #| warning: false
 #| message: false
 
+# Run both checks on the pooled negative binomial
 ppc_pair(fit_nb_spk)
 ```
 
@@ -708,7 +776,7 @@ Read the two panels together. The negative binomial gets the zeros right, and if
 
 ## Is this zero inflation?
 
-In this subset `r round(100 * mean(spk$spikes == 0))`% of the neuron-trials have no spikes at all, and a pile of zeros is the cue for the model that gave this section its name. Here is the picture that helps me. You ask a room of people how many times they checked their phone during your talk. Some of them answer zero because they don't own a phone. Others own one and just happened not to check it. The two zeros mean different things, and no amount of rethinking the distribution of the *phone owners* will explain the first kind: it's a different process, a group of people for whom the count is impossible. A [zero-inflated]{style="color:green; font-weight:bold;"} model writes exactly that as a mixture. With probability $\pi_i$ an observation is a structural zero; with probability $1 - \pi_i$ it comes from the negative binomial, which has its own zeros too:
+In this subset `r round(100 * mean(spk$spikes == 0))`% of the neuron-trials have no spikes at all, and a pile of zeros is the cue for the model that gave this section its name. Here is the picture that helps me. You ask a room of people how many times they checked their phone during your talk. Some of them answer zero because they don't own a phone. Others own one and just happened not to check it. The two zeros mean different things (@fig-count-phones), and no amount of rethinking the distribution of the *phone owners* will explain the first kind: it's a different process, a group of people for whom the count is impossible. A [zero-inflated]{style="color:green; font-weight:bold;"} model writes exactly that as a mixture. With probability $\pi_i$ an observation is a structural zero; with probability $1 - \pi_i$ it comes from the negative binomial, which has its own zeros too:
 
 $$
 P(y_i = 0) = \pi_i + (1 - \pi_i)\,\text{NB}(0 \mid \mu_i, \phi), \qquad P(y_i = k) = (1 - \pi_i)\,\text{NB}(k \mid \mu_i, \phi) \text{ for } k \geq 1
@@ -719,11 +787,13 @@ $$ {#eq-zinb}
 In `brms`, the probability of a structural zero is a second parameter, `zi`, with its own formula and the logit doorway of @sec-logistic-regression. The question I'm asking of the data is the simplest one: is there any structural zero at all? So `zi` gets only an intercept. On the logit scale, `Normal(0, 1.5)` spreads the prior over the whole range of probabilities, which gives the zero part every chance to be large if the data want it. I also set the `shape` prior explicitly to the one used above, because `brms` 2.22's default for the zero-inflated family is a nearly flat gamma(0.01, 0.01), and I want the two models to differ in the structure I'm testing and not in an accidental prior.
 
 ```{r}
+# The same priors, plus a prior for the zero part (logit scale)
 prior_zi <- c(
   prior_spk,
   prior(normal(0, 1.5), class = "Intercept", dpar = "zi")
 )
 
+# Zero-inflated negative binomial: zi ~ 1 asks whether any structural zero exists at all
 fit_zinb <- brm(
   bf(spikes ~ load_f + offset(log(window_s)), zi ~ 1),
   data = spk,
@@ -740,6 +810,7 @@ fit_zinb <- brm(
 ### brms
 
 ```{r}
+# Posterior summary, including the zero part
 summary(fit_zinb)
 ```
 
@@ -748,6 +819,7 @@ summary(fit_zinb)
 ```{r}
 library(glmmTMB)
 
+# The same zero-inflated model by maximum likelihood
 glmm_zinb <- glmmTMB(spikes ~ load_f + offset(log(window_s)),
                      ziformula = ~ 1, family = nbinom2, data = spk)
 
@@ -756,6 +828,7 @@ summary(glmm_zinb)
 :::
 
 ```{r}
+# Probability of a structural zero, back from the logit scale
 draws_zi <- as.data.frame(posterior::as_draws_df(fit_zinb))
 p_struct <- plogis(draws_zi$b_zi_Intercept)
 ```
@@ -768,9 +841,10 @@ There is a close cousin, the [hurdle]{style="color:green; font-weight:bold;"} mo
 
 ## Where do the zeros come from, then?
 
-If the pile of zeros doesn't need a process of its own, something else has to produce it, and I have a suspect. We have been pooling 190 neurons as if they were one neuron measured 24,462 times. Neurons are not interchangeable. If some of them fire once every ten seconds and others thirty times a second, then a pooled count has plenty of zeros without anything being silent: the slow neurons are simply unlucky most of the time. A zero-inflated model on pooled data would then be mistaking *who is in the sample* for *how a neuron behaves*. The data let us check this directly, because the neuron's identity is in the table. For each neuron, I compute its overall firing rate and the share of its trials with no spikes, and compare the share with what a plain Poisson at that neuron's own rate would give.
+If the pile of zeros doesn't need a process of its own, something else has to produce it, and I have a suspect. We have been pooling 190 neurons as if they were one neuron measured 24,462 times. Neurons are not interchangeable. If some of them fire once every ten seconds and others thirty times a second, then a pooled count has plenty of zeros without anything being silent: the slow neurons are simply unlucky most of the time. A zero-inflated model on pooled data would then be mistaking *who is in the sample* for *how a neuron behaves*. The data let us check this directly, because the neuron's identity is in the table. For each neuron, I compute its overall firing rate and the share of its trials with no spikes, and compare the share with what a plain Poisson at that neuron's own rate would give (@fig-count_neuron_zeros).
 
 ```{r}
+# For each neuron: firing rate, observed share of empty trials and the share a Poisson at that rate would give
 neuron_tab <- do.call(rbind, lapply(split(spk, spk$neuron), function(d) {
   rate <- sum(d$spikes) / sum(d$window_s)
   data.frame(neuron = d$neuron[1], rate = rate, n = nrow(d),
@@ -788,9 +862,11 @@ slow <- neuron_tab$rate < 0.5
 #| fig-height: 4
 #| warning: false
 
+# The Poisson curve: share of empty trials expected at each rate for a typical window
 curve_df <- data.frame(rate = exp(seq(log(0.05), log(40), length.out = 200)))
 curve_df$zero <- exp(-curve_df$rate * median(spk$window_s[spk$load == 2]))
 
+# Each neuron as a point against the Poisson curve (dashed)
 ggplot(neuron_tab, aes(x = rate, y = zero_obs)) +
   geom_line(data = curve_df, aes(y = zero), color = "#D55E00", linewidth = 1, linetype = "dashed") +
   geom_point(color = "#0072B2", alpha = 0.6, size = 1.8) +
@@ -805,8 +881,10 @@ Read the figure from left to right. On the left are the slowest neurons, firing 
 The negative binomial we fitted first was doing the same job in disguise. By setting `shape` below one it described a population of neurons with wildly different rates as if it were noise around a single rate, and that is why the rootogram looked acceptable while the story behind it was wrong. The honest fix isn't a zero part, it is to let each neuron have its own rate. In `brms` that is a [random intercept]{style="color:green; font-weight:bold;"} for neuron, `(1 | neuron)`: each neuron gets its own baseline firing rate, and the model estimates how much those baselines vary. I'm showing it here as a preview of the multilevel part of the book, not as part of this chapter's toolkit. I give the standard deviation of the baselines an `Exponential(1)` prior, which on the log scale favors differences between neurons of a few fold over differences of a hundred fold.
 
 ```{r}
+# Add a prior for how much neurons differ in baseline rate
 prior_re <- c(prior_spk, prior(exponential(1), class = "sd"))
 
+# Random intercept per neuron: each neuron gets its own baseline rate (longer chains)
 fit_nb_re <- brm(
   spikes ~ load_f + offset(log(window_s)) + (1 | neuron),
   data = spk,
@@ -819,6 +897,7 @@ fit_nb_re <- brm(
   file_refit = "never"
 )
 
+# Posterior draws of the neuron-aware model
 draws_re <- as.data.frame(posterior::as_draws_df(fit_nb_re))
 ```
 
@@ -846,19 +925,21 @@ cmp_tbl <- data.frame(
 gt(cmp_tbl)
 ```
 
-The table is a relative statement, but a big one. The neuron-aware model beats the pooled negative binomial by about `r format(abs(cmp_tbl[cmp_tbl$Model == "Negative binomial", "elpd difference"]), big.mark = ",")` elpd units, many times its standard error, while the zero-inflated model is not better than the plain negative binomial (it sits `r abs(cmp_tbl[cmp_tbl$Model == "Zero-inflated NB", "elpd difference"] - cmp_tbl[cmp_tbl$Model == "Negative binomial", "elpd difference"])` units below it, which is what an unneeded parameter looks like: it costs a little and returns nothing). Whatever the zeros are, they are explained by knowing the neuron, not by adding a process for silence. The figure above is the check that says *why*, which is what a comparison cannot do.
+@tbl-count_loo is a relative statement, but a big one. The neuron-aware model beats the pooled negative binomial by about `r format(abs(cmp_tbl[cmp_tbl$Model == "Negative binomial", "elpd difference"]), big.mark = ",")` elpd units, many times its standard error, while the zero-inflated model is not better than the plain negative binomial (it sits `r abs(cmp_tbl[cmp_tbl$Model == "Zero-inflated NB", "elpd difference"] - cmp_tbl[cmp_tbl$Model == "Negative binomial", "elpd difference"])` units below it, which is what an unneeded parameter looks like: it costs a little and returns nothing). Whatever the zeros are, they are explained by knowing the neuron, not by adding a process for silence. The figure above is the check that says *why*, which is what a comparison cannot do.
 
 ## What did holding more pictures do to the firing rate?
 
-Back to the question. I read it first from the negative binomial of the pooled data, the model this chapter built, and then from the model that knows about neurons, because comparing the two is the cost I promised to show you. The coefficients are log rate ratios, so I exponentiate them: each ratio compares the firing rate with two or three pictures against one picture, per second.
+Back to the question. I read it first from the negative binomial of the pooled data, the model this chapter built, and then from the model that knows about neurons, because comparing the two is the cost I promised to show you (@fig-count_rate_ratios). The coefficients are log rate ratios, so I exponentiate them: each ratio compares the firing rate with two or three pictures against one picture, per second.
 
 ```{r}
+# Rate ratios (exponentiated load coefficients) from one set of draws
 rr <- function(d, label) {
   data.frame(model = label,
              contrast = rep(c("2 pictures vs 1", "3 pictures vs 1"), each = nrow(d)),
              ratio = c(exp(d$b_load_f2), exp(d$b_load_f3)))
 }
 rr_all <- rbind(rr(draws_nb_spk, "Pooled (neurons ignored)"), rr(draws_re, "Neuron-aware (random intercept)"))
+# Order the rows for the plot
 rr_all$contrast <- factor(rr_all$contrast, levels = c("3 pictures vs 1", "2 pictures vs 1"))
 ```
 
@@ -869,6 +950,7 @@ rr_all$contrast <- factor(rr_all$contrast, levels = c("3 pictures vs 1", "2 pict
 #| fig-height: 3.4
 #| warning: false
 
+# Point and interval for each contrast under both models; dashed line at 1 = no change
 ggplot(rr_all, aes(x = ratio, y = contrast, color = model, shape = model)) +
   stat_pointinterval(.width = c(0.5, 0.95), position = position_dodge(width = 0.5), point_size = 2.5) +
   geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
@@ -876,10 +958,12 @@ ggplot(rr_all, aes(x = ratio, y = contrast, color = model, shape = model)) +
   labs(x = "Rate ratio (log scale)", y = NULL) +
   scale_x_log10(breaks = c(0.8, 0.9, 1, 1.1, 1.25)) +
   Plot_theme +
-  theme(legend.position = "top", legend.title = element_blank())
+  legend_top() +
+  theme(legend.title = element_blank())
 ```
 
 ```{r}
+# Pieces quoted in the text
 rr_re3 <- rr_all$ratio[rr_all$model == "Neuron-aware (random intercept)" & rr_all$contrast == "3 pictures vs 1"]
 rr_re2 <- rr_all$ratio[rr_all$model == "Neuron-aware (random intercept)" & rr_all$contrast == "2 pictures vs 1"]
 rr_po3 <- rr_all$ratio[rr_all$model == "Pooled (neurons ignored)" & rr_all$contrast == "3 pictures vs 1"]
@@ -888,13 +972,20 @@ wid <- function(x) diff(quantile(x, c(0.025, 0.975)))
 
 Two things to take from the figure. The first is the answer to the question. In the model that knows about neurons, the firing rate with two pictures is `r summ(rr_re2)` times the rate with one, and with three pictures it is `r summ(rr_re3)` times, so per second the neurons fire at about the same rate however many pictures are held, with perhaps a few percent less at the highest load (an interval that just touches 1). The counts tripled and the rate did not, and that is all the offset was for.
 
-The second is the width of the intervals, because I promised to report what treating the rows as independent costs. For *this* predictor the answer is the opposite of what the word pseudoreplication suggests: the pooled interval for three pictures is `r round(wid(rr_po3) / wid(rr_re3), 1)` times as wide as the neuron-aware one. Load changes within every neuron (each neuron sees all three loads), so a model that knows about neurons compares each neuron with itself and drops the differences between neurons, while the pooled model leaves those differences in as noise. For a predictor that differs *between* neurons (hemisphere, patient, brain area) I would expect pooling to be overconfident instead, because the rows would then count as more evidence than they are. The multilevel part of the book is where that gets checked. <!-- TODO: link @sec-multilevel-glmm once that chapter exists. -->
+::: {.callout-note title="How to report it"}
+**Results.** Per second, hippocampal neurons fired at `r summ(rr_re2)` times the one-picture rate with two pictures and at `r summ(rr_re3)` times with three pictures (rate ratios; posterior median and 95% credible interval, neuron-aware model), while raw spike counts per encoding window more than tripled because the window grew with the number of pictures. The probability of a structural zero was `r summ(p_struct, 3)`, so there was no evidence of zero inflation.
+
+**Methods.** Spike counts in the encoding window were modeled with a negative binomial likelihood, a log link, the log of the window length as an offset and a random intercept for each neuron (`r nlevels(spk$neuron)` neurons from `r length(unique(spk$patient))` patients; trials treated as independent within a neuron). Priors were Normal(0.5, 1.5) for the intercept, Normal(0, 0.5) for the load coefficients, InvGamma(0.4, 0.3) for the shape and Exponential(1) for the spread of neuron baselines. A zero-inflated model and priors of different widths gave the same conclusion, and leave-one-out cross-validation favored the neuron-aware model.
+:::
+
+The second is the width of the intervals, because I promised to report what treating the rows as independent costs. For *this* predictor the answer is the opposite of what the word pseudoreplication suggests: the pooled interval for three pictures is `r round(wid(rr_po3) / wid(rr_re3), 1)` times as wide as the neuron-aware one. Load changes within every neuron (each neuron sees all three loads), so a model that knows about neurons compares each neuron with itself and drops the differences between neurons, while the pooled model leaves those differences in as noise. For a predictor that differs *between* neurons (hemisphere, patient, brain area) I would expect pooling to be overconfident instead, because the rows would then count as more evidence than they are. @sec-multilevel-glmm is where that gets checked.
 
 ### Does the prior matter?
 
-Here is the sensitivity check for the pooled model, with a narrower and a wider prior on the load coefficients.
+Here is the sensitivity check for the pooled model, with a narrower and a wider prior on the load coefficients (@tbl-count_sensitivity).
 
 ```{r}
+# Narrower and wider priors on the load coefficients, to test sensitivity
 prior_narrow <- c(
   prior(normal(0.5, 1.5), class = "Intercept"),
   prior(normal(0, 0.2), class = "b"),
@@ -919,6 +1010,7 @@ fit_nb_wide <- brm(spikes ~ load_f + offset(log(window_s)), data = spk, family =
 #| label: tbl-count_sensitivity
 #| tbl-cap: Log rate ratios for two and three pictures against one under three prior widths (posterior median and 95% credible interval)
 
+# Estimate and 95% interval of one coefficient from a fit
 get_row <- function(m, par) fixef(m)[par, c("Estimate", "Q2.5", "Q97.5")]
 
 sens <- rbind(
@@ -947,12 +1039,13 @@ The second difference is the one the spike data show in real time. `glmmTMB` est
 
 ## Can we trust the sampling?
 
-This chapter has fitted ten `brms` models, and I said "sampling is healthy" about a few of them. A vague reassurance is cheap. A table isn't, so here are the same three checks as in @sec-mcmc-model-checking for every fit in the chapter: Rhat below 1.01, both effective sample sizes above 400, and no divergent transitions.
+This chapter has fitted ten `brms` models, and I said "sampling is healthy" about a few of them. A vague reassurance is cheap. A table isn't (@tbl-count_mcmc), so here are the same three checks as in @sec-mcmc-model-checking for every fit in the chapter: Rhat below 1.01, both effective sample sizes above 400, and no divergent transitions.
 
 ```{r}
 #| label: tbl-count_mcmc
 #| tbl-cap: MCMC diagnostics for every model fitted in this chapter
 
+# mcmc_check() reports Rhat, effective sample sizes and divergences per model
 source("functions/mcmc_check.R")
 
 count_checks <- mcmc_check(list(
@@ -967,6 +1060,7 @@ count_checks <- mcmc_check(list(
   "Negative binomial, narrow prior (spikes)" = fit_nb_narrow,
   "Negative binomial, wide prior (spikes)" = fit_nb_wide
 ))
+# Stop the render if any model fails a check
 stopifnot(all(count_checks$ok))
 
 gt(count_checks) |>
@@ -980,4 +1074,4 @@ All ten pass: the worst Rhat is `r sprintf("%.3f", max(count_checks$max_rhat))`,
 
 We started with a promise and two loose ends from the introduction to this part, and they turned out to be the same kind of lesson. The promise was to watch a Gaussian fail on counts and to fix it by changing the family, which the Poisson did only halfway and the negative binomial did. The `shape` of a negative binomial is a statement about how different the *units* are from each other before you count anything, and it sets a floor on the noise that counting more cannot lower, which is a statement about your experimental design. An [offset]{style="color:green; font-weight:bold;"} gives a count its denominator: it fixes the coefficient of $\log(	ext{exposure})$ to 1 and turns the model into one for a rate. In the histology data it changed the size of the time course because the tissue shrank while the cells piled up, and in the spike data it was the difference between a count that triples with the number of pictures and a firing rate that hardly moves. It is an assumption of the design, and where the data could not tell us whether it was right, I used it for the reason that we counted over a known window. And when a count has more zeros than a negative binomial seems to explain, zero inflation is the question to ask, and the answer can be no. Here the zero-inflated model found almost no structural zeros, and what looked like silence was neurons with very different firing rates, which a model that knows about neurons absorbs without any zero part.
 
-One shortcut runs through the whole chapter: every animal and every neuron-trial was treated as independent of the others, and the spike data show what that does. For a predictor that changes *within* a neuron, like the number of pictures, ignoring the neurons did not make the interval too narrow, it made it a little too wide, because the differences between neurons became noise. For a predictor that differs *between* neurons (hemisphere, patient, brain area) I would expect the opposite, and the multilevel part of the book is where we check it, with the neuron, the animal and the patient as levels of the model. <!-- TODO: link @sec-multilevel-glmm once that chapter exists. --> Before that, @sec-beta-robust-regression turns to outcomes that are heavy-tailed (crossing times) or continuous but bounded (the share of an open-field session spent in the center), the last two families of this part.
+One shortcut runs through the whole chapter: every animal and every neuron-trial was treated as independent of the others, and the spike data show what that does. For a predictor that changes *within* a neuron, like the number of pictures, ignoring the neurons did not make the interval too narrow, it made it a little too wide, because the differences between neurons became noise. For a predictor that differs *between* neurons (hemisphere, patient, brain area) I would expect the opposite, and @sec-multilevel-glmm is where we check it, with the neuron, the animal and the patient as levels of the model. Before that, @sec-beta-robust-regression turns to outcomes that are heavy-tailed (crossing times) or continuous but bounded (the share of an open-field session spent in the center), the last two families of this part.
