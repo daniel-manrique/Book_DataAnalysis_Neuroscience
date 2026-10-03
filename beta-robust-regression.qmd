@@ -449,7 +449,7 @@ tidy(lm_rt, conf.int = TRUE)
 ```
 :::
 
-Sampling is healthy and the coefficients are reasonable. The trouble, as always, is what the model believes about the data it hasn't seen. A Gaussian says that a value more than three standard deviations from its expected value is a once-in-a-thousand event. To see how it copes with the odd one out, I'll ask it what it expects the *fastest* crossing in a set of this many attempts to be, and compare it with the fastest one we saw.
+Sampling is healthy and the coefficients are reasonable. The trouble, as always, is what the model believes about the data it hasn't seen. A Gaussian says that a value more than three standard deviations from its expected value is a once-in-a-thousand event. To see how it copes with the odd one out, I'll ask it what it expects the *fastest* crossing in a set of this many attempts to be, and compare it with the fastest one we saw. The check is in @fig-beta_rt_ppc_gauss.
 
 ```{r}
 #| label: fig-beta_rt_ppc_gauss
@@ -574,7 +574,7 @@ p_rt4 <- pp_check(fit_rt_t, type = "stat", stat = "min", ndraws = 500) +
 p_rt3 + p_rt4 + plot_layout(widths = c(1.4, 1))
 ```
 
-The right panel needs a careful reading, because it is the check the Gaussian failed. The observed fastest crossing is `r round(min(crossings$wire), 0)` second, which is a log of `r round(min(crossings$log_wire), 1)`. In a typical replicate the Gaussian's fastest crossing takes about `r round(exp(median(min_rep_g)), 1)` seconds, and the Student-*t*'s about `r round(exp(median(min_rep_t)), 1)`. The Student-*t* gets closer, and it does so by giving the left tail room to reach: the observed value is no longer beyond all of the replicates, since `r round(100 * share_min_t)`% of the Student-*t* replicates reach it, against `r round(100 * share_min_g)`% for the Gaussian, so it sits at the edge of what the model can produce, not outside it. The same room exists on the slow side, so the model is also more tolerant of slow values than the data seem to need. It's a good model of the bulk, which is what we need for the genotype and practice effects, and a single point can't tell it how heavy the tails really are.
+@fig-beta_rt_ppc_t shows the same two checks for the Student-*t*. The right panel needs a careful reading, because it is the check the Gaussian failed. The observed fastest crossing is `r round(min(crossings$wire), 0)` second, which is a log of `r round(min(crossings$log_wire), 1)`. In a typical replicate the Gaussian's fastest crossing takes about `r round(exp(median(min_rep_g)), 1)` seconds, and the Student-*t*'s about `r round(exp(median(min_rep_t)), 1)`. The Student-*t* gets closer, and it does so by giving the left tail room to reach: the observed value is no longer beyond all of the replicates, since `r round(100 * share_min_t)`% of the Student-*t* replicates reach it, against `r round(100 * share_min_g)`% for the Gaussian, so it sits at the edge of what the model can produce, not outside it. The same room exists on the slow side, so the model is also more tolerant of slow values than the data seem to need. It's a good model of the bulk, which is what we need for the genotype and practice effects, and a single point can't tell it how heavy the tails really are.
 
 Leave-one-out cross-validation gives a third view (@tbl-beta_loo_rt), for the same outcome, so the comparison is legitimate. I also report how many attempts have a Pareto-$k$ above 0.7, the signal from @sec-count-regression that the approximation is unreliable for that observation.
 

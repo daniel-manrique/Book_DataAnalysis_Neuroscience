@@ -47,7 +47,7 @@
 
 ## F {.unnumbered .unlisted}
 
-- **family**: [Modeling what you count, score and time](glm-intro.qmd#ix-family-1)
+- **family**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-family-1)
 
 ## G {.unnumbered .unlisted}
 
@@ -73,10 +73,10 @@
 ## L {.unnumbered .unlisted}
 
 - **likelihood** ([glossary](glossary.qmd#gl-likelihood)): [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-likelihood-1)
-- **linear predictor**: [Modeling what you count, score and time](glm-intro.qmd#ix-linear-predictor-1)
+- **linear predictor**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-linear-predictor-1)
 - **linear probability model**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-linear-probability-model-1)
 - **linearity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-linearity-1)
-- **link function**: [Modeling what you count, score and time](glm-intro.qmd#ix-link-function-1)
+- **link function**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-link-function-1)
 - **log-odds**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-log-odds-1)
 
 ## M {.unnumbered .unlisted}
