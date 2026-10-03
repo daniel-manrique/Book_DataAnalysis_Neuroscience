@@ -17,15 +17,21 @@ library(brms)
 library(ggdist)
 library(mice)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")$value
 
+# Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+
+# Size of the table, quoted in the text
+n_rows <- nrow(cell_data)
+n_cols <- ncol(cell_data)
 
 # Colorblind-safe pair (Okabe-Ito) reused across the figures of this chapter
 okabe_ito <- c(observed = "#0072B2", missing = "#D55E00")
 ```
 
-In @sec-eda-first-look, `skim()` told us that exactly one value in `cell_data` is missing: `Pdgfrb_Neg`, animal `Td79`. One cell out of 980 (49 rows times 20 columns), about 0.1% of the table. It would be perfectly reasonable to shrug. I did, the first time. Then I asked myself the question this chapter is built around:
+In @sec-eda-first-look, `skim()` told us that exactly one value in `cell_data` is missing: `Pdgfrb_Neg`, animal `Td79`. One cell out of `r n_rows * n_cols` (`r n_rows` rows times `r n_cols` columns), about `r round(100 / (n_rows * n_cols), 1)`% of the table. It would be perfectly reasonable to shrug. I did, the first time. Then I asked myself the question this chapter is built around:
 
 ::: {style="text-align: center"}
 ***Is this NA an accident, a clue, or a problem?***
@@ -37,7 +43,7 @@ An accident is a value that went missing for a reason that has nothing to do wit
 
 When I first learned to look for missing data in R, I used `is.na()` and `colSums()`, and they work. But a table of counts is a poor way to *see* the pattern, in the same way a list of well coordinates is a poor way to see which wells of a plate failed. The packages `naniar` [@naniar] and `visdat` [@visdat] exist to draw that plate map. They treat missingness as data worth plotting in its own right, and they both return ordinary `ggplot2` objects, so everything we add on top (the book's `Plot_theme`, a colorblind-safe palette) works exactly as it does for any other figure.
 
-Start with the most literal picture. `vis_miss()` draws the whole table as a grid, one row per animal and one column per variable, and colors each cell by whether the value is there. I like it as a first look precisely because it makes no decision for you: you see the table, with the holes. It is a heatmap of a binary variable, which is the right chart when the thing you want to locate is *where*, in two dimensions, something happens.
+Start with the most literal picture. `vis_miss()` draws the whole table as a grid, one row per animal and one column per variable, and colors each cell by whether the value is there. I like it as a first look precisely because it makes no decision for you: you see the table, with the holes (@fig-missing-vismiss). It is a heatmap of a binary variable, which is the right chart when the thing you want to locate is *where*, in two dimensions, something happens.
 
 ```{r}
 #| label: fig-missing-vismiss
@@ -46,6 +52,7 @@ Start with the most literal picture. `vis_miss()` draws the whole table as a gri
 #| fig-width: 9
 #| fig-height: 6
 
+# The whole table as a grid: one cell per value, coloured by present or missing
 vis_miss(cell_data, show_perc = FALSE, show_perc_col = FALSE) +
   scale_fill_manual(
     values = c("grey85", okabe_ito[["missing"]]),
@@ -53,15 +60,16 @@ vis_miss(cell_data, show_perc = FALSE, show_perc_col = FALSE) +
   ) +
   labs(x = NULL, y = "Animal (row)", fill = NULL) +
   Plot_theme +
+  # Tilt the long column names so they stay readable; legend above the grid
   theme(axis.text.x = element_text(angle = 60, hjust = 0, size = 10),
         axis.text.y = element_text(size = 10),
-        legend.position = "top",
-        plot.margin = margin(5, 40, 5, 5))
+        plot.margin = margin(5, 40, 5, 5)) +
+  legend_top()
 ```
 
 One orange cell in a sea of gray. This is the moment to be candid: for a dataset this size the figure adds nothing that `skim()` had not already told us. Where `vis_miss()` earns its keep is on a spreadsheet with hundreds of columns, where a missing block (every measurement from one batch of animals, say) lines up as a stripe and you see in half a second what no summary table would show. I am using it here because you should meet the tool on a dataset where you can verify every cell by eye.
 
-The second view collapses the grid into a count per variable. `gg_miss_var()` is a bar chart, and bars are the right encoding for an amount, as long as they start at zero, which these do.
+The second view collapses the grid into a count per variable (@fig-missing-missvar). `gg_miss_var()` is a bar chart, and bars are the right encoding for an amount, as long as they start at zero, which these do.
 
 ```{r}
 #| label: fig-missing-missvar
@@ -70,6 +78,7 @@ The second view collapses the grid into a count per variable. `gg_miss_var()` is
 #| fig-width: 7
 #| fig-height: 5
 
+# One bar per variable: how many values are missing in each
 gg_miss_var(cell_data) +
   labs(y = "Missing values (count)") +
   Plot_theme +
@@ -78,7 +87,7 @@ gg_miss_var(cell_data) +
 
 Same lesson, a different encoding: it is a ranked list of problems, which is useful when twenty variables compete for your attention, and nearly pointless when there is a single entry on it.
 
-The third view is the one I would keep even for this dataset, because it asks a question the first two cannot: *where in the rest of the data does the missing value sit?* `geom_miss_point()` is a scatterplot that does not throw away points with a missing coordinate. Instead it parks them on a stripe just below (or left of) the axis, in a different color, so you can ask whether the missing animal looks like its neighbors. For `Td79`, we know its `Pdgfrb_Pos` count, so we can see where it would sit in the vertical direction, even though its horizontal position is unknown. I color the missing one and also label it directly with its ID, so it stays identifiable in a grayscale printout of the PDF edition.
+The third view is the one I would keep even for this dataset, because it asks a question the first two cannot: *where in the rest of the data does the missing value sit?* `geom_miss_point()` is a scatterplot that does not throw away points with a missing coordinate. Instead it parks them on a stripe just below (or left of) the axis, in a different color, so you can ask whether the missing animal looks like its neighbors (@fig-missing-misspoint). For `Td79`, we know its `Pdgfrb_Pos` count, so we can see where it would sit in the vertical direction, even though its horizontal position is unknown. I color the missing one and also label it directly with its ID, so it stays identifiable in a grayscale printout of the PDF edition.
 
 ```{r}
 #| label: fig-missing-misspoint
@@ -93,8 +102,10 @@ parked <- cell_data |>
   filter(is.na(Pdgfrb_Neg)) |>
   mutate(Pdgfrb_Neg = neg_range[1] - 0.1 * diff(neg_range))   # naniar's default stripe
 
+# Scatter plot that keeps the point with a missing x, parked just left of the axis
 ggplot(cell_data, aes(x = Pdgfrb_Neg, y = Pdgfrb_Pos)) +
   geom_miss_point(size = 3, alpha = 0.85) +
+  # Label the missing animal directly with its ID
   ggrepel::geom_text_repel(data = parked, aes(label = MouseID),
                            nudge_y = 500, size = 5, color = okabe_ito[["missing"]],
                            min.segment.length = 0) +
@@ -104,7 +115,7 @@ ggplot(cell_data, aes(x = Pdgfrb_Neg, y = Pdgfrb_Pos)) +
        y = "PDGFR-β positive cells (Pdgfrb_Pos)",
        color = NULL) +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
 There is nothing odd about where the triangle sits vertically: a count near 400 is unremarkable for `Pdgfrb_Pos`, and the day-3 animals cluster at low counts anyway. That is mildly reassuring and, with one point, proves nothing.
@@ -114,6 +125,7 @@ One more `naniar` function deserves a mention because it is the one everyone wan
 ```{r}
 #| label: miss-upset-attempt
 
+# Try the UpSet plot and print the error message instead of stopping the render
 tryCatch(
   gg_miss_upset(cell_data),
   error = function(e) cat(conditionMessage(e))
@@ -137,9 +149,12 @@ with(subset(cell_data, !is.na(Pdgfrb_Neg)),
 cell_data |>
   filter(is.na(Pdgfrb_Neg)) |>
   select(MouseID, DPI, Pdgfrb_Pos, Pdgfrb_Neg, Pdgfrb_Total)
+
+# Number of animals with a recorded Pdgfrb_Neg, quoted in the text
+n_neg_present <- sum(!is.na(cell_data$Pdgfrb_Neg))
 ```
 
-In all 48 animals with a recorded `Pdgfrb_Neg`, `Pdgfrb_Pos + Pdgfrb_Neg` equals `Pdgfrb_Total` exactly. Animal `Td79` is the exception that matters: its `Pdgfrb_Total` is 398, identical to its `Pdgfrb_Pos`, and **not** `NA`. Whoever (or whatever spreadsheet formula) computed the total treated the missing negative count as zero. Think of a plate reader that, faced with an empty well, reports an absorbance of zero instead of "no reading": the column looks complete, and it is quietly wrong.
+In all `r n_neg_present` animals with a recorded `Pdgfrb_Neg`, `Pdgfrb_Pos + Pdgfrb_Neg` equals `Pdgfrb_Total` exactly. Animal `Td79` is the exception that matters: its `Pdgfrb_Total` is 398, identical to its `Pdgfrb_Pos`, and **not** `NA`. Whoever (or whatever spreadsheet formula) computed the total treated the missing negative count as zero. Think of a plate reader that, faced with an empty well, reports an absorbance of zero instead of "no reading": the column looks complete, and it is quietly wrong (@fig-missing-plate).
 
 ![An empty well is not a reading of zero. A column that reports 0 for "nothing there" looks complete, and is quietly wrong.](images/eda-missing-data_empty-well-reads-zero.png){#fig-missing-plate fig-align="center" width="90%" fig-alt="Watercolor sketch of a microplate on a wooden bench with rows of teal-filled wells and one empty, pale well near the middle. Beside it, a small analog dial rests its needle near the zero mark with a faint green glow, and a pipette lies in front of the plate."}
 
@@ -153,7 +168,7 @@ Knowing that a value is missing is half of the problem. The other half is *why*,
 
 **The explained loss.** Sections from the day-3 brains are softer after the ischemic insult and tear more often when you cut them. Now the losses are not random: they are concentrated at day 3. But notice what saves you. *You know which animals were day 3*, because you recorded it. The missingness is explained by something you measured, and within the day-3 animals, which ones tore is no more likely to depend on how many cells they had.
 
-**The informative loss.** The most severe infarcts have a core that crumbles when you cut it, so the sections you could not quantify are *precisely* the ones with the most damage. Or, closer to a familiar problem in survival experiments: the animals that did not make it to day 30 are the ones with the largest lesions, so the day-30 group you analyze is a self-selected survivor group. Here the reason a value is missing is the value itself. This is the nightmare case, because the data you have are a biased sample of the data you wanted, and nothing in the data you have says so.
+**The informative loss.** The most severe infarcts have a core that crumbles when you cut it, so the sections you could not quantify are *precisely* the ones with the most damage. Or, closer to a familiar problem in survival experiments: the animals that did not make it to day 30 are the ones with the largest lesions, so the day-30 group you analyze is a self-selected survivor group. Here the reason a value is missing is the value itself. This is the nightmare case, because the data you have are a biased sample of the data you wanted, and nothing in the data you have says so (@fig-missing-net).
 
 ![A wide-mesh net only keeps the big fish, so every fish you hold looks big. When what's lost depends on the value itself, the data you kept are a biased sample, and nothing in them says so.](images/eda-missing-data_wide-mesh-net.png){#fig-missing-net fig-align="center" width="90%" fig-alt="Watercolor sketch of a smiling researcher in a lab coat and green sweater holding a wide-mesh fishing net at the edge of a pond. Three large teal fish are inside the net, while many small ochre fish slip through its holes and leap into the water below."}
 
@@ -197,7 +212,7 @@ What *can* settle the question is knowledge of how the data were produced, which
 
 The three definitions are abstract until you watch them bias something, and with one missing value I cannot show you that on `cell_data`. So I will use a small simulation, the kind of generative check @sec-bayesian-core-workflow argued for, where *I* know the truth. I generate 200 measurements $y$ that depend on a recorded variable $z$ (think of $z$ as the day, and $y$ as a cell count), with a true mean of 2. Then I delete about 30% of the $y$ values by each of the three mechanisms: at random, depending on $z$ (the explained loss), and depending on $y$ itself (the informative loss). I estimate the mean of $y$ two ways: from the complete cases only, and from a regression of $y$ on $z$ fitted to the complete cases and then averaged over *all* the $z$ values (this is a stand-in for any method that uses what we recorded about the animals with missing data). I repeat this a thousand times and plot where the estimates land.
 
-I show the spread across simulations as a dot with an interval, and the truth as a vertical line: the question is whether the line lies inside the cloud of estimates. I encode the method with both color and shape.
+I show the spread across simulations as a dot with an interval, and the truth as a vertical line: the question is whether the line lies inside the cloud of estimates. I encode the method with both color and shape (@fig-missing-mechanisms).
 
 ```{r}
 #| label: fig-missing-mechanisms
@@ -206,8 +221,11 @@ I show the spread across simulations as a dot with an interval, and the truth as
 #| fig-width: 7
 #| fig-height: 5
 
+# Fixed seed so the simulation is identical on every render
 set.seed(2026)
 
+# One simulated dataset: z is recorded, y depends on z, then ~30% of y is deleted
+# under each mechanism (random; depending on z; depending on y itself)
 one_sim <- function(n = 200) {
   z <- rnorm(n)
   y <- 2 + 1.5 * z + rnorm(n)
@@ -215,6 +233,7 @@ one_sim <- function(n = 200) {
   p_mar  <- plogis(-0.85 + 1.5 * z)
   p_mnar <- plogis(-0.85 + 1.5 * (y - 2) / 1.8)
 
+  # Delete values with probability p, then estimate the mean of y two ways
   est <- function(p, mech) {
     miss <- runif(n) < p
     d <- data.frame(y = y, z = z)[!miss, ]
@@ -225,6 +244,7 @@ one_sim <- function(n = 200) {
   rbind(est(p_mcar, "MCAR"), est(p_mar, "MAR"), est(p_mnar, "MNAR"))
 }
 
+# Repeat 1000 times and summarize: mean estimate and middle 95% per mechanism and method
 sims <- do.call(rbind, replicate(1000, one_sim(), simplify = FALSE)) |>
   as.data.frame() |>
   tidyr::pivot_longer(-mech, names_to = "method", values_to = "estimate") |>
@@ -236,6 +256,7 @@ sims <- do.call(rbind, replicate(1000, one_sim(), simplify = FALSE)) |>
             hi = quantile(estimate, 0.975),
             .groups = "drop")
 
+# One panel per mechanism; dashed line = the true mean we planted (2)
 ggplot(sims, aes(x = mean, y = method, color = method, shape = method)) +
   geom_vline(xintercept = 2, linetype = "dashed", color = "grey40") +
   geom_pointrange(aes(xmin = lo, xmax = hi), size = 0.8, linewidth = 1) +
@@ -245,8 +266,9 @@ ggplot(sims, aes(x = mean, y = method, color = method, shape = method)) +
   scale_shape_manual(values = c("Complete cases" = 16, "Uses recorded z" = 17)) +
   labs(x = "Estimated mean of y", y = NULL) +
   Plot_theme +
-  theme(legend.position = "none",
-        strip.text = element_text(size = 14, face = "bold"))
+  # Rows are labelled on the axis, so no legend is needed
+  legend_none() +
+  theme(strip.text = element_text(size = 14, face = "bold"))
 ```
 
 Read it from top to bottom. Under MCAR, both estimators land on the truth: throwing away a random 30% of the animals costs you precision (the bars are wider than they would be with everything) but not accuracy. Under MAR, the complete-case mean is wrong, and by a lot, because the animals with a high $z$ are lost more often and they are also the ones with a high $y$; the estimator that uses the recorded $z$ repairs it. Under MNAR, *both* are wrong, and neither tells you that. This is the figure I would put on a slide titled "why the mechanism matters": the choice of method is only as good as the assumption about how the values were lost, and the assumption cannot be read off the data.
@@ -259,6 +281,7 @@ Now the practical question. Faced with a missing value, you have two broad famil
 #| label: tbl-missing-options
 #| tbl-cap: "Four ways to handle one missing predictor, and what each one assumes. The right-hand column is the price you pay if the assumption is wrong."
 
+# The four approaches, side by side, as a table
 tibble::tribble(
   ~Approach, ~`What it does`, ~`Valid when`, ~`If the assumption fails`,
   "Complete cases (drop the row)",
@@ -293,6 +316,7 @@ Two choices to explain. I model the log of `Pdgfrb_Pos`, because the counts are 
 ```{r}
 #| label: prep-model-data
 
+# Prepare the variables for the model
 cell_data$DPI_f   <- factor(cell_data$DPI)
 cell_data$log_pos <- log(cell_data$Pdgfrb_Pos)
 cell_data$neg_100 <- cell_data$Pdgfrb_Neg / 100   # hundreds of cells
@@ -309,6 +333,7 @@ The four tabs below fit the same regression four ways. Read them with the table 
 ```{r}
 #| label: fit-brms-cc
 
+# Bayesian fit on the 48 complete animals (cached in models/)
 fit_cc <- brm(
   log_pos ~ DPI_f + neg_100,
   data = complete_rows,
@@ -325,6 +350,8 @@ summary(fit_cc)
 ```{r}
 #| label: fit-brms-mi
 
+# Bayesian fit on all 49 animals: mi() treats the missing neg_100 as a parameter,
+# with its own sub-model (second formula) saying how neg_100 varies by day
 fit_mi <- brm(
   bf(log_pos ~ DPI_f + mi(neg_100)) +
     bf(neg_100 | mi() ~ DPI_f) +
@@ -345,6 +372,7 @@ summary(fit_mi)
 
 library(parsnip)
 
+# Ordinary least squares on the complete animals
 lm_cc <- linear_reg() |>
   set_engine("lm") |>
   fit(log_pos ~ DPI_f + neg_100, data = complete_rows)
@@ -357,6 +385,7 @@ tidy(lm_cc, conf.int = TRUE)
 ```{r}
 #| label: fit-mice
 
+# Multiple imputation: 20 completed datasets, normal model for neg_100
 imp <- mice(
   cell_data[, c("log_pos", "DPI_f", "neg_100")],
   m = 20,
@@ -365,6 +394,7 @@ imp <- mice(
   printFlag = FALSE
 )
 
+# Fit the regression on each completed dataset, then pool with Rubin's rules
 fits_mice <- with(imp, lm(log_pos ~ DPI_f + neg_100))
 pooled <- summary(pool(fits_mice), conf.int = TRUE)
 pooled
@@ -373,7 +403,7 @@ pooled
 
 The first thing to check, as always, is that the sampler behaved. For the `mi()` model, the largest Rhat across all parameters is `r round(max(rhat(fit_mi), na.rm = TRUE), 3)`, the smallest bulk effective sample size is `r round(min(summary(fit_mi)$fixed$Bulk_ESS, summary(fit_mi)$spec_pars$Bulk_ESS))`, and the number of divergent transitions is `r sum(nuts_params(fit_mi)$Value[nuts_params(fit_mi)$Parameter == "divergent__"])`. That meets the thresholds from the earlier chapters.
 
-Now the comparison that the whole section was building toward. The coefficient of interest is the one for the number of negative cells, and the question is whether dropping `Td79`, imputing it inside the model, or imputing it with `mice` changes what we would conclude. I add two rows that are not methods at all, but stress tests of the kind the textbooks recommend when the mechanism is in doubt [@jamshidian2009; @harrell2015]: I fill the one gap with the *smallest* and then the *largest* `Pdgfrb_Neg` observed anywhere, refit, and see whether the coefficient moves. The intervals for those two rows are conditional on a guess, so I draw them with a different shape and do not read them as honest uncertainty.
+Now the comparison that the whole section was building toward. The coefficient of interest is the one for the number of negative cells, and the question is whether dropping `Td79`, imputing it inside the model, or imputing it with `mice` changes what we would conclude. I add two rows that are not methods at all, but stress tests of the kind the textbooks recommend when the mechanism is in doubt [@jamshidian2009; @harrell2015]: I fill the one gap with the *smallest* and then the *largest* `Pdgfrb_Neg` observed anywhere, refit, and see whether the coefficient moves. The intervals for those two rows are conditional on a guess, so I draw them with a different shape and do not read them as honest uncertainty. @fig-missing-compare shows all six. Each estimate is a dot with an interval (`geom_pointrange()`), not a bar, because a coefficient is a position on a line where zero means no association, not an amount that starts at zero; a bar from zero would make the smallest coefficient look like no result and the largest like a finding.
 
 ```{r}
 #| label: fig-missing-compare
@@ -382,11 +412,13 @@ Now the comparison that the whole section was building toward. The coefficient o
 #| fig-width: 7.5
 #| fig-height: 4.2
 
+# Pull the neg_100 coefficient and its interval from each of the four fits
 b_cc <- fixef(fit_cc)["neg_100", ]
 b_mi <- fixef(fit_mi)[grep("^logpos_mineg", rownames(fixef(fit_mi))), ]
 b_lm <- tidy(lm_cc, conf.int = TRUE) |> filter(term == "neg_100")
 b_mice <- pooled |> filter(term == "neg_100")
 
+# Stress test: plug a fixed value into the gap, refit, return the coefficient
 sens <- function(fill) {
   d <- cell_data
   d$neg_100[is.na(d$neg_100)] <- fill
@@ -396,6 +428,7 @@ sens <- function(fill) {
 s_lo <- sens(min(cell_data$neg_100, na.rm = TRUE))
 s_hi <- sens(max(cell_data$neg_100, na.rm = TRUE))
 
+# One row per approach for the plot
 compare <- tibble::tribble(
   ~approach, ~kind, ~est, ~lo, ~hi,
   "brms, complete cases", "Method", b_cc[["Estimate"]], b_cc[["Q2.5"]], b_cc[["Q97.5"]],
@@ -407,6 +440,7 @@ compare <- tibble::tribble(
 ) |>
   mutate(approach = factor(approach, levels = rev(approach)))
 
+# Estimate and interval per approach; dashed line at zero (no association)
 ggplot(compare, aes(x = est, y = approach, color = kind, shape = kind)) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
   geom_pointrange(aes(xmin = lo, xmax = hi), size = 0.8, linewidth = 1) +
@@ -416,14 +450,20 @@ ggplot(compare, aes(x = est, y = approach, color = kind, shape = kind)) +
 (log scale, per 100 cells)", y = NULL,
        color = NULL, shape = NULL) +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
 The six rows tell one story. Every approach puts the coefficient close to `r round(b_cc[["Estimate"]], 2)`, and every interval comfortably includes zero, so on this dataset the data say very little about whether the negative count adds information to the positive count beyond the day. Even the stress tests, which plug in the most extreme values the column has ever shown, move the point estimate by less than the width of its own interval. That is what a 2% missing fraction looks like, and it agrees with the rule of thumb above. The thing to take from the figure is not that the methods are interchangeable (the simulation showed they are not, once the fraction or the mechanism gets worse) but that *for this dataset I do not have to agonize*, and I can say why.
 
+::: {.callout-note title="How to report it"}
+**Methods.** One of `r n_rows` animals (2%) had a missing PDGFR-β-negative cell count. We analyzed the data four ways: complete cases (linear model and `brms`), multiple imputation with `mice` (20 imputed datasets, pooled with Rubin's rules) and joint imputation inside the model with `brms` (`mi()`). As sensitivity analyses we replaced the missing value with the smallest and the largest observed count. We assumed the value was missing at random given the day, and we documented that the derived total for that animal had been computed as if the missing count were zero.
+
+**Results.** The coefficient for PDGFR-β-negative cells (change in the log of the positive count per 100 cells) was `r round(b_cc[["Estimate"]], 2)` (95% credible interval `r round(b_cc[["Q2.5"]], 2)` to `r round(b_cc[["Q97.5"]], 2)`) with complete cases, `r round(b_mi[["Estimate"]], 2)` with joint imputation and `r round(b_mice$estimate, 2)` with multiple imputation. The interval included zero in every analysis, and the conclusion did not change with how the missing value was handled.
+:::
+
 ### What `mi()` actually did to `Td79`
 
-I find the `mi()` approach the most instructive of the four, because it makes the imputation visible. The missing count is not hidden inside a preprocessing step: it is a parameter with a posterior, so we can plot it. This is a half-eye, because the *shape* of the posterior is the point here (a wide, lopsided distribution), not just its interval, and I show the seven day-3 animals with an observed `Pdgfrb_Neg` as dots for context.
+I find the `mi()` approach the most instructive of the four, because it makes the imputation visible. The missing count is not hidden inside a preprocessing step: it is a parameter with a posterior, so we can plot it (@fig-missing-imputed). This is a half-eye, because the *shape* of the posterior is the point here (a wide, lopsided distribution), not just its interval, and I show the seven day-3 animals with an observed `Pdgfrb_Neg` as dots for context (@fig-missing-mice pictures the idea).
 
 ![Seven animals measured, one not. Multiple imputation, and `mi()`, don't invent a single mouse; they sketch a cloud of plausible ones.](images/eda-missing-data_seven-mice-one-ghost.png){#fig-missing-mice fig-align="center" width="90%" fig-alt="Watercolor sketch of a wooden bench with seven identical small white mice sitting in a neat row and, at the far end, a cluster of about five faint translucent ochre outlines of a mouse in slightly different sizes and postures."}
 
@@ -434,13 +474,16 @@ I find the `mi()` approach the most instructive of the four, because it makes th
 #| fig-width: 7
 #| fig-height: 3.8
 
+# Posterior draws of the imputed (missing) value
 imputed <- as_draws_df(fit_mi) |>
   select(starts_with("Ymi_")) |>
   setNames("value")
 
+# The observed values of the other day-3 animals, for context
 observed_d3 <- cell_data |>
   filter(DPI == 3, !is.na(neg_100))
 
+# Half-eye of the imputed value, with the observed animals as triangles below
 ggplot(imputed, aes(x = value)) +
   stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", color = "black",
                point_interval = "median_qi") +
@@ -455,7 +498,7 @@ ggplot(imputed, aes(x = value)) +
 
 Two things stand out, and both are lessons about *assumptions* more than about `Td79`. First, the posterior is wide: the model's best guess is `r round(median(imputed$value) * 100)` negative cells, with a 95% interval from `r round(quantile(imputed$value, 0.025) * 100)` to `r round(quantile(imputed$value, 0.975) * 100)`. That is the honest size of what we know about an animal whose count we never saw, and it is the uncertainty that a single plugged-in value (a mean imputation, say) would have pretended away. Second, and this is the cost of the sub-model: I told the model that `neg_100` is Gaussian, and a Gaussian does not know that a cell count cannot be negative. The share of the posterior below zero is `r round(100 * mean(imputed$value < 0), 1)`%, which is impossible for a count. For a tiny problem it is harmless, but it is the kind of assumption that stops being harmless when a larger fraction of the column is missing, and it is why the next step in a serious analysis would be a sub-model that respects the support of the variable (a log-scale or a count sub-model). In `brms`, `mi()` works only with continuous variables, because Stan cannot sample discrete parameters [@mcelreath2020], so a missing count has to be handled through a continuous approximation or be integrated out.
 
-A last sanity check, as the earlier chapters taught: does the `mi()` model reproduce the data it was fit to? A posterior predictive check on the outcome is the same procedure as in @sec-mcmc-model-checking.
+A last sanity check, as the earlier chapters taught: does the `mi()` model reproduce the data it was fit to? A posterior predictive check on the outcome is the same procedure as in @sec-mcmc-model-checking (@fig-missing-ppc).
 
 ```{r}
 #| label: fig-missing-ppc
@@ -464,9 +507,12 @@ A last sanity check, as the earlier chapters taught: does the `mi()` model repro
 #| fig-width: 6.5
 #| fig-height: 4
 
+# Observed log counts (dark line) against 100 datasets simulated from the mi() model;
+# legend in the empty upper-left corner of the panel
 pp_check(fit_mi, resp = "logpos", ndraws = 100) +
   labs(x = "log(Pdgfrb_Pos)") +
-  Plot_theme
+  Plot_theme +
+  legend_inside(0.14, 0.82)
 ```
 
 The replicated datasets cover the observed density, including the shoulder around 6 and the main peak near 8, and they are a little smoother and wider in the tails than the data, which is what a Gaussian on 49 animals with five day effects tends to do. Good enough for a model whose job here is to compare ways of handling an `NA`, not to be the final word on PDGFR-β counts.
