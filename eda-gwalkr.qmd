@@ -8,7 +8,7 @@ By the end of the last chapter, you had a full page of firm opinions about `cell
 
 But I'll be honest about something every experienced data analyst quietly knows: the questions worth asking about a new dataset rarely show up in the order you'd plan for them. Sometimes you just want to grab the data and drag things around (try a boxplot here, a histogram there, swap the x and y axis on a whim) before you've committed to a specific question at all. You don't want to write a `ggplot()` call for every idle curiosity; you want to poke.
 
-That's the gap [GWalkR](https://github.com/Kanaries/GWalkR) [@gwalkr] fills. Think of it as handing your dataframe to a sharp-eyed collaborator who doesn't write R but has excellent visual instincts. They'd want to drag `DPI` onto one axis, `Gfap_IntDen` onto the other, try a color split by treatment group, and see what jumps out, all without asking you to write a single line of code first. GWalkR gives you exactly that: a Tableau- or Power BI-style drag-and-drop interface, running entirely inside your R session, directly on `cell_data`.
+That's the gap [GWalkR](https://github.com/Kanaries/GWalkR) [@gwalkr] fills. Think of it as handing your dataframe to a sharp-eyed collaborator who doesn't write R but has excellent visual instincts. They'd want to drag `DPI` onto one axis, `Gfap_IntDen` onto the other, try a color split by treatment group, and see what jumps out, all without asking you to write a single line of code first. GWalkR gives you exactly that: a Tableau- or Power BI-style drag-and-drop interface, running entirely inside your R session, directly on `cell_data` (@fig-eda-gwalkr-board).
 
 ![GWalkR is a magnetic board for your variables: drag one to an axis, swap it, and a new picture appears. Great for poking around, not for reporting what you find.](images/eda-gwalkr_magnetic-board-poking.png){#fig-eda-gwalkr-board fig-align="center" width="90%" fig-alt="Watercolor sketch of a researcher in a lab coat and green sweater lifting a small colored tile from a wooden tray toward the horizontal axis of a white magnetic board. Other tiles with tiny icons sit along both axes, and three small pinned sketches of a histogram, a scatter plot and a box plot hang at the board's right edge."}
 
@@ -23,8 +23,10 @@ With that expectation set, firing it up takes three lines:
 library(GWalkR)
 library(here)
 
+# Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 
+# Open the drag-and-drop explorer on the whole table
 gwalkr(cell_data)
 ```
 :::

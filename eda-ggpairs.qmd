@@ -7,6 +7,7 @@ bibliography: references.bib
 ```{r}
 #| include: false
 
+# Plotting package and the book's shared plot theme
 library(ggplot2)
 
 Plot_theme <- source("functions/plot_theme.R")
@@ -21,13 +22,13 @@ This chapter is about answering that GWalkR question properly: not by dragging v
 
 Here's an everyday version of the problem. Imagine you're triaging a stack of grant applications and you suspect two reviewers on your panel always give nearly identical scores (not because they coordinated, but because they're weighing the same criteria in their heads). Checking that suspicion one reviewer-pair at a time, by pulling out two scoresheets and eyeballing them, works fine if you have three reviewers. It falls apart with fifteen. What you actually want is one table that shows you, at a glance, how correlated *every* pair of reviewers is with every other pair, so the redundant ones jump out instead of you having to go looking for them.
 
-That table, applied to data instead of grant reviewers, is what a [correlation matrix]{style="color:green; font-weight:bold;"} gives you: a grid where every variable in your dataset is compared against every other variable at once, instead of one deliberately chosen pair at a time. It's the natural generalization of the single scatter plot from @sec-eda-ggplot: same idea, scaled up from "one relationship I already suspected" to "every relationship I haven't checked yet."
+That table, applied to data instead of grant reviewers, is what a [correlation matrix]{style="color:green; font-weight:bold;"} gives you: a grid where every variable in your dataset is compared against every other variable at once, instead of one deliberately chosen pair at a time. It's the natural generalization of the single scatter plot from @sec-eda-ggplot: same idea, scaled up from "one relationship I already suspected" to "every relationship I haven't checked yet." @fig-eda-ggpairs-birds is the picture: two birds singing the same song.
 
 ![Two birds singing the same song are telling you the same thing twice. A correlation matrix is how you find them before you ask both to sing in the same model.](images/eda-ggpairs_two-birds-same-song.png){#fig-eda-ggpairs-birds fig-align="center" width="90%" fig-alt="Watercolor sketch of five songbirds perched on a wire, each with a trail of musical notes from its beak. The two identical blue tits in the middle sing the same pattern of teal notes, joined by a dashed line, while the chickadee, the robin and the wren on either side sing different patterns."}
 
 Why does this matter before you've fit a single model? Because two variables that are almost interchangeable (one that tells you almost nothing the other one doesn't already tell you) are a problem you want to catch in the exploration stage, not discover three chapters from now when a regression model hands you coefficients that make no sense. This chapter isn't about diagnosing an already-fitted model (that's a narrower, later question we'll pick back up in @sec-linear-regression-assumptions, once there's an actual model on the table to interrogate). Right now we're just asking the more general question: of the variables sitting in front of us, which ones are quietly duplicating each other?
 
-Let's load the data we've been building intuition about since the start of this part, and get looking.
+Let's load the data we've been building intuition about since the start of this part, and get looking (@tbl-cell_data_ggpairs_tbl).
 
 ```{r}
 #| label: tbl-cell_data_ggpairs_tbl
@@ -36,15 +37,21 @@ Let's load the data we've been building intuition about since the start of this 
 library(here)
 library(gt)
 
+# Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 
+# The first six rows, as a table
 gt(head(cell_data))
 ```
 
 As we've done before, let's subset down to the numeric measurements we actually care about comparing, so the matrix we're about to build stays readable instead of drowning in identifier columns:
 
 ```{r}
+# Keep the five numeric measurements we want to compare
 cell_data_sub <- subset(cell_data, select = c(Tissue_Area, Pdgfrb_Area, Pdgfrb_IntDen, Gfap_Area, Gfap_IntDen))
+
+# Correlation of every pair, quoted in the text below
+cell_data_cor <- cor(cell_data_sub)
 ```
 
 ## The full picture with `ggpairs`
@@ -62,12 +69,14 @@ A single scatter plot answers one question at a time. What we want here is close
 
 library(GGally)
 
+# A grid with every pair: scatter plots below the diagonal, correlations above,
+# each variable's own distribution on the diagonal
 ggpairs(cell_data_sub)
 ```
 
 For more plotting options, refer to the [GGally](https://ggobi.github.io/ggally/reference/ggpairs.html) documentation. Here, @fig-cell_data_ggpairs earns its keep immediately.
 
-Look at the `Corr` values in the upper triangle: Pdgfrb_Area and Pdgfrb_IntDen sit at 0.94, and Gfap_Area and Gfap_IntDen sit at 0.98. Both pairs are, for practical purposes, telling us the same thing twice. If you know the area a marker covers, you already know almost everything you'd have learned from its integrated density; the two aren't independent pieces of biological information, they're two ways of measuring almost the same underlying signal. That's the exact redundancy GWalkR's closing question was pointing you toward, now stated precisely instead of suspected.
+Look at the `Corr` values in the upper triangle: Pdgfrb_Area and Pdgfrb_IntDen sit at `r sprintf("%.2f", cell_data_cor["Pdgfrb_Area", "Pdgfrb_IntDen"])`, and Gfap_Area and Gfap_IntDen sit at `r sprintf("%.2f", cell_data_cor["Gfap_Area", "Gfap_IntDen"])`. Both pairs are, for practical purposes, telling us the same thing twice. If you know the area a marker covers, you already know almost everything you'd have learned from its integrated density; the two aren't independent pieces of biological information, they're two ways of measuring almost the same underlying signal. That's the exact redundancy GWalkR's closing question was pointing you toward, now stated precisely instead of suspected.
 
 ::: callout-tip
 A correlation this high between two predictors doesn't mean either variable is wrong or useless on its own; it means that, together, they carry a lot less independent information than two separate columns in a spreadsheet might suggest. Worth remembering the next time you're tempted to throw every column you measured into a model "just to be safe."
@@ -90,6 +99,8 @@ First, `corrplot` [@corrplot]. We start from `cor()`, base R's own correlation f
 
 library(corrplot)
 
+# The same correlations as a matrix, drawn as circles whose size and colour show
+# the strength; hclust puts similar variables next to each other
 cell_data_sub_matrix <- cor(cell_data_sub)
 corrplot(cell_data_sub_matrix, type = "upper", order = "hclust",
          tl.col = "black", tl.srt = 45)
@@ -108,10 +119,11 @@ Some researchers prefer a heatmap for the same underlying matrix: a matter of ta
 #| message: false
 #| results: false
 
+# Base R heatmap of the same matrix; rows and columns are reordered by similarity
 heatmap(x = cell_data_sub_matrix, col = hcl.colors(20, "viridis"), symm = TRUE)
 ```
 
-@fig-cell_data_heatmap clusters the same two redundant pairs together along both axes, using color intensity in place of `corrplot`'s circles. Three plots, one finding, which is itself worth noticing. When three different visualizations of the same matrix all point at the same two pairs, that's not a coincidence of plotting choices; it's the data being genuinely unambiguous about where the redundancy lives.
+@fig-cell_data_heatmap clusters the same two redundant pairs together along both axes, using color intensity in place of `corrplot`'s circles (it is the base R `heatmap()` function, which also reorders rows and columns by similarity). Three plots, one finding, which is itself worth noticing. When three different visualizations of the same matrix all point at the same two pairs, that's not a coincidence of plotting choices; it's the data being genuinely unambiguous about where the redundancy lives (@fig-eda-ggpairs-instruments). One design tip for your own figures: these correlations are all positive, so a sequential palette such as viridis is fine; if your matrix mixes positive and negative values, use a diverging palette centered at zero so the sign is visible too.
 
 ![Three instruments, one direction. When a grid of scatter plots, a bubble matrix and a heatmap all point at the same two pairs, it isn't a plotting accident.](images/eda-ggpairs_three-instruments-one-direction.png){#fig-eda-ggpairs-instruments fig-align="center" width="90%" fig-alt="Watercolor sketch of a brass compass, a small weathervane with an arrow and a striped orange-and-white windsock standing in a row on a wooden table, all pointing toward the right edge of the page along a faint dotted line."}
 
@@ -120,3 +132,7 @@ heatmap(x = cell_data_sub_matrix, col = hcl.colors(20, "viridis"), symm = TRUE)
 A correlation matrix, in any of the three forms above, tells you *which* variables move together. It does not, by itself, tell you what to do about it, and that's an honest limitation, not an oversight. Whether Pdgfrb_Area and Pdgfrb_IntDen being nearly redundant actually matters depends entirely on what you do next: if you're just describing the dataset, it's a fact worth noting and moving on from. If you're about to fit a regression model with both of them as predictors, it's a warning sign that deserves a second look, one that, once we're standing in front of an actual fitted model, has its own name (multicollinearity) and its own diagnostic (the variance inflation factor) in @sec-linear-regression-assumptions.
 
 For now, keep the finding, not the machinery: `Pdgfrb_Area`/`Pdgfrb_IntDen` and `Gfap_Area`/`Gfap_IntDen` are each carrying largely overlapping information. That's one more entry on the running list of things we now know about `cell_data`, a list the next chapter will pull all the way together before we let this dataset anywhere near a model.
+
+::: {.callout-note title="How to report it"}
+**Methods.** We screened the five numeric measurements for redundancy with pairwise Pearson correlations (`GGally::ggpairs()` and `corrplot`). Area and integrated density were almost redundant for both markers (PDGFR-β: r = `r sprintf("%.2f", cell_data_cor["Pdgfrb_Area", "Pdgfrb_IntDen"])`; GFAP: r = `r sprintf("%.2f", cell_data_cor["Gfap_Area", "Gfap_IntDen"])`), so a model should not take both measurements of the same marker as predictors, as the linear models part shows.
+:::
