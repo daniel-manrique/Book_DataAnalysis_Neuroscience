@@ -18,7 +18,7 @@ The statistics came later, and they came out of necessity. During my doctoral st
 
 That somewhere was probability. Once I understood that a model is a small story about how the data came to exist, and that Bayesian inference is simply the disciplined way of asking what that story implies once you've seen the evidence, I was hooked. I still am. It changed how I design experiments, how I read papers, and how I argue with myself about my own results. Since then I've blended it with image processing and machine learning (including automated, unbiased cell-counting pipelines in Python, so nobody has to count nuclei by hand ever again), and I also lecture on research design and data management for a doctoral program in behavioral neuroscience in Bogotá. This book is, in a way, everything I wished someone had handed me back in Bochum.
 
-So you won't find me talking about "subjects" and "treatments" in the abstract. You'll find glial scars after cerebral ischemia, open-field behavior, spike counts, reaction times, the messy and beautiful stuff we actually measure. When a technical term shows up, I'll try to give you something familiar to hang it on before I give you its formal name, and I'll try not to water down the math or the assumptions while I do it. Warm, yes. Sloppy, never.
+So you won't find me talking about "subjects" and "treatments" in the abstract. You'll find glial scars after cerebral ischemia, mice crossing a hanging wire, spike counts, the messy and beautiful stuff we actually measure. When a technical term shows up, I'll try to give you something familiar to hang it on before I give you its formal name, and I'll try not to water down the math or the assumptions while I do it. Warm, yes. Sloppy, never.
 
 ## What makes this book different
 
@@ -71,7 +71,7 @@ The book has five parts. I'll keep this brief, because each part opens with its 
 1.  **Foundations.** What it means to model, and the mechanics of Bayesian inference itself: priors, likelihoods, posteriors, how MCMC gets you there, and how to check whether you should trust the result.
 2.  **Data exploration.** Before any model, learn to look. Distributions, relationships, anomalies, and the habits that keep you from feeding a model something it shouldn't eat.
 3.  **Linear models.** The workhorse. From a single predictor to several, and how far a straight line can be trusted.
-4.  **Generalized linear models.** What to do when the outcome is a count, a yes or a no, a proportion, or a reaction time with lapses: the shapes neuroscience data usually takes, and the one recipe that handles them.
+4.  **Generalized linear models.** What to do when the outcome is a count, a yes or a no, a proportion, or a crossing time with the odd extreme value: the shapes neuroscience data usually takes, and the one recipe that handles them.
 5.  **Hierarchical and advanced models.** Where the real structure of our experiments lives: cells in sections in animals, trials in neurons, measurements over time. This is where I think the book earns its keep, and it's the part still under construction as I write this.
 
 That last point deserves honesty: the book is a work in progress. Some chapters are polished, some are drafts, and some are still ideas on a whiteboard. I'd rather show you the real state of things than pretend it's finished.
