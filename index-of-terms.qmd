@@ -22,6 +22,7 @@
 - **centering**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-centering-1)
 - **chains**: [MCMC and model checking](mcmc-model-checking.qmd#ix-chains-1)
 - **collinear**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-collinear-1)
+- **complete pooling** ([glossary](glossary.qmd#gl-complete-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-complete-pooling-1)
 - **complete separation**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-complete-separation-1)
 - **confidence interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-confidence-interval-1)
 - **confounder**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-confounder-1)
@@ -32,6 +33,7 @@
 
 ## D {.unnumbered .unlisted}
 
+- **design effect** ([glossary](glossary.qmd#gl-design-effect)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-design-effect-1) ([2](multilevel-intro.qmd#ix-design-effect-2))
 - **dispersion statistic**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-dispersion-statistic-1); [Counting cells and spikes](count-regression.qmd#ix-dispersion-statistic-1); [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-dispersion-statistic-1)
 - **distribution**: [EDA using graphics](eda-ggplot.qmd#ix-distribution-1) ([2](eda-ggplot.qmd#ix-distribution-2))
 - **divergent transition**: [MCMC and model checking](mcmc-model-checking.qmd#ix-divergent-transition-1)
@@ -52,6 +54,8 @@
 ## G {.unnumbered .unlisted}
 
 - **generative**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-generative-1)
+- **group-level effect**: [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-group-level-effect-1)
+- **grouping factor** ([glossary](glossary.qmd#gl-grouping-factor)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-grouping-factor-1)
 
 ## H {.unnumbered .unlisted}
 
@@ -69,10 +73,11 @@
 - **indicator variable**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-indicator-variable-1)
 - **interaction**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-interaction-1)
 - **intercept**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-intercept-1)
-- **intraclass correlation**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1)
+- **intraclass correlation** ([glossary](glossary.qmd#gl-intraclass-correlation)): [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1); [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-intraclass-correlation-1) ([2](multilevel-intro.qmd#ix-intraclass-correlation-2))
 
 ## L {.unnumbered .unlisted}
 
+- **level** ([glossary](glossary.qmd#gl-level)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-level-1)
 - **likelihood** ([glossary](glossary.qmd#gl-likelihood)): [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-likelihood-1)
 - **linear predictor**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-linear-predictor-1)
 - **linear probability model**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-linear-probability-model-1)
@@ -88,10 +93,12 @@
 - **missing not at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-not-at-random-1)
 - **model expansion** ([glossary](glossary.qmd#gl-model-expansion)): [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-model-expansion-1) ([2](linear-models-reflection.qmd#ix-model-expansion-2))
 - **multicollinearity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-multicollinearity-1)
+- **multilevel model** ([glossary](glossary.qmd#gl-multilevel-model)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-multilevel-model-1)
 
 ## N {.unnumbered .unlisted}
 
 - **negative binomial**: [Counting cells and spikes](count-regression.qmd#ix-negative-binomial-1)
+- **no pooling** ([glossary](glossary.qmd#gl-no-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-no-pooling-1)
 - **normality**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-normality-1)
 
 ## O {.unnumbered .unlisted}
@@ -103,6 +110,7 @@
 
 ## P {.unnumbered .unlisted}
 
+- **partial pooling** ([glossary](glossary.qmd#gl-partial-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-partial-pooling-1)
 - **posterior distribution** ([glossary](glossary.qmd#gl-posterior-distribution)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-posterior-distribution-1)
 - **posterior predictive check**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-posterior-predictive-check-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-posterior-predictive-check-1)
 - **precision**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-precision-1)
@@ -129,6 +137,7 @@
 ## S {.unnumbered .unlisted}
 
 - **scatter plots**: [EDA using graphics](eda-ggplot.qmd#ix-scatter-plots-1) ([2](eda-ggplot.qmd#ix-scatter-plots-2))
+- **shrinkage** ([glossary](glossary.qmd#gl-shrinkage)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-shrinkage-1) ([2](multilevel-intro.qmd#ix-shrinkage-2))
 - **simulation-based calibration**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-simulation-based-calibration-1)
 - **skew**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-skew-1)
 - **slope**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
@@ -144,6 +153,9 @@
 - **validity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-validity-1)
 - **variability**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-variability-1)
 - **variance inflation factor**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-variance-inflation-factor-1)
+- **varying**: [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-1)
+- **varying intercept** ([glossary](glossary.qmd#gl-varying-intercept)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-intercept-1)
+- **varying slope** ([glossary](glossary.qmd#gl-varying-slope)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-slope-1)
 - **visualization**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-visualization-1)
 
 ## W {.unnumbered .unlisted}

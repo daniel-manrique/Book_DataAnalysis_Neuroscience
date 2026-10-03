@@ -82,3 +82,121 @@
   analogy: >
     Like adding instruments to a recording rig only when the signal you care
     about is not coming through, not building the whole rig on day one.
+
+- term: multilevel model
+  status: draft
+  definition: >
+    A model in which group-level quantities (each mouse's own baseline, each
+    neuron's own firing rate) are treated as draws from a distribution whose
+    spread is itself a parameter learned from the data. Also called a
+    hierarchical or mixed-effects model.
+  analogy: >
+    A lab that estimates each mouse's speed while also learning how much mice
+    differ from each other, and lets that second answer decide how much each
+    mouse's own tally is trusted.
+  see_also: [partial pooling, varying intercept, shrinkage]
+
+- term: level
+  status: draft
+  definition: >
+    One tier of a nested data structure. Attempts sit inside mice, neurons
+    inside patients, cells inside sections inside animals; each tier is a level.
+  analogy: >
+    The folders inside folders of a data drive: the file is the lowest level,
+    the animal's folder a higher one.
+  see_also: [grouping factor, multilevel model]
+
+- term: grouping factor
+  status: draft
+  definition: >
+    The column that says which group a row belongs to (mouse, neuron, patient).
+    Its categories are the groups, and it appears after the bar in a formula
+    such as `(1 | mouse)`.
+  analogy: >
+    The animal ID written on every row of the spreadsheet.
+  see_also: [level, varying intercept]
+
+- term: complete pooling
+  status: draft
+  definition: >
+    Estimating one value for all groups, ignoring which group a row came from.
+    It is the model of ordinary regression when groups exist but are not
+    modeled.
+  analogy: >
+    Giving every mouse the grand average as its speed.
+  see_also: [no pooling, partial pooling]
+
+- term: no pooling
+  status: draft
+  definition: >
+    Estimating each group separately from its own rows only. It respects
+    differences between groups but trusts thin groups completely.
+  analogy: >
+    Believing a mouse that has been tested twice as much as one tested nine
+    times.
+  see_also: [complete pooling, partial pooling]
+
+- term: partial pooling
+  status: draft
+  definition: >
+    Estimating each group as a compromise between its own data and the
+    overall average, leaning on its own data more as the group has more of it.
+    The balance is learned from the data through the group-level spread.
+  analogy: >
+    A rubber band between each mouse's own tally and the group's: a short
+    tally is pulled harder than a long one.
+  see_also: [shrinkage, complete pooling, no pooling]
+
+- term: shrinkage
+  status: draft
+  definition: >
+    The pull of a group's estimate toward the overall average that partial
+    pooling produces. It is strongest for extreme estimates and for groups
+    with little data, and it lowers the average error across groups.
+  analogy: >
+    The batting average after ten at-bats comes down toward the league average
+    because part of the extreme was luck.
+  see_also: [partial pooling, multilevel model]
+
+- term: varying intercept
+  status: draft
+  definition: >
+    An intercept that differs between groups, each one drawn from a common
+    distribution. In formula syntax, `(1 | mouse)`.
+  analogy: >
+    Each mouse has its own baseline speed, but all baselines come from the
+    population of mice.
+  see_also: [varying slope, grouping factor]
+
+- term: varying slope
+  status: draft
+  definition: >
+    A slope (an effect of a predictor) that differs between groups, drawn from
+    a common distribution and usually correlated with the varying intercept. In
+    formula syntax, `(1 + day | mouse)`.
+  analogy: >
+    Each mouse has its own rate of improving from day to day.
+  see_also: [varying intercept, multilevel model]
+
+- term: intraclass correlation
+  status: draft
+  definition: >
+    The share of the total variance of an outcome that lies between groups
+    instead of within them. It measures how much two rows of the same group
+    resemble each other.
+  analogy: >
+    How tightly the dots of each mouse huddle around its own average compared
+    with how far the averages of different mice are from each other.
+  see_also: [design effect, multilevel model]
+
+- term: design effect
+  status: draft
+  definition: >
+    The factor by which clustering inflates the variance of an average,
+    $1 + (m-1)\rho$ with $m$ rows per group and $\rho$ the intraclass
+    correlation. Dividing the number of rows by it gives the effective sample
+    size.
+  analogy: >
+    Eight copies of the same photograph weigh as much as eight photographs but
+    show one scene.
+  see_also: [intraclass correlation]
