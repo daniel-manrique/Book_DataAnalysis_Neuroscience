@@ -3,7 +3,7 @@ bibliography: references.bib
 subtitle: Beta-binomial, beta and robust regression
 ---
 
-# Measuring behavior: attempts, shares of time and crossing times {#sec-beta-robust-regression}
+# Measuring behavior: attempts, crossing times and shares of time {#sec-beta-robust-regression}
 
 ```{r}
 #| include: false
@@ -57,9 +57,9 @@ summ <- function(x, digits = 2) {
 }
 ```
 
-Two chapters ago I made you a promise about noise, and I want to start by collecting on it. In @sec-logistic-regression a binomial model looked at proportions built from hundreds of cells and declared them far too variable to be believed, and I told you that a single yes or no per mouse could never show that problem, but that the several attempts each mouse made on the wire could. This chapter returns to the wire for the first of its jobs. It is also the last chapter of the part on generalized linear models, so I'd like it to do two things: close the overdispersion thread with the tool that was waiting for it, and then look at two kinds of continuous outcome we haven't touched, one squeezed between 0 and 1 and one with a habit of throwing the occasional wild value at you.
+Two chapters ago I made you a promise about noise, and I want to start by collecting on it. In @sec-logistic-regression a binomial model looked at proportions built from hundreds of cells and declared them far too variable to be believed, and I told you that a single yes or no per mouse could never show that problem, but that the several attempts each mouse made on the wire could. This chapter returns to the wire for the first of its jobs. It is also the last chapter of the part on generalized linear models, so I'd like it to do two things: close the overdispersion thread with the tool that was waiting for it, and then look at two kinds of continuous outcome we haven't touched, one with a habit of throwing the occasional wild value at you and one squeezed between 0 and 1.
 
-Here is the plan. We start with the 63 mice of @sec-logistic-regression, the `Klf4-KO` and `WildType-Control` animals of the hanging wire test, and ask two questions of them: how many of its nine attempts does a mouse complete, and does genotype change that? And, when it does make it across, how long does the crossing take? In between, I leave the wire for the open field to ask a third question: what share of a five-minute session does a mouse spend in the center of the arena, and what does a stroke do to it? The first two outcomes are proportions, one built from trials and one that is itself the measurement; the third is a distribution that sometimes misbehaves. Each needs a different family, and each one is a small, clean change to the recipe you already know: pick a family, keep the linear predictor, choose the link.
+Here is the plan. We start with the 63 mice of @sec-logistic-regression, the `Klf4-KO` and `WildType-Control` animals of the hanging wire test, and ask two questions of them: how many of its nine attempts does a mouse complete, and does genotype change that? And, when it does make it across, how long does the crossing take? Then I leave the wire for a different bench, the open field, to ask a third question: what share of a five-minute session does a mouse spend in the center of the arena, and what does a stroke do to it? The first outcome is a proportion built from trials, the second is a distribution that sometimes misbehaves, and the third is a proportion that is itself the measurement. Each needs a different family, and each one is a small, clean change to the recipe you already know: pick a family, keep the linear predictor, choose the link.
 
 ## Nine attempts per mouse: the binomial isn't enough
 
@@ -325,13 +325,331 @@ apc_binom <- rowMeans(posterior_epred(fit_binom, newdata = nd_ko) / 9 -
 
 On average across these mice, the chance of completing an attempt was `r summ(100 * apc_bb, 0)` percentage points different for KO mice under the beta-binomial (negative means KO mice complete less often). The plain binomial, which ignores the mouse-to-mouse spread, reports `r summ(100 * apc_binom, 0)`: nearly the same centre, and an interval about `r round(diff(quantile(apc_bb, c(0.025, 0.975))) / diff(quantile(apc_binom, c(0.025, 0.975))), 1)` times as wide under the beta-binomial. That's as it should be: a model that lets mice differ from one another knows less about the genotype than one that assumes they are interchangeable, and the second one's narrower interval was a claim to precision that the data did not support. The centre of the estimate is a matter of the design and the data. The width of the interval is a matter of the family.
 
+## A different kind of trouble: crossing times and the odd one out
+
+Now for a different kind of trouble, one that has nothing to do with proportions. Every attempt that a mouse completes has a crossing time: the seconds from the start of the attempt until it reached the platform. You've almost certainly seen the histogram of a time like this: a hump and a long right tail. **Does genotype change how long a crossing takes, and do mice speed up with practice?** I'll use only the attempts a mouse completed, and I'll come back to what that leaves out. Before any model, here is the distribution of the `r nrow(crossings)` crossing times, on the seconds scale and on the log scale.
+
+```{r}
+#| label: fig-beta_rt_raw
+#| fig-cap: Distribution of the completed crossing times, in seconds (left) and on the log scale (right). The vertical line marks the median.
+#| fig-width: 8
+#| fig-height: 3.4
+#| warning: false
+
+p_rt_raw <- ggplot(crossings, aes(x = wire)) +
+  geom_histogram(bins = 50, fill = "#0072B2", color = "white") +
+  geom_vline(xintercept = median(crossings$wire), linetype = "dashed") +
+  labs(x = "Crossing time (s)", y = "Attempts") +
+  Plot_theme
+
+p_rt_log <- ggplot(crossings, aes(x = log_wire)) +
+  geom_histogram(bins = 50, fill = "#0072B2", color = "white") +
+  geom_vline(xintercept = median(crossings$log_wire), linetype = "dashed") +
+  labs(x = "log(crossing time in s)", y = "Attempts") +
+  Plot_theme
+
+p_rt_raw + p_rt_log
+```
+
+```{r}
+fastest <- crossings[which.min(crossings$wire), ]
+n_impossible <- sum(attempts$position > attempts$wire)
+# Intraclass correlation from a random-intercept model: between-mouse variance over total
+# variance (a one-way ANOVA's share of sums of squares would also count residual noise)
+m_icc <- glmmTMB(log_wire ~ 1 + (1 | mouse), data = crossings)
+var_mouse <- as.numeric(VarCorr(m_icc)$cond$mouse[1, 1])
+icc_wire <- var_mouse / (var_mouse + sigma(m_icc)^2)
+```
+
+There are two features here and it matters to separate them. The first is the [skew]{style="color:green; font-weight:bold;"}: a time is positive, and the natural way for it to vary is multiplicatively, a slow mouse is 20% slower, not four seconds slower. Taking logs turns multiplication into addition, and it's why the bulk of the distribution on the right looks like a decent hump. That is a *transformation* problem and the log deals with it. The second feature is a single point at the far left of the log scale: one attempt, by mouse `r fastest$mouse` on day `r fastest$day`, recorded a crossing time of `r fastest$wire` second, for an attempt in which the same row records `r fastest$position` seconds to get into position. That is impossible if the total time includes getting into position, and the file has `r n_impossible` such record among these two genotypes. I don't know what happened (a typo, a stopwatch pressed late), and neither will the model. The real distribution has no cluster of "lapses" the way a distracted-animal dataset might; it has one value that doesn't belong.
+
+::: callout-tip
+### Why not model the raw seconds with a Student-*t*?
+
+Because the two problems are different and deserve different tools. A Student-*t* on raw times would be asked to handle the skew *and* the odd value with the same parameter, and it does the first badly. So I take logs, which handles the skew honestly, and leave the Student-*t* the job it's for: the extreme values that are left. (Reaction-time modelers also use the lognormal and its cousin the shifted lognormal, which build the skew into the likelihood instead of the transformation. That's a legitimate alternative that this chapter doesn't pursue.)
+:::
+
+::: callout-warning
+### Two shortcuts in this section, on purpose
+
+First, I use only completed attempts. A failed attempt has no crossing time: the clock stops at the 60-second cap, so its recorded time is a lower bound, not a measurement. Dropping those attempts means the model describes how long a crossing takes *when the mouse makes it*, and says nothing about how long it would have taken the ones that failed. The principled repair is a censored regression, which treats the 60 seconds as "at least this long", and it is a topic for the chapter on missing and censored data. <!-- TODO: link the chapter on missing data and censoring once it exists. -->
+
+Second, I treat the `r nrow(crossings)` attempts as independent observations, and they are not: they come from `r length(unique(crossings$mouse))` mice, and about `r round(100 * icc_wire)`% of the variance of the log crossing time is between mice, not between attempts of the same mouse. The model will behave as if it had `r nrow(crossings)` independent observations of the genotype effect, and it has `r length(unique(crossings$mouse))` mice. Its interval for genotype will be narrower than it should be. That's the shortcut of this section, deferred on purpose to the multilevel part of the book. <!-- TODO: link @sec-multilevel-glmm once that chapter exists. -->
+:::
+
+### The Gaussian on log crossing times
+
+Start with what you'd do by default. The outcome is `log_wire`, the predictors are `genotype`, `day_c` (the day of training, centred on day 2) and `attempt_c` (the attempt within the day, centred on the second), because mice usually get faster with practice. Priors on the log scale: the intercept is the log of the crossing time of a wild-type mouse on a mid-training attempt, and `Normal(3, 0.7)` is centred on 20 seconds and covers roughly 5 to 80, which is wider than anything the test allows; the coefficients get `Normal(0, 0.5)`, which puts 95% of its mass between about 0.4 and 2.7 times the crossing time per unit, since a coefficient on the log scale is a proportional change. For `sigma` I use an `Exponential(2)`, which puts most of its mass at values below one on the log scale.
+
+```{r}
+prior_rt <- c(
+  prior(normal(3, 0.7), class = "Intercept"),
+  prior(normal(0, 0.5), class = "b"),
+  prior(exponential(2), class = "sigma")
+)
+
+fit_rt_gauss <- brm(
+  log_wire ~ genotype + day_c + attempt_c,
+  data = crossings,
+  prior = prior_rt,
+  seed = 123,
+  file = "models/beta-robust-regression_fit6.rds",
+  file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_rt_gauss)
+```
+
+### lm
+
+```{r}
+lm_rt <- lm(log_wire ~ genotype + day_c + attempt_c, data = crossings)
+
+tidy(lm_rt, conf.int = TRUE)
+```
+:::
+
+Sampling is healthy and the coefficients are reasonable. The trouble, as always, is what the model believes about the data it hasn't seen. A Gaussian says that a value more than three standard deviations from its expected value is a once-in-a-thousand event. To see how it copes with the odd one out, I'll ask it what it expects the *fastest* crossing in a set of this many attempts to be, and compare it with the fastest one we saw.
+
+```{r}
+#| label: fig-beta_rt_ppc_gauss
+#| fig-cap: Posterior predictive checks for the Gaussian model of log crossing times. Left, densities of replicated data (light lines) against the observed density (dark line). Right, fastest crossing in replicated data (histogram) against the observed fastest crossing (line).
+#| fig-width: 8
+#| fig-height: 3.8
+#| warning: false
+#| message: false
+
+p_rt1 <- pp_check(fit_rt_gauss, ndraws = 50) +
+  labs(x = "log(crossing time)")
+p_rt2 <- pp_check(fit_rt_gauss, type = "stat", stat = "min", ndraws = 500) +
+  labs(x = "Fastest crossing, log(time)")
+
+p_rt1 + p_rt2 + plot_layout(widths = c(1.4, 1))
+```
+
+The density overlay is the gentle version of the message: the replicated densities follow the bulk of the data reasonably well, which is the evidence for the log transformation, though not perfectly (the observed density is flatter on top and has a shoulder on the right that the replicates smooth over). The right panel is the blunt version. The fastest crossing that the model generates in a set of this size is nowhere near the one we recorded, which sits beyond the whole histogram. And a Gaussian pays for an inability to expect such a point twice: it stretches `sigma` to be less surprised, and it pulls the fitted values a little toward it.
+
+### Student-*t*: a Gaussian that isn't shocked
+
+Here is the picture I use for the [Student-*t* distribution]{style="color:green; font-weight:bold;"}. A Gaussian is a colleague who is never surprised until suddenly, at three standard deviations, they are astonished. The Student-*t* is a colleague who has seen a few things: they expect the bulk of the data to look like a bell, and they have made peace with the occasional extreme value. The dial that sets how much they've seen is $\nu$, the *degrees of freedom*. A small $\nu$ (say 3 to 5) is a very worldly colleague, with heavy tails that give extreme values a real chance; as $\nu$ grows, the tails thin, and for $\nu$ above about 30 the Student-*t* is practically indistinguishable from a Gaussian [@kruschke2015]. The mean and the scale parameter play the roles of the mean and `sigma` of the Gaussian, so the regression part is *exactly* the same:
+
+$$
+y_i \sim \text{Student-}t(\nu, \mu_i, \sigma), \qquad \mu_i = \beta_0 + \beta_1 x_{1i} + \dots
+$$ {#eq-student}
+
+What makes this a [robust regression]{style="color:green; font-weight:bold;"} is what happens to the outliers: a Gaussian penalizes a far point quadratically, so a single wild value can drag the fitted line toward itself; the Student-*t*'s heavy tail gives the same point a lot of probability density, and so the model has no need to bend the coefficients to accommodate it [@kruschke2015]. And $\nu$ is estimated from the data, which means the model decides for itself how heavy-tailed it needs to be. The prior for $\nu$ needs some thought, because a handful of extreme points can't say much about tails. `brms` defaults to `Gamma(2, 0.1)`, which has a mean of 20 and allows small values if the data ask for them, and that's what I'll use, with a sensitivity check afterward.
+
+```{r}
+prior_rt_t <- c(prior_rt, prior(gamma(2, 0.1), class = "nu"))
+
+fit_rt_t <- brm(
+  log_wire ~ genotype + day_c + attempt_c,
+  data = crossings,
+  family = student(),
+  prior = prior_rt_t,
+  seed = 123,
+  file = "models/beta-robust-regression_fit7.rds",
+  file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_rt_t)
+```
+
+### glmmTMB
+
+```{r}
+glmm_rt_t <- glmmTMB(log_wire ~ genotype + day_c + attempt_c, family = t_family(),
+                     data = crossings)
+
+summary(glmm_rt_t)
+```
+:::
+
+```{r}
+draws_rt_t <- as.data.frame(posterior::as_draws_df(fit_rt_t))
+draws_rt_g <- as.data.frame(posterior::as_draws_df(fit_rt_gauss))
+```
+
+The change to look for first is in the tail parameter. $\nu$ comes out at `r summ(draws_rt_t$nu, 1)`. With one clear outlier in `r nrow(crossings)` attempts, there is little for the tails to learn from, and I'd read that interval as "not very heavy-tailed, and not very sure", not as a property of mouse neurobiology. The second change is in the scale. A Student-*t*'s `sigma` isn't a standard deviation (that is $\sigma\sqrt{\nu/(\nu-2)}$), but it is the scale of the *bulk* of the data, and it moves from `r round(median(draws_rt_g$sigma), 2)` in the Gaussian to `r round(median(draws_rt_t$sigma), 2)` in the Student-*t*: the model no longer stretches the whole bell to fit a single point. Here are the two models' estimates for the coefficients.
+
+```{r}
+#| label: tbl-beta_rt_compare
+#| tbl-cap: Coefficients (log scale) and scale parameter of the Gaussian and Student-t models for log crossing time (posterior median and 95% credible interval)
+
+cmp_coef <- function(d) {
+  c(Intercept = summ(d$b_Intercept), `KO vs wild-type` = summ(d$b_genotypeKO),
+    `Day (per day)` = summ(d$b_day_c, 3), `Attempt (per attempt)` = summ(d$b_attempt_c, 3),
+    `sigma` = summ(d$sigma))
+}
+
+gt(data.frame(
+  Parameter = names(cmp_coef(draws_rt_g)),
+  Gaussian = unname(cmp_coef(draws_rt_g)),
+  `Student-t` = unname(cmp_coef(draws_rt_t)),
+  check.names = FALSE
+))
+```
+
+Read the table for what *didn't* happen. The coefficients that matter to the science, the genotype difference and the effect of practice, barely move between the two models, and the intervals are about the same. That is the usual fate of robust regression on a dataset with a single odd value out of hundreds: it doesn't overturn a conclusion, it confirms that the conclusion wasn't hanging on that value. A Student-*t* that agrees with the Gaussian is a *sensitivity analysis* that passed, and I find that more useful than the dramatic examples in textbooks, because it is the thing you will actually see.
+
+```{r}
+#| include: false
+
+set.seed(2)
+min_rep_t <- apply(posterior_predict(fit_rt_t, ndraws = 500), 1, min)
+min_rep_g <- apply(posterior_predict(fit_rt_gauss, ndraws = 500), 1, min)
+share_min_t <- mean(min_rep_t <= min(crossings$log_wire))
+share_min_g <- mean(min_rep_g <= min(crossings$log_wire))
+```
+
+```{r}
+#| label: fig-beta_rt_ppc_t
+#| fig-cap: Posterior predictive checks for the Student-t model of log crossing times (same layout as the Gaussian check)
+#| fig-width: 8
+#| fig-height: 3.8
+#| warning: false
+#| message: false
+
+p_rt3 <- pp_check(fit_rt_t, ndraws = 50) +
+  labs(x = "log(crossing time)")
+p_rt4 <- pp_check(fit_rt_t, type = "stat", stat = "min", ndraws = 500) +
+  labs(x = "Fastest crossing, log(time)")
+
+p_rt3 + p_rt4 + plot_layout(widths = c(1.4, 1))
+```
+
+The right panel needs a careful reading, because it is the check the Gaussian failed. The observed fastest crossing is `r round(min(crossings$wire), 0)` second, which is a log of `r round(min(crossings$log_wire), 1)`. In a typical replicate the Gaussian's fastest crossing takes about `r round(exp(median(min_rep_g)), 1)` seconds, and the Student-*t*'s about `r round(exp(median(min_rep_t)), 1)`. The Student-*t* gets closer, and it does so by giving the left tail room to reach: the observed value is no longer beyond all of the replicates, since `r round(100 * share_min_t)`% of the Student-*t* replicates reach it, against `r round(100 * share_min_g)`% for the Gaussian, so it sits at the edge of what the model can produce, not outside it. The same room exists on the slow side, so the model is also more tolerant of slow values than the data seem to need. It's a good model of the bulk, which is what we need for the genotype and practice effects, and a single point can't tell it how heavy the tails really are.
+
+Leave-one-out cross-validation gives a third view, for the same outcome, so the comparison is legitimate. I also report how many attempts have a Pareto-$k$ above 0.7, the signal from @sec-count-regression that the approximation is unreliable for that observation.
+
+```{r}
+#| label: tbl-beta_loo_rt
+#| tbl-cap: Leave-one-out comparison of the Gaussian and Student-t models for log crossing time, with the number of attempts whose Pareto-k exceeds 0.7 in each
+#| warning: false
+
+loo_rt_g <- loo(fit_rt_gauss)
+loo_rt_t <- loo(fit_rt_t)
+cmp_rt <- loo_compare(list("Gaussian" = loo_rt_g, "Student-t" = loo_rt_t))
+
+loos_rt <- list("Gaussian" = loo_rt_g, "Student-t" = loo_rt_t)
+n_bad <- vapply(loos_rt, function(l) sum(loo::pareto_k_values(l) > 0.7), numeric(1))
+
+gt(data.frame(
+  Model = rownames(cmp_rt),
+  `elpd difference` = round(cmp_rt[, "elpd_diff"], 1),
+  `SE of difference` = round(cmp_rt[, "se_diff"], 1),
+  `Attempts with Pareto-k above 0.7` = unname(n_bad[rownames(cmp_rt)]),
+  check.names = FALSE
+))
+```
+
+```{r}
+best_rt <- rownames(cmp_rt)[1]
+```
+
+The model with the higher elpd is the `r best_rt`, by `r round(abs(cmp_rt[2, "elpd_diff"]), 1)` units against a standard error of `r round(cmp_rt[2, "se_diff"], 1)`: `r if (abs(cmp_rt[2, "elpd_diff"]) < cmp_rt[2, "se_diff"]) "smaller than its own uncertainty, so predictive accuracy does not separate the two models" else "larger than its own uncertainty"`. The Gaussian has `r n_bad["Gaussian"]` attempt(s) with a problematic Pareto-$k$ and the Student-*t* has `r n_bad["Student-t"]`. As always, the comparison is a *relative* statement; with one odd value among hundreds of attempts, I wouldn't expect cross-validation to pick a winner, and it's the predictive check above that carries the argument.
+
+::: callout-warning
+### "Robust" is not "delete the outliers"
+
+There's a tempting alternative to everything in this section: find the odd value, drop it, and fit the Gaussian on what's left. Here the temptation has a better excuse than usual, because the value is *impossible* by the file's own logic, and I'll show you what that alternative gives. But notice the two things wrong with it as a habit. The first is that "odd" needs a threshold, and any threshold is a decision made after looking at the outcome, in a direction that tends to favour the hypothesis. The second is that the model then reports uncertainty as if the deleted value had never happened. A robust likelihood keeps every attempt and lets $\nu$ report how much of that noise there is. If a value has a *known cause*, a time that is shorter than the same attempt's own positioning time, that's a reason to exclude it, and you write down why. If the only reason is that it looks big, that is what the tail of the Student-*t* is for.
+:::
+
+Since this value does have a known cause, here is the Gaussian refitted without the attempts whose position time exceeds their total time, next to the other two.
+
+```{r}
+crossings_clean <- crossings[crossings$position <= crossings$wire, ]
+
+fit_rt_gauss_clean <- brm(
+  log_wire ~ genotype + day_c + attempt_c,
+  data = crossings_clean,
+  prior = prior_rt,
+  seed = 123,
+  file = "models/beta-robust-regression_fit10.rds",
+  file_refit = "never"
+)
+```
+
+### How sensitive is $\nu$ to the prior?
+
+I said I'd check, and the parameter that most deserves it is the one that a single extreme point has to identify. I'll refit with two other priors on $\nu$ from the literature. One is @kruschke2015's, an exponential prior on $\nu - 1$ with a mean of 29, which spreads prior mass over both the heavy-tailed and near-Gaussian regimes. The other fixes $\nu$ at 7, a value that a number of practitioners use as a pragmatic default when the data are too few to estimate it.
+
+```{r}
+fit_rt_t_kruschke <- brm(
+  log_wire ~ genotype + day_c + attempt_c,
+  data = crossings,
+  family = student(),
+  # Rate 1/29, written as a number because brms does not parse "1/29" here
+  prior = c(prior_rt, prior(exponential(0.0345), class = "nu")),
+  seed = 123,
+  file = "models/beta-robust-regression_fit8.rds",
+  file_refit = "never"
+)
+
+fit_rt_t_nu7 <- brm(
+  bf(log_wire ~ genotype + day_c + attempt_c, nu = 7),
+  data = crossings,
+  family = student(),
+  prior = prior_rt,
+  seed = 123,
+  file = "models/beta-robust-regression_fit9.rds",
+  file_refit = "never"
+)
+```
+
+```{r}
+#| label: tbl-beta_rt_sensitivity
+#| tbl-cap: Effect of genotype on log crossing time, and the tail parameter, under every way of handling the odd value that this chapter tried
+
+get_group <- function(m) summ(as.data.frame(posterior::as_draws_df(m))$b_genotypeKO)
+get_nu <- function(m) {
+  d <- as.data.frame(posterior::as_draws_df(m))
+  if ("nu" %in% names(d)) summ(d$nu, 1) else "not estimated"
+}
+
+fits_sens <- list("Gaussian, all attempts" = fit_rt_gauss,
+                  "Gaussian, impossible record removed" = fit_rt_gauss_clean,
+                  "Student-t, Gamma(2, 0.1) on nu (used)" = fit_rt_t,
+                  "Student-t, exponential, mean 29 (Kruschke)" = fit_rt_t_kruschke,
+                  "Student-t, nu fixed at 7" = fit_rt_t_nu7)
+
+gt(data.frame(
+  `Handling of the odd value` = names(fits_sens),
+  `KO vs wild-type (log scale)` = vapply(fits_sens, get_group, character(1)),
+  `ν` = vapply(fits_sens, get_nu, character(1)),
+  check.names = FALSE
+))
+```
+
+The genotype coefficient moves very little across the five, which is the sign of a conclusion that isn't riding on a delicate choice. Removing the impossible record by hand and letting the Student-*t* absorb it give essentially the same answer, and that is the argument for the robust model: it did automatically, and without a judgement call, what a careful analyst would have done by hand. I would still report $\nu$ with its interval and not give it a biological interpretation. What matters is that the conclusion about genotype doesn't wait for it.
+
+### Reading the effect
+
+A coefficient on the log scale is a proportional change, so exponentiating it gives a *ratio of crossing times*, which is the way a person thinks about speed: "KO crossings take X times as long".
+
+```{r}
+rt_ratio <- exp(draws_rt_t$b_genotypeKO)
+```
+
+KO mice take `r summ(rt_ratio)` times as long to cross as wild-type mice on the same day and attempt, which is `r summ(100 * (rt_ratio - 1), 0)`% longer; the same reading for practice is that each additional day multiplies the crossing time by `r summ(exp(draws_rt_t$b_day_c), 2)`. These are ratios of *typical* crossing times (medians on the seconds scale, since the mean of the log is the log of the median), which is what I would want to report about a variable that is skewed. Remember what the two shortcuts above did to that interval: it's too narrow, because the model counted `r nrow(crossings)` attempts as if they came from as many mice, and it describes only completed crossings.
+
 ## When the proportion is the measurement: the beta distribution
 
-The beta-binomial was a rescue for a proportion built from a known number of trials. The other kind of proportion is the one that, by the nature of the experiment, is *itself* the measurement. For it I'm going to leave the wire for a different bench: the open field. A mouse is placed in an arena and a tracking system records where it spends five minutes. The software splits the arena into zones and reports the seconds spent in each, and the one I care about is the center. Mice are cautious animals: they hug the walls and cross the middle only when they feel safe enough, so the share of the session spent in the center is a classic readout of exploratory drive against anxiety, and exactly the kind of thing a brain injury could change. **Does the first day after an ischemic stroke change how much of the session a mouse spends in the center, and does it do so differently in mice that lack Klf4?**
+Back to proportions, now of the other kind. The beta-binomial was a rescue for a proportion built from a known number of trials; the other kind is the one that, by the nature of the experiment, is *itself* the measurement. For it I'm going to leave the wire for a different bench: the open field. A mouse is placed in an arena and a tracking system records where it spends five minutes. The software splits the arena into zones and reports the seconds spent in each, and the one I care about is the center. Mice are cautious animals: they hug the walls and cross the middle only when they feel safe enough, so the share of the session spent in the center is a classic readout of exploratory drive against anxiety, and exactly the kind of thing a brain injury could change. **Does the first day after an ischemic stroke change how much of the session a mouse spends in the center, and does it do so differently in mice that lack Klf4?**
 
 ### What one row is, and a column that wasn't what it said
 
-The file is `OpenField_Summary.csv`, which I put together myself. One row is one animal on one test day. Animals were tested 0, 1, 4, 8, 15 and 22 days after ischemia (DPI, as in the histology data; most of them on all six days), and day 0 is the baseline, before any lesion. The groups are genotypes with their treatments (`Tmx` marks animals injected with tamoxifen). I'll use four of them: wild-type and Klf4-KO mice, each either sham-operated (the groups with `Sham` in their name) or with ischemia. Three of the zones, center, arena and borders, split the session between them, so their times should add up to the five minutes; a fourth, walls, is the time spent exploring the walls and is not part of that split. These are different animals from the wire mice (the two files share no identifiers), so nothing in this section is the same mouse as in the previous ones.
+The file is `OpenField_Summary.csv`, which I put together myself. One row is one animal on one test day. Animals were tested 0, 1, 4, 8, 15 and 22 days after ischemia (DPI, as in the histology data; most of them on all six days), and day 0 is the baseline, before any lesion. The groups are genotypes with their treatments (`Tmx` marks animals injected with tamoxifen). I'll use four of them: wild-type and Klf4-KO mice, each either sham-operated (the groups with `Sham` in their name) or with ischemia. Three of the zones, center, arena and borders, split the session between them, so their times should add up to the five minutes; a fourth, walls, is the time spent exploring the walls and is not part of that split. These are different animals from the wire mice (the two files share no identifiers), so nothing in this section is the same mouse as in the sections before it.
 
 ```{r}
 of_raw <- read.csv(here("project/AnalysisData/OpenField_Summary.csv"), check.names = FALSE)
@@ -460,7 +778,7 @@ ggplot(oft, aes(x = group, y = share, color = genotype, shape = surgery)) +
 
 The sham mice, of both genotypes, sit within a few points of a few percent: a mean of `r round(100 * share_means["WT sham"])`% for wild types and `r round(100 * share_means["KO sham"])`% for Klf4-KO, with standard deviations of `r round(100 * share_sds["WT sham"])` and `r round(100 * share_sds["KO sham"])` points. The ischemic mice are a different animal altogether: a wild-type mean of `r round(100 * share_means["WT ischemia"])`% with a standard deviation of `r round(100 * share_sds["WT ischemia"])` points, and Klf4-KO mice with a mean of `r round(100 * share_means["KO ischemia"])`% and a standard deviation of `r round(100 * share_sds["KO ischemia"])`, ranging from none at all to nearly everything. A Gaussian model would have to describe all four groups with one `sigma`, and the groups don't scatter alike. This is a proportion with a wall at zero, and the scatter depends on how far from the wall a group sits.
 
-The [beta distribution]{style="color:green; font-weight:bold;"} has exactly those properties, and it lives between 0 and 1 by construction. It has two parameters, and there are two ways to write them. The classical one uses two positive shape numbers, $\alpha$ and $\beta$; the one that suits regression, which goes back to @ferrari2004, uses the *mean* $\mu$ and a [precision]{style="color:green; font-weight:bold;"} $\phi$, with $\alpha = \mu\phi$ and $\beta = (1-\mu)\phi$. You've just met $\phi$ in the beta-binomial: it's the same precision, and it is the "sample size equivalent" of the distribution, larger values pack the values closer around $\mu$. The variance depends on the mean in the way our intuition wanted [@inchausti2023]:
+The [beta distribution]{style="color:green; font-weight:bold;"} has exactly those properties, and it lives between 0 and 1 by construction. It has two parameters, and there are two ways to write them. The classical one uses two positive shape numbers, $\alpha$ and $\beta$; the one that suits regression, which goes back to @ferrari2004, uses the *mean* $\mu$ and a [precision]{style="color:green; font-weight:bold;"} $\phi$, with $\alpha = \mu\phi$ and $\beta = (1-\mu)\phi$. You met $\phi$ in the beta-binomial: it's the same precision, and it is the "sample size equivalent" of the distribution, larger values pack the values closer around $\mu$. The variance depends on the mean in the way our intuition wanted [@inchausti2023]:
 
 $$
 y_i \sim \text{Beta}(\mu_i\phi, (1-\mu_i)\phi), \qquad \text{logit}(\mu_i) = \beta_0 + \beta_1 x_{1i} + \dots, \qquad \text{Var}(y_i) = \frac{\mu_i(1-\mu_i)}{1+\phi}
@@ -842,324 +1160,6 @@ gt(data.frame(
 
 The effect of ischemia in wild-type mice stays clearly positive under all four, and the interaction keeps its wide interval around zero under all four. That is what I wanted to be able to say: the conclusion doesn't depend on the two choices I could vary, even though both of them were mine. That table is what you can show instead of the usual alternative with a messy file, which is to quietly drop whatever looks odd and report the clean result.
 
-## A different kind of trouble: crossing times and the odd one out
-
-Now for a variable that can behave badly in another way. Every attempt that a mouse completes has a crossing time: the seconds from the start of the attempt until it reached the platform. You've almost certainly seen the histogram of a time like this: a hump and a long right tail. **Does genotype change how long a crossing takes, and do mice speed up with practice?** I'll use only the attempts a mouse completed, and I'll come back to what that leaves out. Before any model, here is the distribution of the `r nrow(crossings)` crossing times, on the seconds scale and on the log scale.
-
-```{r}
-#| label: fig-beta_rt_raw
-#| fig-cap: Distribution of the completed crossing times, in seconds (left) and on the log scale (right). The vertical line marks the median.
-#| fig-width: 8
-#| fig-height: 3.4
-#| warning: false
-
-p_rt_raw <- ggplot(crossings, aes(x = wire)) +
-  geom_histogram(bins = 50, fill = "#0072B2", color = "white") +
-  geom_vline(xintercept = median(crossings$wire), linetype = "dashed") +
-  labs(x = "Crossing time (s)", y = "Attempts") +
-  Plot_theme
-
-p_rt_log <- ggplot(crossings, aes(x = log_wire)) +
-  geom_histogram(bins = 50, fill = "#0072B2", color = "white") +
-  geom_vline(xintercept = median(crossings$log_wire), linetype = "dashed") +
-  labs(x = "log(crossing time in s)", y = "Attempts") +
-  Plot_theme
-
-p_rt_raw + p_rt_log
-```
-
-```{r}
-fastest <- crossings[which.min(crossings$wire), ]
-n_impossible <- sum(attempts$position > attempts$wire)
-# Intraclass correlation from a random-intercept model: between-mouse variance over total
-# variance (a one-way ANOVA's share of sums of squares would also count residual noise)
-m_icc <- glmmTMB(log_wire ~ 1 + (1 | mouse), data = crossings)
-var_mouse <- as.numeric(VarCorr(m_icc)$cond$mouse[1, 1])
-icc_wire <- var_mouse / (var_mouse + sigma(m_icc)^2)
-```
-
-There are two features here and it matters to separate them. The first is the [skew]{style="color:green; font-weight:bold;"}: a time is positive, and the natural way for it to vary is multiplicatively, a slow mouse is 20% slower, not four seconds slower. Taking logs turns multiplication into addition, and it's why the bulk of the distribution on the right looks like a decent hump. That is a *transformation* problem and the log deals with it. The second feature is a single point at the far left of the log scale: one attempt, by mouse `r fastest$mouse` on day `r fastest$day`, recorded a crossing time of `r fastest$wire` second, for an attempt in which the same row records `r fastest$position` seconds to get into position. That is impossible if the total time includes getting into position, and the file has `r n_impossible` such record among these two genotypes. I don't know what happened (a typo, a stopwatch pressed late), and neither will the model. The real distribution has no cluster of "lapses" the way a distracted-animal dataset might; it has one value that doesn't belong.
-
-::: callout-tip
-### Why not model the raw seconds with a Student-*t*?
-
-Because the two problems are different and deserve different tools. A Student-*t* on raw times would be asked to handle the skew *and* the odd value with the same parameter, and it does the first badly. So I take logs, which handles the skew honestly, and leave the Student-*t* the job it's for: the extreme values that are left. (Reaction-time modelers also use the lognormal and its cousin the shifted lognormal, which build the skew into the likelihood instead of the transformation. That's a legitimate alternative that this chapter doesn't pursue.)
-:::
-
-::: callout-warning
-### Two shortcuts in this section, on purpose
-
-First, I use only completed attempts. A failed attempt has no crossing time: the clock stops at the 60-second cap, so its recorded time is a lower bound, not a measurement. Dropping those attempts means the model describes how long a crossing takes *when the mouse makes it*, and says nothing about how long it would have taken the ones that failed. The principled repair is a censored regression, which treats the 60 seconds as "at least this long", and it is a topic for the chapter on missing and censored data. <!-- TODO: link the chapter on missing data and censoring once it exists. -->
-
-Second, I treat the `r nrow(crossings)` attempts as independent observations, and they are not: they come from `r length(unique(crossings$mouse))` mice, and about `r round(100 * icc_wire)`% of the variance of the log crossing time is between mice, not between attempts of the same mouse. The model will behave as if it had `r nrow(crossings)` independent observations of the genotype effect, and it has `r length(unique(crossings$mouse))` mice. Its interval for genotype will be narrower than it should be. That's the shortcut of this section, deferred on purpose to the multilevel part of the book. <!-- TODO: link @sec-multilevel-glmm once that chapter exists. -->
-:::
-
-### The Gaussian on log crossing times
-
-Start with what you'd do by default. The outcome is `log_wire`, the predictors are `genotype`, `day_c` (the day of training, centred on day 2) and `attempt_c` (the attempt within the day, centred on the second), because mice usually get faster with practice. Priors on the log scale: the intercept is the log of the crossing time of a wild-type mouse on a mid-training attempt, and `Normal(3, 0.7)` is centred on 20 seconds and covers roughly 5 to 80, which is wider than anything the test allows; the coefficients get `Normal(0, 0.5)`, which puts 95% of its mass between about 0.4 and 2.7 times the crossing time per unit, since a coefficient on the log scale is a proportional change. For `sigma` I use an `Exponential(2)`, which puts most of its mass at values below one on the log scale.
-
-```{r}
-prior_rt <- c(
-  prior(normal(3, 0.7), class = "Intercept"),
-  prior(normal(0, 0.5), class = "b"),
-  prior(exponential(2), class = "sigma")
-)
-
-fit_rt_gauss <- brm(
-  log_wire ~ genotype + day_c + attempt_c,
-  data = crossings,
-  prior = prior_rt,
-  seed = 123,
-  file = "models/beta-robust-regression_fit6.rds",
-  file_refit = "never"
-)
-```
-
-::: panel-tabset
-### brms
-
-```{r}
-summary(fit_rt_gauss)
-```
-
-### lm
-
-```{r}
-lm_rt <- lm(log_wire ~ genotype + day_c + attempt_c, data = crossings)
-
-tidy(lm_rt, conf.int = TRUE)
-```
-:::
-
-Sampling is healthy and the coefficients are reasonable. The trouble, as always, is what the model believes about the data it hasn't seen. A Gaussian says that a value more than three standard deviations from its expected value is a once-in-a-thousand event. To see how it copes with the odd one out, I'll ask it what it expects the *fastest* crossing in a set of this many attempts to be, and compare it with the fastest one we saw.
-
-```{r}
-#| label: fig-beta_rt_ppc_gauss
-#| fig-cap: Posterior predictive checks for the Gaussian model of log crossing times. Left, densities of replicated data (light lines) against the observed density (dark line). Right, fastest crossing in replicated data (histogram) against the observed fastest crossing (line).
-#| fig-width: 8
-#| fig-height: 3.8
-#| warning: false
-#| message: false
-
-p_rt1 <- pp_check(fit_rt_gauss, ndraws = 50) +
-  labs(x = "log(crossing time)")
-p_rt2 <- pp_check(fit_rt_gauss, type = "stat", stat = "min", ndraws = 500) +
-  labs(x = "Fastest crossing, log(time)")
-
-p_rt1 + p_rt2 + plot_layout(widths = c(1.4, 1))
-```
-
-The density overlay is the gentle version of the message: the replicated densities follow the bulk of the data reasonably well, which is the evidence for the log transformation, though not perfectly (the observed density is flatter on top and has a shoulder on the right that the replicates smooth over). The right panel is the blunt version. The fastest crossing that the model generates in a set of this size is nowhere near the one we recorded, which sits beyond the whole histogram. And a Gaussian pays for an inability to expect such a point twice: it stretches `sigma` to be less surprised, and it pulls the fitted values a little toward it.
-
-### Student-*t*: a Gaussian that isn't shocked
-
-Here is the picture I use for the [Student-*t* distribution]{style="color:green; font-weight:bold;"}. A Gaussian is a colleague who is never surprised until suddenly, at three standard deviations, they are astonished. The Student-*t* is a colleague who has seen a few things: they expect the bulk of the data to look like a bell, and they have made peace with the occasional extreme value. The dial that sets how much they've seen is $\nu$, the *degrees of freedom*. A small $\nu$ (say 3 to 5) is a very worldly colleague, with heavy tails that give extreme values a real chance; as $\nu$ grows, the tails thin, and for $\nu$ above about 30 the Student-*t* is practically indistinguishable from a Gaussian [@kruschke2015]. The mean and the scale parameter play the roles of the mean and `sigma` of the Gaussian, so the regression part is *exactly* the same:
-
-$$
-y_i \sim \text{Student-}t(\nu, \mu_i, \sigma), \qquad \mu_i = \beta_0 + \beta_1 x_{1i} + \dots
-$$ {#eq-student}
-
-What makes this a [robust regression]{style="color:green; font-weight:bold;"} is what happens to the outliers: a Gaussian penalizes a far point quadratically, so a single wild value can drag the fitted line toward itself; the Student-*t*'s heavy tail gives the same point a lot of probability density, and so the model has no need to bend the coefficients to accommodate it [@kruschke2015]. And $\nu$ is estimated from the data, which means the model decides for itself how heavy-tailed it needs to be. The prior for $\nu$ needs some thought, because a handful of extreme points can't say much about tails. `brms` defaults to `Gamma(2, 0.1)`, which has a mean of 20 and allows small values if the data ask for them, and that's what I'll use, with a sensitivity check afterward.
-
-```{r}
-prior_rt_t <- c(prior_rt, prior(gamma(2, 0.1), class = "nu"))
-
-fit_rt_t <- brm(
-  log_wire ~ genotype + day_c + attempt_c,
-  data = crossings,
-  family = student(),
-  prior = prior_rt_t,
-  seed = 123,
-  file = "models/beta-robust-regression_fit7.rds",
-  file_refit = "never"
-)
-```
-
-::: panel-tabset
-### brms
-
-```{r}
-summary(fit_rt_t)
-```
-
-### glmmTMB
-
-```{r}
-glmm_rt_t <- glmmTMB(log_wire ~ genotype + day_c + attempt_c, family = t_family(),
-                     data = crossings)
-
-summary(glmm_rt_t)
-```
-:::
-
-```{r}
-draws_rt_t <- as.data.frame(posterior::as_draws_df(fit_rt_t))
-draws_rt_g <- as.data.frame(posterior::as_draws_df(fit_rt_gauss))
-```
-
-The change to look for first is in the tail parameter. $\nu$ comes out at `r summ(draws_rt_t$nu, 1)`. With one clear outlier in `r nrow(crossings)` attempts, there is little for the tails to learn from, and I'd read that interval as "not very heavy-tailed, and not very sure", not as a property of mouse neurobiology. The second change is in the scale. A Student-*t*'s `sigma` isn't a standard deviation (that is $\sigma\sqrt{\nu/(\nu-2)}$), but it is the scale of the *bulk* of the data, and it moves from `r round(median(draws_rt_g$sigma), 2)` in the Gaussian to `r round(median(draws_rt_t$sigma), 2)` in the Student-*t*: the model no longer stretches the whole bell to fit a single point. Here are the two models' estimates for the coefficients.
-
-```{r}
-#| label: tbl-beta_rt_compare
-#| tbl-cap: Coefficients (log scale) and scale parameter of the Gaussian and Student-t models for log crossing time (posterior median and 95% credible interval)
-
-cmp_coef <- function(d) {
-  c(Intercept = summ(d$b_Intercept), `KO vs wild-type` = summ(d$b_genotypeKO),
-    `Day (per day)` = summ(d$b_day_c, 3), `Attempt (per attempt)` = summ(d$b_attempt_c, 3),
-    `sigma` = summ(d$sigma))
-}
-
-gt(data.frame(
-  Parameter = names(cmp_coef(draws_rt_g)),
-  Gaussian = unname(cmp_coef(draws_rt_g)),
-  `Student-t` = unname(cmp_coef(draws_rt_t)),
-  check.names = FALSE
-))
-```
-
-Read the table for what *didn't* happen. The coefficients that matter to the science, the genotype difference and the effect of practice, barely move between the two models, and the intervals are about the same. That is the usual fate of robust regression on a dataset with a single odd value out of hundreds: it doesn't overturn a conclusion, it confirms that the conclusion wasn't hanging on that value. A Student-*t* that agrees with the Gaussian is a *sensitivity analysis* that passed, and I find that more useful than the dramatic examples in textbooks, because it is the thing you will actually see.
-
-```{r}
-#| include: false
-
-set.seed(2)
-min_rep_t <- apply(posterior_predict(fit_rt_t, ndraws = 500), 1, min)
-min_rep_g <- apply(posterior_predict(fit_rt_gauss, ndraws = 500), 1, min)
-share_min_t <- mean(min_rep_t <= min(crossings$log_wire))
-share_min_g <- mean(min_rep_g <= min(crossings$log_wire))
-```
-
-```{r}
-#| label: fig-beta_rt_ppc_t
-#| fig-cap: Posterior predictive checks for the Student-t model of log crossing times (same layout as the Gaussian check)
-#| fig-width: 8
-#| fig-height: 3.8
-#| warning: false
-#| message: false
-
-p_rt3 <- pp_check(fit_rt_t, ndraws = 50) +
-  labs(x = "log(crossing time)")
-p_rt4 <- pp_check(fit_rt_t, type = "stat", stat = "min", ndraws = 500) +
-  labs(x = "Fastest crossing, log(time)")
-
-p_rt3 + p_rt4 + plot_layout(widths = c(1.4, 1))
-```
-
-The right panel needs a careful reading, because it is the check the Gaussian failed. The observed fastest crossing is `r round(min(crossings$wire), 0)` second, which is a log of `r round(min(crossings$log_wire), 1)`. In a typical replicate the Gaussian's fastest crossing takes about `r round(exp(median(min_rep_g)), 1)` seconds, and the Student-*t*'s about `r round(exp(median(min_rep_t)), 1)`. The Student-*t* gets closer, and it does so by giving the left tail room to reach: the observed value is no longer beyond all of the replicates, since `r round(100 * share_min_t)`% of the Student-*t* replicates reach it, against `r round(100 * share_min_g)`% for the Gaussian, so it sits at the edge of what the model can produce, not outside it. The same room exists on the slow side, so the model is also more tolerant of slow values than the data seem to need. It's a good model of the bulk, which is what we need for the genotype and practice effects, and a single point can't tell it how heavy the tails really are.
-
-Leave-one-out cross-validation gives a third view, for the same outcome, so the comparison is legitimate. I also report how many attempts have a Pareto-$k$ above 0.7, the signal from @sec-count-regression that the approximation is unreliable for that observation.
-
-```{r}
-#| label: tbl-beta_loo_rt
-#| tbl-cap: Leave-one-out comparison of the Gaussian and Student-t models for log crossing time, with the number of attempts whose Pareto-k exceeds 0.7 in each
-#| warning: false
-
-loo_rt_g <- loo(fit_rt_gauss)
-loo_rt_t <- loo(fit_rt_t)
-cmp_rt <- loo_compare(list("Gaussian" = loo_rt_g, "Student-t" = loo_rt_t))
-
-loos_rt <- list("Gaussian" = loo_rt_g, "Student-t" = loo_rt_t)
-n_bad <- vapply(loos_rt, function(l) sum(loo::pareto_k_values(l) > 0.7), numeric(1))
-
-gt(data.frame(
-  Model = rownames(cmp_rt),
-  `elpd difference` = round(cmp_rt[, "elpd_diff"], 1),
-  `SE of difference` = round(cmp_rt[, "se_diff"], 1),
-  `Attempts with Pareto-k above 0.7` = unname(n_bad[rownames(cmp_rt)]),
-  check.names = FALSE
-))
-```
-
-```{r}
-best_rt <- rownames(cmp_rt)[1]
-```
-
-The model with the higher elpd is the `r best_rt`, by `r round(abs(cmp_rt[2, "elpd_diff"]), 1)` units against a standard error of `r round(cmp_rt[2, "se_diff"], 1)`: `r if (abs(cmp_rt[2, "elpd_diff"]) < cmp_rt[2, "se_diff"]) "smaller than its own uncertainty, so predictive accuracy does not separate the two models" else "larger than its own uncertainty"`. The Gaussian has `r n_bad["Gaussian"]` attempt(s) with a problematic Pareto-$k$ and the Student-*t* has `r n_bad["Student-t"]`. As always, the comparison is a *relative* statement; with one odd value among hundreds of attempts, I wouldn't expect cross-validation to pick a winner, and it's the predictive check above that carries the argument.
-
-::: callout-warning
-### "Robust" is not "delete the outliers"
-
-There's a tempting alternative to everything in this section: find the odd value, drop it, and fit the Gaussian on what's left. Here the temptation has a better excuse than usual, because the value is *impossible* by the file's own logic, and I'll show you what that alternative gives. But notice the two things wrong with it as a habit. The first is that "odd" needs a threshold, and any threshold is a decision made after looking at the outcome, in a direction that tends to favour the hypothesis. The second is that the model then reports uncertainty as if the deleted value had never happened. A robust likelihood keeps every attempt and lets $\nu$ report how much of that noise there is. If a value has a *known cause*, a time that is shorter than the same attempt's own positioning time, that's a reason to exclude it, and you write down why. If the only reason is that it looks big, that is what the tail of the Student-*t* is for.
-:::
-
-Since this value does have a known cause, here is the Gaussian refitted without the attempts whose position time exceeds their total time, next to the other two.
-
-```{r}
-crossings_clean <- crossings[crossings$position <= crossings$wire, ]
-
-fit_rt_gauss_clean <- brm(
-  log_wire ~ genotype + day_c + attempt_c,
-  data = crossings_clean,
-  prior = prior_rt,
-  seed = 123,
-  file = "models/beta-robust-regression_fit10.rds",
-  file_refit = "never"
-)
-```
-
-### How sensitive is $\nu$ to the prior?
-
-I said I'd check, and the parameter that most deserves it is the one that a single extreme point has to identify. I'll refit with two other priors on $\nu$ from the literature. One is @kruschke2015's, an exponential prior on $\nu - 1$ with a mean of 29, which spreads prior mass over both the heavy-tailed and near-Gaussian regimes. The other fixes $\nu$ at 7, a value that a number of practitioners use as a pragmatic default when the data are too few to estimate it.
-
-```{r}
-fit_rt_t_kruschke <- brm(
-  log_wire ~ genotype + day_c + attempt_c,
-  data = crossings,
-  family = student(),
-  # Rate 1/29, written as a number because brms does not parse "1/29" here
-  prior = c(prior_rt, prior(exponential(0.0345), class = "nu")),
-  seed = 123,
-  file = "models/beta-robust-regression_fit8.rds",
-  file_refit = "never"
-)
-
-fit_rt_t_nu7 <- brm(
-  bf(log_wire ~ genotype + day_c + attempt_c, nu = 7),
-  data = crossings,
-  family = student(),
-  prior = prior_rt,
-  seed = 123,
-  file = "models/beta-robust-regression_fit9.rds",
-  file_refit = "never"
-)
-```
-
-```{r}
-#| label: tbl-beta_rt_sensitivity
-#| tbl-cap: Effect of genotype on log crossing time, and the tail parameter, under every way of handling the odd value that this chapter tried
-
-get_group <- function(m) summ(as.data.frame(posterior::as_draws_df(m))$b_genotypeKO)
-get_nu <- function(m) {
-  d <- as.data.frame(posterior::as_draws_df(m))
-  if ("nu" %in% names(d)) summ(d$nu, 1) else "not estimated"
-}
-
-fits_sens <- list("Gaussian, all attempts" = fit_rt_gauss,
-                  "Gaussian, impossible record removed" = fit_rt_gauss_clean,
-                  "Student-t, Gamma(2, 0.1) on nu (used)" = fit_rt_t,
-                  "Student-t, exponential, mean 29 (Kruschke)" = fit_rt_t_kruschke,
-                  "Student-t, nu fixed at 7" = fit_rt_t_nu7)
-
-gt(data.frame(
-  `Handling of the odd value` = names(fits_sens),
-  `KO vs wild-type (log scale)` = vapply(fits_sens, get_group, character(1)),
-  `ν` = vapply(fits_sens, get_nu, character(1)),
-  check.names = FALSE
-))
-```
-
-The genotype coefficient moves very little across the five, which is the sign of a conclusion that isn't riding on a delicate choice. Removing the impossible record by hand and letting the Student-*t* absorb it give essentially the same answer, and that is the argument for the robust model: it did automatically, and without a judgement call, what a careful analyst would have done by hand. I would still report $\nu$ with its interval and not give it a biological interpretation. What matters is that the conclusion about genotype doesn't wait for it.
-
-### Reading the effect
-
-A coefficient on the log scale is a proportional change, so exponentiating it gives a *ratio of crossing times*, which is the way a person thinks about speed: "KO crossings take X times as long".
-
-```{r}
-rt_ratio <- exp(draws_rt_t$b_genotypeKO)
-```
-
-KO mice take `r summ(rt_ratio)` times as long to cross as wild-type mice on the same day and attempt, which is `r summ(100 * (rt_ratio - 1), 0)`% longer; the same reading for practice is that each additional day multiplies the crossing time by `r summ(exp(draws_rt_t$b_day_c), 2)`. These are ratios of *typical* crossing times (medians on the seconds scale, since the mean of the log is the log of the median), which is what I would want to report about a variable that is skewed. Remember what the two shortcuts above did to that interval: it's too narrow, because the model counted `r nrow(crossings)` attempts as if they came from as many mice, and it describes only completed crossings.
-
 ```{r}
 #| include: false
 
@@ -1195,18 +1195,18 @@ beta_checks <- mcmc_check(list(
   "Binomial" = fit_binom,
   "Beta-binomial (custom family)" = fit_bb,
   "Beta-binomial, flatter prior on phi" = fit_bb_flat,
+  "Gaussian, log crossing time" = fit_rt_gauss,
+  "Student-t, Gamma(2, 0.1) on nu" = fit_rt_t,
+  "Student-t, Kruschke prior on nu" = fit_rt_t_kruschke,
+  "Student-t, nu fixed at 7" = fit_rt_t_nu7,
+  "Gaussian, impossible record removed" = fit_rt_gauss_clean,
   "Gaussian, share of time in the center" = fit_share_gauss,
   "Beta, one precision" = fit_share,
   "Beta, precision by surgery" = fit_share_phi,
   "Zero-inflated beta" = fit_zib,
   "Zero-inflated beta, threshold of 250 s" = fit_zib_250,
   "Zero-inflated beta, no threshold" = fit_zib_all,
-  "Zero-inflated beta, labels as recorded" = fit_zib_rec,
-  "Gaussian, log crossing time" = fit_rt_gauss,
-  "Student-t, Gamma(2, 0.1) on nu" = fit_rt_t,
-  "Student-t, Kruschke prior on nu" = fit_rt_t_kruschke,
-  "Student-t, nu fixed at 7" = fit_rt_t_nu7,
-  "Gaussian, impossible record removed" = fit_rt_gauss_clean
+  "Zero-inflated beta, labels as recorded" = fit_zib_rec
 ))
 stopifnot(all(beta_checks$ok))
 
@@ -1219,7 +1219,7 @@ All `r nrow(beta_checks)` pass: the worst Rhat is `r sprintf("%.3f", max(beta_ch
 
 ## Where this leaves us, and where we go from here
 
-We came into this chapter with a promise about the noise, and it took three families to keep it. A **beta-binomial** is a binomial whose probability varies from mouse to mouse, and its precision $\phi$, through $\rho = 1/(\phi+1)$, says how much: the same idea as the negative binomial, applied to successes out of trials, and the tool that was waiting for the overdispersion that @sec-logistic-regression found in the cell proportions and could not repair; here we met it on the wire attempts, where nine attempts per mouse make it visible. A **beta** regression is for a proportion that is the measurement itself, with a variance that depends on the mean and a shape that bends at the walls. On the open-field data it also taught the sharpest lesson of the chapter: when the groups scatter differently, giving the precision its own linear predictor changed not only the spread but the size of the effect, and a **zero-inflated** beta gave the mice that never entered the center a place in the model. And a **Student-*t*** likelihood, on the log scale where a time behaves, lets the model be honest about an occasional wild value without either deleting it or letting it drag the estimate. On these data, the honest finding was that it changed little, and that is a result worth knowing how to report: a robust model that agrees with the plain one is a sensitivity analysis, not a failure to find something.
+We came into this chapter with a promise about the noise, and it took three families to keep it. A **beta-binomial** is a binomial whose probability varies from mouse to mouse, and its precision $\phi$, through $\rho = 1/(\phi+1)$, says how much: the same idea as the negative binomial, applied to successes out of trials, and the tool that was waiting for the overdispersion that @sec-logistic-regression found in the cell proportions and could not repair; here we met it on the wire attempts, where nine attempts per mouse make it visible. A **Student-*t*** likelihood, on the log scale where a time behaves, lets the model be honest about an occasional wild value without either deleting it or letting it drag the estimate. On these data, the honest finding was that it changed little, and that is a result worth knowing how to report: a robust model that agrees with the plain one is a sensitivity analysis, not a failure to find something. And a **beta** regression is for a proportion that is the measurement itself, with a variance that depends on the mean and a shape that bends at the walls. On the open-field data it taught the sharpest lesson of the chapter: when the groups scatter differently, giving the precision its own linear predictor changed not only the spread but the size of the effect, and a **zero-inflated** beta gave the mice that never entered the center a place in the model.
 
 Step back from the chapter to the whole of this part. The mean model changed very little between chapters: a group, a day, a genotype, entered as a linear predictor and read through a link. What kept changing was the family, which is a statement about the noise, and in every case the noise, not the mean, was what broke first: cells that varied more than a Poisson allows, a pile of zeros in spike counts that turned out to be neurons differing from one another, not silence, mice that differ from each other beyond a binomial, and groups that don't scatter alike. Choosing a family is choosing a model of variability, and the honest way to choose is to ask the fitted model what data it believes in and see whether we recognize them.
 
