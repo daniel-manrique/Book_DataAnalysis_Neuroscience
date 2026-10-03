@@ -17,7 +17,7 @@ Plot_theme <- Plot_theme$value
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 ```
 
-@sec-glm-intro gave the recipe: pick a family, keep the linear predictor, choose a link. It also promised that the logit link deserved to be taken on its own terms. This chapter keeps that promise, and it does so with the smallest possible amount of data per animal: one yes or no.
+[The introduction to GLMs](glm-intro.qmd#sec-glm-intro) gave the recipe: pick a family, keep the linear predictor, choose a link. It also promised that the logit link deserved to be taken on its own terms. This chapter keeps that promise, and it does so with the smallest possible amount of data per animal: one yes or no.
 
 That's a real change of scene from a continuous measurement. A single yes/no, a mouse that crossed a wire or fell, a neuron that fired in the window or didn't, is the coarsest measurement in science, and it's the one you meet most often at the bench. So the questions this chapter answers are the ones you'd actually be asked: how much does a genotype change the *chance* of success, how do I say that in a sentence a reviewer can use, and how do I know the model behind it isn't fooling me? Near the end, we pool many yes/no answers into a proportion, using the cell counts you already know.
 
@@ -117,11 +117,11 @@ ggplot(wire, aes(x = wire1, y = completed_all, color = genotype)) +
 lpm_fast <- predict(lpm, newdata = data.frame(wire1 = min(wire$wire1), genotype = "WT"))
 ```
 
-The line is a fair description in the middle and a poor one at the edge. For the fastest wild-type mouse in the sample, a mean of `r round(min(wire$wire1), 1)` seconds, it predicts a "probability" of `r round(lpm_fast, 2)`, and that isn't an extrapolation: that mouse exists. There's a second, quieter problem: a Gaussian model assumes the scatter around the line is the same everywhere, but a 0/1 outcome is noisiest when the chance is near one half and nearly silent near 0 or 1. The line is speaking the wrong language for this outcome, and the same lack of walls we met in @sec-glm-intro is what's showing.
+The line is a fair description in the middle and a poor one at the edge. For the fastest wild-type mouse in the sample, a mean of `r round(min(wire$wire1), 1)` seconds, it predicts a "probability" of `r round(lpm_fast, 2)`, and that isn't an extrapolation: that mouse exists. There's a second, quieter problem: a Gaussian model assumes the scatter around the line is the same everywhere, but a 0/1 outcome is noisiest when the chance is near one half and nearly silent near 0 or 1. The line is speaking the wrong language for this outcome, and the same lack of walls we met in [the introduction to GLMs](glm-intro.qmd#sec-glm-intro) is what's showing.
 
 ## From probabilities to odds to log-odds
 
-@sec-glm-intro described a GLM with the picture of two rooms: a room with no walls where the linear predictor does its arithmetic, and a small room where the mean has to live. For a yes/no outcome the small room is the interval from 0 to 1, and the doorway is the logit. To see why it's a sensible doorway, I'd like you to think like a bookmaker.
+[The introduction to GLMs](glm-intro.qmd#sec-glm-intro) described a GLM with the picture of two rooms: a room with no walls where the linear predictor does its arithmetic, and a small room where the mean has to live. For a yes/no outcome the small room is the interval from 0 to 1, and the doorway is the logit. To see why it's a sensible doorway, I'd like you to think like a bookmaker.
 
 A bookmaker doesn't quote probabilities. When a horse has a 75% chance of winning, the bookmaker says "3 to 1": for every time it loses, it wins three times. That ratio, $p / (1 - p)$, is the [odds]{style="color:green; font-weight:bold;"}. Odds have a nice property that probabilities lack, they live on the whole positive half-line: a probability can't exceed 1, but the odds can grow as big as you like as the event gets more certain. The last step takes the logarithm of the odds, which drags the positive half-line onto the whole number line. That's the [log-odds]{style="color:green; font-weight:bold;"}, or *logit*:
 
@@ -163,7 +163,7 @@ That is @eq-glm with a Bernoulli family and a logit link, nothing more. Same rec
 
 I'll start with only `genotype` in the model, before day-1 time enters the picture, because it lets us learn to read the output on the simplest possible case. `brms` fits it with the `bernoulli()` family, and `glm()` is its frequentist counterpart with the `binomial()` family (for 0/1 data a Bernoulli *is* a binomial with a single trial).
 
-Before fitting, one decision that I'm not going to leave to a default. @sec-glm-intro warned that priors on link-scale coefficients need to be judged on the outcome scale, and this is where that warning starts to matter. Here's what two candidate priors imply for the chance of completing, before seeing any data. Each histogram shows probabilities obtained by pushing draws of the intercept through the inverse logit.
+Before fitting, one decision that I'm not going to leave to a default. [The introduction to GLMs](glm-intro.qmd#sec-glm-intro) warned that priors on link-scale coefficients need to be judged on the outcome scale, and this is where that warning starts to matter. Here's what two candidate priors imply for the chance of completing, before seeing any data. Each histogram shows probabilities obtained by pushing draws of the intercept through the inverse logit.
 
 ```{r}
 #| label: fig-logistic_prior_predictive
@@ -251,7 +251,7 @@ summ <- function(x) sprintf("%.2f [%.2f, %.2f]", median(x), quantile(x, 0.025), 
 
 **On the log-odds scale**, the effect of the KO is `r summ(three_ways$logodds)` (median and 95% credible interval). It's the scale where the model is linear and the interval is roughly symmetric, which makes it the right scale for the machinery, and a poor scale for the reader: it's not a change in probability and it's not a multiplication of anything you can see.
 
-**On the odds scale**, we exponentiate. The odds ratio is `r summ(three_ways$odds_ratio)`: the odds of completing are that fraction of the wild-type odds in a KO mouse. This is the classic way to report a logistic regression, and it has the same flavor as the multiplicative reading of a log-link coefficient in @sec-glm-intro: adding on the link scale is multiplying on the interpretable one.
+**On the odds scale**, we exponentiate. The odds ratio is `r summ(three_ways$odds_ratio)`: the odds of completing are that fraction of the wild-type odds in a KO mouse. This is the classic way to report a logistic regression, and it has the same flavor as the multiplicative reading of a log-link coefficient in [the introduction to GLMs](glm-intro.qmd#sec-glm-intro): adding on the link scale is multiplying on the interpretable one.
 
 ::: callout-warning
 ### An odds ratio is not a risk ratio
