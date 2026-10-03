@@ -228,6 +228,8 @@ So here is the natural question: can a count model fail and then, with a small c
 
 Why is the Poisson too tight? Think about what it assumes. It describes what you'd see if every animal in a group had the same true density of PDGFR-β+ cells and the only randomness was which cells happened to fall inside your counting window. But animals aren't identical. Some mice just have more pericytes in that patch of tissue than others, before you ever count anything. So your count is noisy twice: once because you sampled a window, and again because the *underlying rate* itself differs from animal to animal. The Poisson has room for the first kind of noise and none for the second.
 
+![Two kinds of noise. Which seeds land inside the hoop is luck. How thickly each field was sown, before you threw the hoop, is the animal itself.](images/count-regression_throwing-the-hoop.png){#fig-count-hoop fig-align="center" width="90%" fig-alt="Watercolor bird's-eye sketch of three garden plots side by side, sown sparsely, moderately and thickly with teal and ochre seeds, each with the same wooden hoop on the soil enclosing about six seeds, and a small trowel at the lower right."}
+
 The [negative binomial]{style="color:green; font-weight:bold;"} family adds exactly that second source. It is a Poisson whose rate varies from animal to animal, and it does so with one extra parameter that lets the variance exceed the mean: $\text{Var}(y) = \mu + \mu^2/\phi$, where a larger $\phi$ means less extra scatter, and $\phi \to \infty$ gives the Poisson back [@inchausti2023]. Same linear predictor, same log link. In `brms`, the change is one word.
 
 ```{r}
@@ -417,6 +419,8 @@ The Poisson (dashed) says that a group averaging four thousand cells should be p
 Every scientist has had the following conversation. You report that treated animals have 1,900 PDGFR-β+ cells and the controls have 500. Somebody at the back asks: *per what?* A count is like a receipt with the shop's name torn off: it tells you how many, and it says nothing about how big the window was that you looked through. If sections differ in size, the count mixes two things: how dense the cells are, and how much tissue you counted.
 
 `cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it; @sec-eda-data-quality shows the check and explains the choice.) I set that aside earlier in the chapter, when I said the count was the count. It isn't.
+
+![A count is a receipt with the shop's name torn off. It says how many, and nothing about how big the window was.](images/count-regression_receipt-without-a-shop.png){#fig-count-receipt fig-align="center" width="70%" fig-alt="Watercolor sketch of a long paper receipt on a wooden table with its top torn off in a jagged edge, rows of wavy lines with dotted amounts and a total drawn as three teal and three ochre dots, with the blank torn scrap and a pencil beside it."}
 
 ```{r}
 #| label: fig-count_area
@@ -709,6 +713,8 @@ In this subset `r round(100 * mean(spk$spikes == 0))`% of the neuron-trials have
 $$
 P(y_i = 0) = \pi_i + (1 - \pi_i)\,\text{NB}(0 \mid \mu_i, \phi), \qquad P(y_i = k) = (1 - \pi_i)\,\text{NB}(k \mid \mu_i, \phi) \text{ for } k \geq 1
 $$ {#eq-zinb}
+
+![Two kinds of zero in the same room: the person who does not own a phone, and the one who owns it but did not check it this time.](images/count-regression_room-without-phones.png){#fig-count-phones fig-align="center" width="85%" fig-alt="Watercolor sketch of a lecture room seen from behind, with faceless seated silhouettes in teal, ochre and grey facing a screen showing one teal dot. Several hold glowing phones, one holds a dark phone, and most hold nothing."}
 
 In `brms`, the probability of a structural zero is a second parameter, `zi`, with its own formula and the logit doorway of @sec-logistic-regression. The question I'm asking of the data is the simplest one: is there any structural zero at all? So `zi` gets only an intercept. On the logit scale, `Normal(0, 1.5)` spreads the prior over the whole range of probabilities, which gives the zero part every chance to be large if the data want it. I also set the `shape` prior explicitly to the one used above, because `brms` 2.22's default for the zero-inflated family is a nearly flat gamma(0.01, 0.01), and I want the two models to differ in the structure I'm testing and not in an accidental prior.
 
