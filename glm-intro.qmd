@@ -10,22 +10,24 @@ bibliography: references.bib
 library(ggplot2)
 library(here)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 
+# Read the cell data; the day as a category (one group per day)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI_f <- factor(cell_data$DPI)
 ```
 
 The last part ended with a line that answered our question well in one stretch of the time course, badly in another, and not at all in a third, and with a promise: the next part keeps the question and changes what we mean by noise. Here is what that means at the bench. A tissue area is a continuous quantity, and a bell curve around a straight line is a decent description of how it scatters. Now walk to the next bench. A mouse either crosses the wire or it doesn't. A tissue section holds some number of PDGFR-β+ cells, a whole number that cannot go below zero. A mouse spends some share of a five-minute open-field session in the center of the arena, a number stuck between zero and one. A crossing time cannot be negative either, and it comes with the occasional extreme value. None of these scatter the way a bell curve says they should, and a line fitted to them will happily predict half a mouse, minus three cells, or 110% of the time on the wire.
 
-This part keeps everything you already know and changes one thing. The recipe has three ingredients, and it is the same recipe in every chapter: pick a family, which says how the outcome scatters; keep the linear predictor you already know how to write; and choose a link, the doorway between the two. This opening page has two jobs. It explains what changes when we leave the Gaussian world, and why we have to. And it is the map of the part, which you will find at the end. It fits nothing: the models belong to the chapters that follow.
+This part keeps everything you already know and changes one thing. The recipe has three ingredients, and it is the same recipe in every chapter: pick a family, which says how the outcome scatters; keep the linear predictor you already know how to write; and choose a link, the doorway between the two. This opening page has two jobs (@fig-glm-intro-adapter pictures the recipe). It explains what changes when we leave the Gaussian world, and why we have to. And it is the map of the part, which you will find at the end. It fits nothing: the models belong to the chapters that follow.
 
 ![Pick a family, keep the linear predictor, choose the link. One plug, a few adapters, and a socket for every kind of outcome.](images/linear-models-intro_one-plug-many-adapters.png){#fig-glm-intro-adapter fig-align="center" width="90%" fig-alt="Watercolor sketch of a wooden table with an electrical cord ending in a plug with a teal head, two loose adapter heads in ochre and blush-grey beside it, and three differently shaped wall sockets in teal, ochre and blush-grey on the wall behind."}
 
 ## Cells are counted, not measured {#sec-glm-intro}
 
-If you have ever counted cells under a microscope, you have already measured an outcome that lives in a smaller world than the whole number line. `cell_data` has a column we haven't touched, `Pdgfrb_Pos`, the number of PDGFR-β-positive cells counted in each animal's tissue section, and it will be our example for the whole page. I'm not going to model it yet. I only want you to look at it, because everything in this part starts from looking.
+If you have ever counted cells under a microscope, you have already measured an outcome that lives in a smaller world than the whole number line. `cell_data` has a column we haven't touched, `Pdgfrb_Pos`, the number of PDGFR-β-positive cells counted in each animal's tissue section, and it will be our example for the whole page. I'm not going to model it yet. I only want you to look at it, because everything in this part starts from looking (@fig-glm_counts_by_dpi). Every animal is a point, because with seven to twelve animals per day nothing should be hidden, and a short bar marks each day's mean; a bar chart of means would erase the two features that matter next.
 
 ```{r}
 #| label: fig-glm_counts_by_dpi
@@ -34,6 +36,7 @@ If you have ever counted cells under a microscope, you have already measured an 
 #| fig-height: 4
 #| warning: false
 
+# Every animal as a point (colour and shape = condition) with each day's mean as a bar
 ggplot(cell_data, aes(x = DPI_f, y = Pdgfrb_Pos)) +
   geom_jitter(aes(color = Condition, shape = Condition),
               width = 0.12, size = 2.5, alpha = 0.85) +
@@ -42,10 +45,11 @@ ggplot(cell_data, aes(x = DPI_f, y = Pdgfrb_Pos)) +
   scale_color_manual(values = c(SHAM = "#D55E00", MCAO = "#0072B2")) +
   labs(x = "Days post-ischemia (DPI)", y = "PDGFR-β+ cells per section") +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
 ```{r}
+# Spread (SD) of the counts on each day, quoted in the text
 sd_day <- tapply(cell_data$Pdgfrb_Pos, cell_data$DPI_f, sd)
 ```
 
@@ -61,7 +65,7 @@ The same diagnosis covers the other outcomes of this part, each broken in its ow
 
 ## What a GLM actually is
 
-Here's the way I like to think about the fix. Suppose you do your arithmetic in a room with no walls: any number, positive or negative, is fine, and adding one thing to another always makes sense. That's where the linear predictor lives, the part you already know: $\beta_0 + \beta_1 x_1 + \dots$. Now suppose the quantity you actually care about (the expected count) lives in a smaller room, one that only admits valid values. You need a doorway between the two rooms: something that takes whatever number the linear predictor produces and translates it into a value the small room accepts. And you need to say what kind of noise the outcome has once you're in the small room, because a count is noisy in a different way than a tissue area. A generalized linear model is exactly those three choices, made explicitly [@mcelreath2020; @inchausti2023]:
+Here's the way I like to think about the fix. Suppose you do your arithmetic in a room with no walls: any number, positive or negative, is fine, and adding one thing to another always makes sense. That's where the linear predictor lives (@fig-glm-intro-rooms), the part you already know: $\beta_0 + \beta_1 x_1 + \dots$. Now suppose the quantity you actually care about (the expected count) lives in a smaller room, one that only admits valid values. You need a doorway between the two rooms: something that takes whatever number the linear predictor produces and translates it into a value the small room accepts. And you need to say what kind of noise the outcome has once you're in the small room, because a count is noisy in a different way than a tissue area. A generalized linear model is exactly those three choices, made explicitly [@mcelreath2020; @inchausti2023]:
 
 1. [A family]{style="color:green; font-weight:bold;"}: the probability distribution that describes the scatter of the outcome around its mean. (Gaussian, Poisson, binomial, and others.)
 2. [A linear predictor]{style="color:green; font-weight:bold;"} $\eta_i$: the additive combination of predictors you already know how to write.
@@ -75,7 +79,7 @@ Read the second half in both directions. The link $g$ takes the mean to the unbo
 
 ![The linear predictor lives in a room with no walls, where any number is welcome. The mean you care about lives in a smaller room. The link is the doorway between them.](images/glm-intro_two-rooms-one-doorway.png){#fig-glm-intro-rooms fig-align="center" width="90%" fig-alt="Watercolor cutaway of two adjoining spaces: a wall-less pale-teal expanse on the left with colored pebbles scattered widely toward the horizon, and a small tidy room on the right with a row of pebbles on its floor, joined by an open wooden door with a dotted arc carrying one pebble through it."}
 
-That's a lot of new vocabulary for something you've been doing since @sec-linear-regression-what. The reassuring part: **everything you've fit so far is already a GLM.** A Gaussian family with the *identity* link ($g(\mu) = \mu$, the doorway that changes nothing) is @eq-linear-regression-simple, with no new machinery at all. The reason we never needed a doorway is that a Gaussian mean is allowed to be any real number, so the unbounded room and the small room were the same room. Counts and proportions aren't so lucky. Here is what the doorways look like.
+That's a lot of new vocabulary for something you've been doing since @sec-linear-regression-what. The reassuring part: **everything you've fit so far is already a GLM.** A Gaussian family with the *identity* link ($g(\mu) = \mu$, the doorway that changes nothing) is @eq-linear-regression-simple, with no new machinery at all. The reason we never needed a doorway is that a Gaussian mean is allowed to be any real number, so the unbounded room and the small room were the same room. Counts and proportions aren't so lucky. Here is what the doorways look like (@fig-glm_links).
 
 ```{r}
 #| label: fig-glm_links
@@ -84,15 +88,19 @@ That's a lot of new vocabulary for something you've been doing since @sec-linear
 #| fig-height: 3
 #| warning: false
 
+# A range of linear-predictor values, from -4 to 4
 eta <- seq(-4, 4, length.out = 200)
 
+# What each link turns them into: the mean on the outcome scale
 links <- rbind(
   data.frame(eta = eta, mu = eta, link = "Identity"),
   data.frame(eta = eta, mu = exp(eta), link = "Log (inverse: exp)"),
   data.frame(eta = eta, mu = plogis(eta), link = "Logit (inverse: logistic)")
 )
+# Keep the panels in the order listed
 links$link <- factor(links$link, levels = unique(links$link))
 
+# One panel per link; the dashed line at zero shows who can cross it
 ggplot(links, aes(x = eta, y = mu)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
   geom_line(color = "#0072B2", linewidth = 1) +
@@ -101,7 +109,7 @@ ggplot(links, aes(x = eta, y = mu)) +
   Plot_theme
 ```
 
-I drew the dashed zero line in every panel on purpose. In the first panel, the line crosses it: a Gaussian model with an identity link will cheerfully predict negative values if the linear predictor goes there. In the second, the exponential curve approaches zero forever and never crosses it, so no matter how negative $\eta$ gets, $\mu = e^{\eta}$ stays positive. That's the doorway for counts. In the third, the logistic curve squeezes the whole real line into the interval between 0 and 1, which is the doorway for proportions and for yes/no outcomes. The families and links this book will use, and where they show up, are collected below. Keep it open next to the data you actually have.
+I drew the dashed zero line in every panel on purpose. In the first panel, the line crosses it: a Gaussian model with an identity link will cheerfully predict negative values if the linear predictor goes there. In the second, the exponential curve approaches zero forever and never crosses it, so no matter how negative $\eta$ gets, $\mu = e^{\eta}$ stays positive. That's the doorway for counts. In the third, the logistic curve squeezes the whole real line into the interval between 0 and 1, which is the doorway for proportions and for yes/no outcomes. The families and links this book will use, and where they show up, are collected in @tbl-glm_families. Keep it open next to the data you actually have.
 
 | If your outcome is... | Family | Link | Where |
 |:-------------------------|:-------------------|:------------|:------------------------|
@@ -123,7 +131,7 @@ It's tempting to look at the shape of the outcome's histogram and choose a famil
 
 ## What changes when you read the result
 
-The doorway has a price, and it is worth knowing before you meet the first coefficient. Coefficients now live on the *link* scale, not on the scale of the outcome you measured. With a log link, adding a number on the link scale means *multiplying* on the outcome scale: a coefficient of 0.7 does not add 0.7 cells, it multiplies the expected count by $e^{0.7}$, about 2. It is the same kind of arithmetic as pH, where each unit is a factor of ten rather than a fixed amount, and it is usually the honest way to describe how cell counts change anyway ("twice as many", not "a thousand more"). With a logit link the coefficient is a change in log-odds, a scale that deserves its own chapter and gets one in @sec-logistic-regression. Either way, you read a coefficient by translating it back through the inverse link, which is exactly what the software does when it predicts.
+The doorway has a price, and it is worth knowing before you meet the first coefficient. Coefficients now live on the *link* scale, not on the scale of the outcome you measured. With a log link, adding a number on the link scale means *multiplying* on the outcome scale: a coefficient of 0.7 does not add 0.7 cells, it multiplies the expected count by $e^{0.7}$, about 2. It is the same kind of arithmetic as pH, where each unit is a factor of ten rather than a fixed amount, and it is usually the honest way to describe how cell counts change anyway ("twice as many", not "a thousand more"). With a logit link the coefficient is a change in log-odds, a scale that deserves its own chapter and gets one in @sec-logistic-regression. Either way, you read a coefficient by translating it back through the inverse link, which is exactly what the software does when it predicts (@fig-glm-intro-steps).
 
 ![On the log scale you add a step, and on the count scale you multiply. Each stair roughly doubles the pile.](images/glm-intro_each-step-doubles.png){#fig-glm-intro-steps fig-align="center" width="85%" fig-alt="Watercolor sketch of a wooden staircase of five steps climbing from left to right, with towers of teal and ochre petri dishes growing from a single dish on the first step to a tall stack on the last, and small teal arrows curving from each step to the next."}
 
@@ -137,7 +145,7 @@ A habit from Gaussian models can hurt you here. On the log scale, a prior that l
 
 Less changes than the vocabulary suggests. The workflow of the first part is untouched: you state a question, fit a model, ask whether the model could have produced data like yours with a posterior predictive check (see @sec-mcmc-model-checking), and improve it. Every applied model is still fitted with `brms` and with its frequentist counterpart, `glm()` or a close relative, side by side. The linear predictor is exactly the one you have been writing since @sec-linear-regression-what, with categorical predictors, interactions and centering all working as before. And the family is not a ritual: it is a statement about the noise, so it is something you check, not something you pick and forget.
 
-That last point is the quiet link back to the last part. There, a single `sigma` was too stingy for one day and too generous for others, and the fix I pointed to was to model `sigma` itself as a function of the predictor. A GLM's family already does a version of that, automatically, because it ties the variance to the mean. Choosing a family is choosing a model for the variance, and in the chapters ahead it will be the variance, not the mean, that breaks first. A regression is not only a model for where the middle of the data sits; it can be a model for how the whole distribution behaves, and the GLM is the first place where that becomes visible. <!-- TODO: link @sec-multivariate-distributional-regression, where sigma itself depends on predictors, once that chapter exists. -->
+That last point is the quiet link back to the last part. There, a single `sigma` was too stingy for one day and too generous for others, and the fix I pointed to was to model `sigma` itself as a function of the predictor. A GLM's family already does a version of that, automatically, because it ties the variance to the mean. Choosing a family is choosing a model for the variance, and in the chapters ahead it will be the variance, not the mean, that breaks first. A regression is not only a model for where the middle of the data sits; it can be a model for how the whole distribution behaves, and the GLM is the first place where that becomes visible. @sec-multivariate-distributional-regression is where `sigma` itself will depend on predictors.
 
 ## What you'll do in the next three chapters
 
