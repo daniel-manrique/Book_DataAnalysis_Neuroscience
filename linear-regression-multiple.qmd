@@ -11,9 +11,11 @@ subtitle: Multiple regression, adjustment, interactions and transformations
 library(ggplot2)
 library(here)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 
+# Read the cell data and treat the day as a number
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI <- as.numeric(cell_data$DPI)
 ```
@@ -22,14 +24,16 @@ cell_data$DPI <- as.numeric(cell_data$DPI)
 
 ## Picking up where the last model left off
 
-Same dataset, same window, same model. `cell_data_sub` is `cell_data` restricted to DPI 3, 7 and 14, the stretch where a straight line is a defensible description of tissue loss, and the outcome is hemispheric tissue area. The area is `Tissue_Area`, in mm², the same column and the same units used throughout the book (the µm² duplicate is explained in @sec-eda-data-quality).
+Same dataset, same window, same model. `cell_data_sub` is `cell_data` restricted to DPI 3, 7 and 14, the stretch where a straight line is a defensible description of tissue loss, and the outcome is hemispheric tissue area. The area is `Tissue_Area`, in mm², the same column and the same units used throughout the book (the µm² duplicate is explained in @sec-eda-data-quality). @tbl-multiple_data shows the first rows of the subset.
 
 ```{r}
 #| label: tbl-multiple_data
 #| tbl-cap: The DPI 3–14 subset, first rows
 
 library(gt)
+# Keep days 3, 7 and 14, the window where a line is defensible
 cell_data_sub <- subset(cell_data, DPI %in% c(3, 7, 14))
+# Show the first rows of the columns used in this chapter
 gt(head(cell_data_sub[, c("MouseID", "DPI", "Condition", "Tissue_Area", "Gfap_IntDen", "Pdgfrb_IntDen")]))
 ```
 
@@ -40,8 +44,10 @@ A word on priors, because last chapter I gave the slope one and this chapter I'm
 ```{r}
 library(brms)
 
+# Centre the day at 3, so the intercept is the area at day 3
 cell_data_sub$DPI_c <- cell_data_sub$DPI - 3
 
+# Baseline model: tissue area as a straight line in the day (default priors, cached)
 fit_dpi <- brm(
   Tissue_Area ~ DPI_c,
   data = cell_data_sub,
@@ -52,6 +58,7 @@ fit_dpi <- brm(
 ```
 
 ```{r}
+# Posterior summary of the baseline model
 summary(fit_dpi)
 ```
 
@@ -66,13 +73,17 @@ If you were designing this study, I'd bet the first thing you'd reach for is GFA
 One practical wrinkle: `Gfap_IntDen` runs from a few hundred to over a thousand, so a "one-unit" change is microscopic and the coefficient would be a tiny number nobody can read. I'll divide by 100, so a coefficient is the change in tissue area per 100 units of GFAP. That's a linear rescale: it changes the units of the coefficient and nothing else.
 
 ```{r}
+# GFAP in units of 100, so a coefficient is readable (a linear rescale only)
 cell_data_sub$Gfap_100 <- cell_data_sub$Gfap_IntDen / 100
-cell_data_sub$DPI_f <- factor(cell_data_sub$DPI)  # for the per-day checks below
+
+# The day as a category, for the per-day checks below
+cell_data_sub$DPI_f <- factor(cell_data_sub$DPI)
 ```
 
 Now the part I want you to see in two steps, because the contrast is the point. First, GFAP *alone*, what most of us would do at the bench, plotting one marker against the outcome. Then GFAP together with `DPI`.
 
 ```{r}
+# GFAP alone as the predictor
 fit_gfap_alone <- brm(
   Tissue_Area ~ Gfap_100,
   data = cell_data_sub,
@@ -81,6 +92,7 @@ fit_gfap_alone <- brm(
   file_refit = "never"
 )
 
+# GFAP together with the day
 fit_dpi_gfap <- brm(
   Tissue_Area ~ DPI_c + Gfap_100,
   data = cell_data_sub,
@@ -94,6 +106,7 @@ fit_dpi_gfap <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: one slope for the day, one for GFAP
 summary(fit_dpi_gfap)
 ```
 
@@ -105,6 +118,7 @@ The formula is the only thing that changed: `DPI + Gfap_100` gives every predict
 library(parsnip)
 library(broom)
 
+# The same model by ordinary least squares
 parsnip_dpi_gfap <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Tissue_Area ~ DPI_c + Gfap_100, data = cell_data_sub)
@@ -113,7 +127,7 @@ tidy(parsnip_dpi_gfap, conf.int = TRUE)
 ```
 :::
 
-That's odd, isn't it? GFAP alone has a modest negative association with tissue area (Pearson's $r$ of about $-0.33$ in this subset, and a slope of $-0.40$ per 100 units whose interval barely reaches zero), and yet with `DPI` in the model it has nothing to add. The shift is the whole story, so let me put both posteriors on the same axis. What I care about is where the mass of each sits relative to zero and how much the data moved it, and a half-eye shows the whole shape of a posterior instead of two bare interval ends, which matters here because the "alone" posterior is wide and sits mostly, but not entirely, on one side of zero.
+That's odd, isn't it? GFAP alone has a modest negative association with tissue area (Pearson's $r$ of about $-0.33$ in this subset, and a slope of $-0.40$ per 100 units whose interval barely reaches zero), and yet with `DPI` in the model it has nothing to add. The shift is the whole story, so let me put both posteriors on the same axis. What I care about is where the mass of each sits relative to zero and how much the data moved it, and a half-eye (`stat_halfeye()` from the `ggdist` package, @fig-multiple_gfap_alone_vs_adjusted) shows the whole shape of a posterior instead of two bare interval ends, which matters here because the "alone" posterior is wide and sits mostly, but not entirely, on one side of zero.
 
 ```{r}
 #| label: fig-multiple_gfap_alone_vs_adjusted
@@ -124,21 +138,24 @@ That's odd, isn't it? GFAP alone has a modest negative association with tissue a
 library(ggdist)
 library(posterior)
 
+# Posterior draws of the GFAP slope from the two models, stacked
 gfap_slopes <- rbind(
   data.frame(model = "GFAP alone", slope = as_draws_df(fit_gfap_alone)$b_Gfap_100),
   data.frame(model = "GFAP, adjusting for DPI", slope = as_draws_df(fit_dpi_gfap)$b_Gfap_100)
 )
 
+# Half-eye per model: full posterior shape, median and 50% / 95% intervals;
+# the dashed line at zero marks no association
 ggplot(gfap_slopes, aes(x = slope, y = model, fill = model)) +
   stat_halfeye(.width = c(0.5, 0.95), point_interval = "median_qi") +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
   scale_fill_manual(values = c("GFAP alone" = "#D55E00", "GFAP, adjusting for DPI" = "#0072B2")) +
   labs(x = "GFAP slope (change in tissue area per 100 units of Gfap_IntDen)", y = NULL) +
   Plot_theme +
-  theme(legend.position = "none")
+  legend_none()
 ```
 
-The orange posterior leans negative; the blue one is centered on zero and is about half as wide. Nothing about GFAP changed between the two fits. What changed is what we're asking. The reason is easiest to see in a picture of the raw data with the time points marked.
+The orange posterior leans negative; the blue one is centered on zero and is about half as wide. Nothing about GFAP changed between the two fits. What changed is what we're asking. The reason is easiest to see in a picture of the raw data with the time points marked (@fig-multiple_gfap_by_dpi).
 
 ```{r}
 #| label: fig-multiple_gfap_by_dpi
@@ -148,8 +165,10 @@ The orange posterior leans negative; the blue one is centered on zero and is abo
 #| warning: false
 #| message: false
 
+# One colour per day (colour-blind-safe)
 dpi_cols <- c("3" = "#E69F00", "7" = "#009E73", "14" = "#CC79A7")
 
+# Dashed line: GFAP against area ignoring the day; coloured lines: within each day
 ggplot(cell_data_sub, aes(x = Gfap_100, y = Tissue_Area)) +
   geom_smooth(aes(group = 1), method = lm, se = FALSE,
               color = "black", linetype = "dashed") +
@@ -161,10 +180,10 @@ ggplot(cell_data_sub, aes(x = Gfap_100, y = Tissue_Area)) +
   labs(x = "GFAP integrated density (per 100 units)", y = "Tissue area",
        color = "DPI", shape = "DPI") +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
-Look at the three colored clouds separately. Within any one day, the line through the points is nearly flat: knowing an animal's GFAP tells you almost nothing about its tissue area *once you know how many days it has been since the ischemia*. The dashed line looks like a relationship only because both variables travel with time: GFAP climbs from day 3 to day 7 and stays high, and tissue area falls over the same period. GFAP was tagging along with `DPI`, and the marginal slope was borrowing `DPI`'s effect.
+Look at the three colored clouds separately. Within any one day, the line through the points is nearly flat: knowing an animal's GFAP tells you almost nothing about its tissue area *once you know how many days it has been since the ischemia*. The dashed line looks like a relationship only because both variables travel with time: GFAP climbs from day 3 to day 7 and stays high, and tissue area falls over the same period. GFAP was tagging along with `DPI`, and the marginal slope was borrowing `DPI`'s effect (@fig-multiple-boats).
 
 ![Two boats drifting side by side look related, but both are just following the current. Once you account for the current, little is left to explain.](images/linear-regression-multiple_two-boats-one-current.png){#fig-multiple-boats fig-align="center" width="90%" fig-alt="Watercolor sketch of a calm river with thin curved current lines, carrying a teal and an ochre paper boat side by side down the stream, with reeds and rocks on the banks."}
 
@@ -176,7 +195,6 @@ Imagine comparing two groups of runners and finding that the ones who drink more
 ### A note on causality, before it bites
 
 Adjusting for a variable makes a *predictive* statement, not automatically a causal one. @mcelreath2020 is blunt about two ways the arrow can go wrong: controlling for a variable that sits *downstream* of what you're studying (post-treatment bias) can erase a real effect, and controlling for a common consequence of two variables (a collider) can manufacture a relationship that isn't there. Statistical fit can't tell you which variable is a good control and which is a bad one; that takes a causal story drawn *outside* the model. Here, DPI is a design variable set by the experimenter, so adjusting for it is uncontroversial, but I'm not claiming GFAP "has no effect" on tissue area, only that it carries no *additional* predictive information beyond time. We'll draw those causal diagrams properly in @sec-causal-inference-splines.
-<!-- TODO: @sec-causal-inference-splines stays unresolved until causal-inference-splines.qmd (Part 5) exists. -->
 :::
 
 ::: callout-tip
@@ -194,6 +212,7 @@ That is exactly what a categorical predictor does. Turn `DPI` into a factor, and
 The reason to do this here is as a check on the linearity claim from last chapter: if a straight line is honest, the per-day means should fall close to it.
 
 ```{r}
+# One mean per day: the day as a category
 fit_dpi_factor <- brm(
   Tissue_Area ~ DPI_f,
   data = cell_data_sub,
@@ -207,12 +226,14 @@ fit_dpi_factor <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: day 3 is the baseline, the other days are differences from it
 summary(fit_dpi_factor)
 ```
 
 ### parsnip
 
 ```{r}
+# The same model by ordinary least squares
 parsnip_dpi_factor <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Tissue_Area ~ DPI_f, data = cell_data_sub)
@@ -223,7 +244,7 @@ tidy(parsnip_dpi_factor, conf.int = TRUE)
 
 The `Intercept` is the mean tissue area at day 3 (about 16.9). `DPI_f7` and `DPI_f14` are how far day 7 and day 14 sit below it: roughly 3.0 and 7.5 units. Notice that `DPI_f7` is a *difference from day 3*, not from zero, which is the most common misreading of dummy coding.
 
-Now the linearity check itself. Two things have to share one plot: a straight-line posterior (a whole band of plausible lines) and three separate per-day means with their intervals. To draw both honestly I need the model's predicted mean, with all its uncertainty, at a grid of days. The helper below asks `brms` for those predictions (`posterior_epred()` returns the expected value of the outcome for each posterior draw) and reshapes them into a long table that `ggdist` can summarize. I'll draw the straight line as a graded ribbon, so you see a spectrum of plausibility instead of one hard edge, and lay the per-day means on top.
+Now the linearity check itself. Two things have to share one plot: a straight-line posterior (a whole band of plausible lines) and three separate per-day means with their intervals. To draw both honestly I need the model's predicted mean, with all its uncertainty, at a grid of days. The helper below asks `brms` for those predictions (`posterior_epred()` returns the expected value of the outcome for each posterior draw) and reshapes them into a long table that `ggdist` can summarize. I'll draw the straight line as a graded ribbon, so you see a spectrum of plausibility instead of one hard edge, and lay the per-day means on top (@fig-multiple_linear_vs_factor).
 
 ```{r}
 #| label: fig-multiple_linear_vs_factor
@@ -232,6 +253,8 @@ Now the linearity check itself. Two things have to share one plot: a straight-li
 #| fig-height: 4
 #| warning: false
 
+# Helper: expected outcome for every posterior draw at every row of newdata,
+# returned as a long table (draw, row, y)
 epred_long <- function(fit, newdata, ndraws = 500) {
   ep <- posterior_epred(fit, newdata = newdata, ndraws = ndraws)
   data.frame(
@@ -241,14 +264,18 @@ epred_long <- function(fit, newdata, ndraws = 500) {
   )
 }
 
+# Predictions of the straight-line model on a grid of days
 grid_line <- data.frame(DPI_c = seq(0, 11, length.out = 40))
 line_draws <- epred_long(fit_dpi, grid_line)
 line_draws$DPI <- grid_line$DPI_c[line_draws$row] + 3
 
+# Predictions of the per-day model at the three sampled days
 grid_fac <- data.frame(DPI_f = factor(c(3, 7, 14)))
 fac_draws <- epred_long(fit_dpi_factor, grid_fac)
 fac_draws$DPI <- as.numeric(as.character(grid_fac$DPI_f[fac_draws$row]))
 
+# Blue ribbon: the straight line with graded credible bands; orange: separate mean
+# and 95% interval per day; grey: the animals
 ggplot() +
   stat_lineribbon(data = line_draws, aes(x = DPI, y = y, fill_ramp = after_stat(level)),
                   .width = c(0.5, 0.8, 0.95), fill = "#0072B2") +
@@ -271,7 +298,7 @@ Here I have to confess a change of plan. The natural experiment in this dataset 
 ::: callout-warning
 ### Why `Condition * DPI` is not estimable here
 
-Sham animals exist only at DPI 0 (n = 7). MCAO animals exist only at DPI 3, 7, 14 and 30. `Condition` and "DPI = 0" are the same variable: there is no sham animal at any later day and no MCAO animal at day 0. An interaction asks whether the difference between conditions *changes* with time, which requires observing both conditions at more than one time. No model can conjure the missing cells; a formula like `DPI * Condition` would be fit on paper and identified by nothing. This is a question to settle at the design stage (sham animals at every time point), not to rescue in the analysis.
+Sham animals exist only at DPI 0 (n = 7). MCAO animals exist only at DPI 3, 7, 14 and 30. `Condition` and "DPI = 0" are the same variable: there is no sham animal at any later day and no MCAO animal at day 0. An interaction asks whether the difference between conditions *changes* with time, which requires observing both conditions at more than one time. No model can conjure the missing cells; a formula like `DPI * Condition` would be fit on paper and identified by nothing. This is a question to settle at the design stage (sham animals at every time point), not to rescue in the analysis (@fig-multiple-cubbies).
 :::
 
 ![Two rows, five cubbies. The top row holds a pebble only in the first, the bottom row has none there. You cannot ask how the rows differ over time when most of the cubbies were never filled.](images/linear-regression-multiple_empty-cubbies.png){#fig-multiple-cubbies fig-align="center" width="85%" fig-alt="Watercolor sketch of a wooden cabinet with two rows of five cubbies. The top row has one teal pebble in the first cubby and four empty ones; the bottom row has an empty first cubby and four with ochre pebbles; empty cubbies show a faint dotted pebble outline."}
@@ -287,8 +314,10 @@ $\beta_3$ is the new piece: how much the GFAP slope changes for each additional 
 One thing to fix before fitting. With an interaction, $\beta_1$ and $\beta_2$ stop meaning "the effect of that predictor" and start meaning "the effect *when the other predictor is zero*". Think of giving directions: "two blocks north" only makes sense from a starting point everyone agrees on. A GFAP of zero is outside the observed range, so I'd be interpreting a coefficient at a place no animal lives. [Centering]{style="color:green; font-weight:bold;"} moves the starting point to somewhere real. `DPI` is already centered at day 3, as last chapter, so $\beta_2$ will be the GFAP slope on day 3. I'll center GFAP at its sample mean, so the intercept is the expected area at day 3 for an animal with average GFAP.
 
 ```{r}
+# Centre GFAP at its mean, so the intercept is the area at day 3 for average GFAP
 cell_data_sub$Gfap_c <- cell_data_sub$Gfap_100 - mean(cell_data_sub$Gfap_100)
 
+# Day x GFAP: both main effects plus their product (the interaction)
 fit_interaction <- brm(
   Tissue_Area ~ DPI_c * Gfap_c,
   data = cell_data_sub,
@@ -302,6 +331,7 @@ fit_interaction <- brm(
 ### brms
 
 ```{r}
+# Posterior summary; DPI_c:Gfap_c is the interaction coefficient
 summary(fit_interaction)
 ```
 
@@ -310,6 +340,7 @@ summary(fit_interaction)
 ### parsnip
 
 ```{r}
+# The same model by ordinary least squares
 parsnip_interaction <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Tissue_Area ~ DPI_c * Gfap_c, data = cell_data_sub)
@@ -318,7 +349,7 @@ tidy(parsnip_interaction, conf.int = TRUE)
 ```
 :::
 
-A single number for an interaction is hard to feel, so I'll draw what it implies: the fitted GFAP relationship on each day, with its uncertainty. I'm restricting each panel to the range of GFAP actually observed on that day, so we're not extrapolating a line to places with no animals in them. The graded band shows the 50%, 80% and 95% credible levels, so a reader sees a spectrum of plausibility instead of one hard edge.
+A single number for an interaction is hard to feel, so I'll draw what it implies: the fitted GFAP relationship on each day, with its uncertainty. I'm restricting each panel to the range of GFAP actually observed on that day, so we're not extrapolating a line to places with no animals in them. The graded band shows the 50%, 80% and 95% credible levels, so a reader sees a spectrum of plausibility instead of one hard edge (@fig-multiple_interaction_by_day).
 
 ```{r}
 #| label: fig-multiple_interaction_by_day
@@ -327,15 +358,18 @@ A single number for an interaction is hard to feel, so I'll draw what it implies
 #| fig-height: 3.5
 #| warning: false
 
+# For each day, a grid of GFAP values inside the range observed on that day
 grid_int <- do.call(rbind, lapply(c(3, 7, 14), function(dp) {
   g <- cell_data_sub$Gfap_c[cell_data_sub$DPI == dp]
   data.frame(DPI = dp, DPI_c = dp - 3, Gfap_c = seq(min(g), max(g), length.out = 30))
 }))
 
+# Predicted area for every draw, then back to the original GFAP scale for plotting
 int_draws <- epred_long(fit_interaction, grid_int)
 int_draws$DPI <- grid_int$DPI[int_draws$row]
 int_draws$Gfap_100 <- grid_int$Gfap_c[int_draws$row] + mean(cell_data_sub$Gfap_100)
 
+# One panel per day: fitted line with graded credible bands over the animals
 ggplot(int_draws, aes(x = Gfap_100, y = y)) +
   stat_lineribbon(aes(fill_ramp = after_stat(level)), .width = c(0.5, 0.8, 0.95), fill = "#0072B2") +
   geom_point(data = cell_data_sub, aes(y = Tissue_Area),
@@ -349,11 +383,26 @@ ggplot(int_draws, aes(x = Gfap_100, y = y)) +
 
 The three fitted lines are close to flat and close to each other: the implied GFAP slope (per 100 units) is about $-0.02$ on day 3, 0.02 on day 7 and 0.10 on day 14, with 95% intervals running from about $-0.5$ to 0.5 on day 3, $-0.3$ to 0.3 on day 7 and $-0.3$ to 0.5 on day 14. A flat line, or one tilting either way, fits inside every panel. What the data can support is modest: **no reliable evidence that GFAP's association with tissue area changes over time**, with only 31 animals and only 8 to 12 per day. Reporting that plainly, instead of hunting for the interaction that looks best, is the point.
 
+```{r}
+#| include: false
+
+# Estimates quoted in the report box
+fe_adj <- fixef(fit_dpi_gfap)["Gfap_100", ]
+fe_alone <- fixef(fit_gfap_alone)["Gfap_100", ]
+fe_int <- fixef(fit_interaction)["DPI_c:Gfap_c", ]
+```
+
+::: {.callout-note title="How to report it"}
+**Results.** Across days 3 to 14, GFAP integrated density alone was weakly and negatively associated with tissue area (`r round(fe_alone[["Estimate"]], 2)` mm² per 100 units; 95% credible interval `r round(fe_alone[["Q2.5"]], 2)` to `r round(fe_alone[["Q97.5"]], 2)`). After adjusting for day, the association was close to zero (`r round(fe_adj[["Estimate"]], 2)` mm² per 100 units; 95% credible interval `r round(fe_adj[["Q2.5"]], 2)` to `r round(fe_adj[["Q97.5"]], 2)`), and we found no reliable evidence that the association changed over time (interaction `r round(fe_int[["Estimate"]], 2)` mm² per 100 units per day; 95% credible interval `r round(fe_int[["Q2.5"]], 2)` to `r round(fe_int[["Q97.5"]], 2)`).
+
+**Methods.** Models were Gaussian linear models in `brms` with default priors, with the day centered at 3 and GFAP centered at its mean in the interaction model. Models were compared with leave-one-out cross-validation; the day-only model ranked first.
+:::
+
 ## Transformations: when a log helps, and when it doesn't
 
 @sec-linear-regression-assumptions quoted Inchausti's caution about "esoteric transformations" [@inchausti2023], and I stand by it as a default. But a caution isn't a ban, and a log is the one transformation that has a real biological rationale for a predictor like `Gfap_IntDen`: it's an intensity times an area, positive, and plausibly multiplicative, so a doubling may matter more than a fixed increment. If `Gfap_IntDen` is right-skewed, a log-scale might describe it, and its relationship to the outcome, better.
 
-I don't want to decide that from memory. Here is the predictor on its original and log2 scales side by side. I use log base 2 rather than the natural log because a unit on that scale reads as "a doubling", which is easier to communicate at the bench.
+I don't want to decide that from memory. Here is the predictor on its original and log2 scales side by side (@fig-multiple_log_hist). I use log base 2 rather than the natural log because a unit on that scale reads as "a doubling", which is easier to communicate at the bench.
 
 ```{r}
 #| label: fig-multiple_log_hist
@@ -363,26 +412,32 @@ I don't want to decide that from memory. Here is the predictor on its original a
 
 library(patchwork)
 
+# GFAP on a log base 2 scale: one unit is a doubling
 cell_data_sub$Gfap_log2 <- log2(cell_data_sub$Gfap_IntDen)
 
+# Skewness: 0 is symmetric, positive is a long right tail
 skew <- function(x) mean((x - mean(x))^3) / sd(x)^3
 
+# Left: original scale
 p_raw <- ggplot(cell_data_sub, aes(x = Gfap_IntDen)) +
   geom_histogram(bins = 12, fill = "#0072B2", color = "white", alpha = 0.85) +
   labs(x = "Gfap_IntDen", y = "Count") +
   Plot_theme
 
+# Right: log2 scale
 p_log <- ggplot(cell_data_sub, aes(x = Gfap_log2)) +
   geom_histogram(bins = 12, fill = "#0072B2", color = "white", alpha = 0.85) +
   labs(x = "log2(Gfap_IntDen)", y = "Count") +
   Plot_theme
 
+# Side by side
 p_raw + p_log
 ```
 
 Skewness is about `r round(skew(cell_data_sub$Gfap_IntDen), 2)` on the original scale and `r round(skew(cell_data_sub$Gfap_log2), 2)` on the log2 scale: a mild right tail that the log does flatten out, but not the kind of skew that by itself demands a fix. A tidier histogram isn't the goal, though. Whether the log helps the *model* is the actual question, so let's fit it and compare.
 
 ```{r}
+# Day plus log2 GFAP
 fit_log <- brm(
   Tissue_Area ~ DPI_c + Gfap_log2,
   data = cell_data_sub,
@@ -396,12 +451,14 @@ fit_log <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: Gfap_log2 is the change per doubling of GFAP
 summary(fit_log)
 ```
 
 ### parsnip
 
 ```{r}
+# The same model by ordinary least squares
 parsnip_log <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Tissue_Area ~ DPI_c + Gfap_log2, data = cell_data_sub)
@@ -410,7 +467,7 @@ tidy(parsnip_log, conf.int = TRUE)
 ```
 :::
 
-Reading the log-scale coefficient takes a translation: `Gfap_log2` is the change in tissue area per *doubling* of GFAP, not per 100 units. The estimate is 0.26 units per doubling, with a 95% credible interval from about $-0.84$ to 1.42. The `DPI` slope is essentially unchanged ($-0.69$), GFAP is still indistinguishable from zero, and the residual `sigma` hasn't budged (1.86). The transformation bought a tidier predictor and nothing in the model's fit, at the cost of a coefficient that needs a paragraph to explain. Which is what the guidance from last time predicts: the log earns its keep when the biology is multiplicative and the fit improves, and neither is true here. So the linear-scale model stands.
+Reading the log-scale coefficient takes a translation: `Gfap_log2` is the change in tissue area per *doubling* of GFAP, not per 100 units. The estimate is 0.26 units per doubling, with a 95% credible interval from about $-0.84$ to 1.42. The `DPI` slope is essentially unchanged ($-0.69$), GFAP is still indistinguishable from zero, and the residual `sigma` hasn't budged (1.86). The transformation bought a tidier predictor and nothing in the model's fit, at the cost of a coefficient that needs a paragraph to explain. Which is what the guidance from last time predicts: the log earns its keep when the biology is multiplicative and the fit improves, and neither is true here. So the linear-scale model stands (@fig-multiple-mirror says why a log needs a reason).
 
 ::: callout-tip
 ### Rescaling is not transforming
@@ -422,12 +479,13 @@ Dividing GFAP by 100, or centering DPI at day 3, are linear changes: they shift 
 
 ## Can we trust the sampling?
 
-Before I lean on any of these fits, a housekeeping check I have only done informally so far. `summary()` shows Rhat and the effective sample sizes, but one model at a time, and I have quoted them for only some of the six. A single table across every model in the chapter is cheaper than trusting my eye six times, and it uses the same thresholds as @sec-mcmc-model-checking: Rhat below 1.01, both effective sample sizes above 400, and zero divergent transitions.
+Before I lean on any of these fits, a housekeeping check I have only done informally so far. `summary()` shows Rhat and the effective sample sizes, but one model at a time, and I have quoted them for only some of the six. A single table across every model in the chapter (@tbl-multiple_mcmc) is cheaper than trusting my eye six times, and it uses the same thresholds as @sec-mcmc-model-checking: Rhat below 1.01, both effective sample sizes above 400, and zero divergent transitions.
 
 ```{r}
 #| label: tbl-multiple_mcmc
 #| tbl-cap: MCMC diagnostics for every model fitted in this chapter
 
+# mcmc_check() reports Rhat, effective sample sizes and divergences per model
 source("functions/mcmc_check.R")
 
 multiple_checks <- mcmc_check(list(
@@ -438,6 +496,7 @@ multiple_checks <- mcmc_check(list(
   "DPI x GFAP" = fit_interaction,
   "DPI + log2 GFAP" = fit_log
 ))
+# Stop the render if any model fails a check
 stopifnot(all(multiple_checks$ok))
 
 gt(multiple_checks) |>
@@ -457,10 +516,14 @@ The GFAP model is not the one I'd take forward as the best description of tissue
 #| fig-width: 6
 #| fig-height: 4
 
-pp_check(fit_dpi_gfap, ndraws = 50)
+# 50 replicated datasets (thin lines) against the observed density (dark line);
+# the legend sits in the empty upper right of the panel
+pp_check(fit_dpi_gfap, ndraws = 50) +
+  Plot_theme +
+  legend_inside(0.88, 0.8)
 ```
 
-The overall picture is close to last chapter's: replicates bracket the data roughly, but the observed density (dark line) has two distinct humps, around 10 and 14, while nearly every replicate is a single smooth mound. That's not surprising now. GFAP added nothing, so it couldn't fix anything. To look at the specific problem, I'll compare the standard deviation of the observed data on each day with the standard deviation in replicated datasets.
+In @fig-multiple_ppcheck, the overall picture is close to last chapter's: replicates bracket the data roughly, but the observed density (dark line) has two distinct humps, around 10 and 14, while nearly every replicate is a single smooth mound. That's not surprising now. GFAP added nothing, so it couldn't fix anything. To look at the specific problem, I'll compare the standard deviation of the observed data on each day with the standard deviation in replicated datasets.
 
 ```{r}
 #| label: fig-multiple_ppcheck_sd
@@ -481,15 +544,16 @@ ppc_stat_grouped(
 )
 ```
 
-Each panel asks the same question: is the spread we actually saw on that day (the dark bar) the sort of spread this model would produce? On day 3 it isn't. The observed standard deviation is about 3.1, far out in the right tail of what the model simulates (typically around 1.5 to 2). Days 7 and 14 go the other way: the observed spread, about 1.0, sits at the low edge of their replicates. A single `sigma` for all three days is a compromise: too small for day 3, too large for days 7 and 14. (Part of day 3's spread is one animal with a tissue area near 10.5 while its neighbors sit above 15; @fig-multiple_linear_vs_factor shows it. With eight animals in that group, one unusual animal moves the standard deviation a lot.) No predictor we've added addresses this, because the trouble isn't in the *mean*, it's in the *variance*.
+Each panel of @fig-multiple_ppcheck_sd asks the same question: is the spread we actually saw on that day (the dark bar) the sort of spread this model would produce? On day 3 it isn't. The observed standard deviation is about 3.1, far out in the right tail of what the model simulates (typically around 1.5 to 2). Days 7 and 14 go the other way: the observed spread, about 1.0, sits at the low edge of their replicates. A single `sigma` for all three days is a compromise: too small for day 3, too large for days 7 and 14. (Part of day 3's spread is one animal with a tissue area near 10.5 while its neighbors sit above 15; @fig-multiple_linear_vs_factor shows it. With eight animals in that group, one unusual animal moves the standard deviation a lot.) No predictor we've added addresses this, because the trouble isn't in the *mean*, it's in the *variance*.
 
-A last question we can answer honestly: does adding any of these predictors improve out-of-sample prediction? Leave-one-out cross-validation compares candidates on held-out data. It is a relative judgment, not an absolute one, so it never replaces the checks above.
+A last question we can answer honestly: does adding any of these predictors improve out-of-sample prediction? Leave-one-out cross-validation compares candidates on held-out data. It is a relative judgment, not an absolute one, so it never replaces the checks above (@tbl-multiple_loo).
 
 ```{r}
 #| label: tbl-multiple_loo
 #| tbl-cap: Leave-one-out comparison of the candidate models (differences are relative to the best-ranked model)
 #| warning: false
 
+# Leave-one-out comparison: expected predictive accuracy relative to the best model
 loo_tab <- loo_compare(list(
   `DPI` = loo(fit_dpi),
   `DPI + GFAP` = loo(fit_dpi_gfap),
@@ -502,7 +566,7 @@ gt(data.frame(model = rownames(loo_tab), round(loo_tab[, 1:2], 2)))
 
 The simplest model, tissue area as a straight-line function of days, ranks first. `DPI + GFAP` trails it by about half a unit of expected log predictive density (`elpd_diff`), with a standard error bigger than the gap, so those two are indistinguishable. The categorical and interaction models trail by about two and about three units, with standard errors of 1.3 and 0.9. That is a modest penalty, and a sensible one: they spend extra parameters on structure the data don't support. (The same animal, row 25, has a Pareto-$k$ above 0.7 in all four models, meaning its leave-one-out estimate is less reliable than the rest; the differences between models are small enough that I would not lean hard on the exact ranking, but the overall message does not hinge on that one animal.) That's an anticlimax only if you expected a winner. Adding parameters is only worth it when they buy something, and here none of them did.
 
-The variance problem is real and unsolved. The fix is to model `sigma` itself as a function of the predictor, and @sec-multivariate-distributional-regression does that. <!-- TODO: @sec-multivariate-distributional-regression stays unresolved until multivariate-distributional-regression.qmd (Part 5) exists. --> Until then, I'd treat every interval in this chapter as slightly optimistic for day 3.
+The variance problem is real and unsolved. The fix is to model `sigma` itself as a function of the predictor, and @sec-multivariate-distributional-regression does that. Until then, I'd treat every interval in this chapter as slightly optimistic for day 3.
 
 ::: callout-tip
 ### Frequentist equivalent
