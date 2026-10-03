@@ -29,3 +29,6 @@ _book/
 
 # Quarto leaves this behind when a render is interrupted or a file is locked
 /site_libs/
+
+# Intermediate file Quarto/knitr leaves when a render fails
+/*.knit.md
