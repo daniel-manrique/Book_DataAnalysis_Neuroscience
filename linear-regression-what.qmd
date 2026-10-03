@@ -11,9 +11,11 @@ subtitle: What is linear regression? Intercept, slope and error
 library(ggplot2)
 library(here)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 
+# Read the cell data and treat the day as a number, so a line can be drawn through it
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI <- as.numeric(cell_data$DPI)
 ```
@@ -30,7 +32,7 @@ That's Richard McElreath's way of putting it, and it's worth sitting with, becau
 
 ## The anatomy of the equation you already ran
 
-Before any symbols, think about the standard curve you have probably run more than once. You load known concentrations of a protein into a plate, read the absorbance, and draw a line through the points so you can translate the absorbance of your unknown samples into concentrations. That line is a linear regression, and you already know its three parts without having named them. Even the well with no protein gives a reading above zero (the background of the plate and the reagent): that is the [intercept]{style="color:green; font-weight:bold;"}. Every extra unit of concentration adds a roughly constant amount of signal: that is the [slope]{style="color:green; font-weight:bold;"}. And no point sits exactly on the line, because pipetting wobbles, the reader drifts and the plate is never perfectly uniform: that leftover is the [error]{style="color:green; font-weight:bold;"}. I remember the first time I realized that every standard curve I had drawn was this model in disguise; it made the equation feel a lot less foreign.
+Before any symbols, think about the standard curve you have probably run more than once. You load known concentrations of a protein into a plate, read the absorbance, and draw a line through the points so you can translate the absorbance of your unknown samples into concentrations. That line is a linear regression, and you already know its three parts without having named them. Even the well with no protein gives a reading above zero (the background of the plate and the reagent): that is the [intercept]{style="color:green; font-weight:bold;"}. Every extra unit of concentration adds a roughly constant amount of signal: that is the [slope]{style="color:green; font-weight:bold;"}. And no point sits exactly on the line, because pipetting wobbles, the reader drifts and the plate is never perfectly uniform: that leftover is the [error]{style="color:green; font-weight:bold;"}. I remember the first time I realized that every standard curve I had drawn was this model in disguise; it made the equation feel a lot less foreign (@fig-what-vials).
 
 ![A standard curve is a linear regression in disguise: the faint tint of the blank is the intercept, the steady rise with concentration is the slope, and the wobble around the line is the error.](images/linear-regression-what_standard-curve-vials.png){#fig-what-vials fig-align="center" width="90%" fig-alt="Watercolor sketch of five glass vials on a wooden bench with solutions growing from nearly clear to deep teal, beside a card on a wooden stand showing a hand-drawn graph with five dots rising along a thin straight line that starts a little above the horizontal axis. A pencil lies in front."}
 
@@ -50,7 +52,7 @@ The subscript $i$ simply says "for animal number $i$": every animal gets its own
 
 -   $y$ is the [outcome]{style="color:green; font-weight:bold;"}: the thing you measured and want to explain. In that model, $y$ was `Gfap_Intensity`. Elsewhere in this book it'll be `Tissue_Area`, a cell count, a reaction time, whatever column in your dataset you're trying to account for.
 
--   $x$ is the [predictor]{style="color:green; font-weight:bold;"}: the thing you believe moves $y$. There, $x$ was `Condition` (sham or ischemic, coded as $0$ or $1$). It could just as easily be `DPI`, drug dose, or any other column that might explain why $y$ varies from animal to animal.
+-   $x$ is the [predictor]{style="color:green; font-weight:bold;"}: the thing you believe moves $y$. There, $x$ was `Condition` (sham or ischemic, coded as $0$ or $1$). It could just as easily be `DPI`, drug dose, or any other column that might explain why $y$ varies from animal to animal. On a plot, the outcome is what sits on the vertical axis and the predictor is what sits on the horizontal one.
 
 Both $y$ and $x$ come straight out of your dataset: nothing here is invented, which is exactly why the two parts you just finished weren't a detour. Every distribution you looked at, every trend over `DPI` you spotted, was you getting acquainted with the raw material these two symbols are about to stand in for.
 
@@ -74,16 +76,20 @@ A table of coefficients is honest, but it's also easy to read past. So let's put
 #| label: fig-what_intercept_slope
 #| fig-cap: A least-squares line through tissue area and days post-injury. The dot marks the intercept (the line's height at day 0) and the triangle shows how much the line drops over ten days, which is ten times the slope.
 
+# Ordinary least-squares line: tissue area as a function of the day
 line_fit <- lm(Tissue_Area ~ DPI, data = cell_data)
-b0 <- unname(coef(line_fit)[1])
-b1 <- unname(coef(line_fit)[2])
+b0 <- unname(coef(line_fit)[1])  # intercept
+b1 <- unname(coef(line_fit)[2])  # slope
 
+# Heights of the line at days 12 and 22, to draw the 'ten days' triangle
 y_start <- b0 + b1 * 12
 y_end <- b0 + b1 * 22
 
+# Points, the line, the intercept dot and the ten-day triangle
 ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
   geom_point(color = "#0072B2", alpha = 0.5, size = 2) +
   geom_smooth(method = "lm", se = FALSE, color = "#D55E00") +
+  # The intercept: the line's height at day 0
   geom_point(aes(x = 0, y = b0), color = "#D55E00", size = 4) +
   annotate("text", x = 0.8, y = b0 + 1.4, label = "beta[0]", parse = TRUE,
            hjust = 0, size = 6, color = "#D55E00") +
@@ -98,7 +104,11 @@ ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
   Plot_theme
 ```
 
-The orange dot is $\beta_0$: the tissue area this line predicts at day 0, before any time has passed. The little triangle is $\beta_1$ at work: slide ten days along the horizontal side and the line drops by the vertical side, which is ten times the slope, in mm² of tissue lost. Everything else (every point that doesn't sit exactly on the line) is $\epsilon$.
+In @fig-what_intercept_slope, the orange dot is $\beta_0$: the tissue area this line predicts at day 0, before any time has passed. The little triangle is $\beta_1$ at work: slide ten days along the horizontal side and the line drops by the vertical side, which is ten times the slope, in mm² of tissue lost. Everything else (every point that doesn't sit exactly on the line) is $\epsilon$.
+
+::: {.callout-note title="How to report it"}
+**Results.** (Illustration only: the next chapter shows why this straight line should not be reported as it stands.) Across the whole time course, the fitted line began at `r round(b0, 1)` mm² of tissue at day 0 and lost `r round(abs(b1), 2)` mm² per additional day. Notice what a good sentence contains: both coefficients with their units, in plain words, and no verdict of "significant".
+:::
 
 One honest caveat before we move on, since @sec-linear-regression-assumptions is about to make a whole chapter out of it: a single straight line across the *entire* `DPI` range is almost certainly the wrong call here, and this figure is illustrative, not a finished analysis. Whether a straight line is actually defensible (and over what range) is exactly the question the next chapter teaches you to ask before you trust one.
 
@@ -110,11 +120,11 @@ $$
 y_i = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \dots + \beta_kx_{ki} + \epsilon_i, \quad \epsilon_i \sim \mathcal{N}(0, \sigma^2)
 $$ {#eq-linear-regression-multiple}
 
-Nothing conceptually new happens here: $x_1, x_2, \dots, x_k$ are just more predictors, each with its own slope, and $\beta_0$ is still where $y$ sits when every predictor is at its baseline. What *does* change is the interpretation of each $\beta$: it is now the expected difference in $y$ for a one-unit difference in that predictor, comparing animals that have the same values of all the other predictors. That is a statement about comparisons within the data, not automatically about what would happen if you intervened on that predictor, a distinction we will keep honest as the book goes on. We'll put this to work properly in @sec-linear-regression-multiple, once you've seen assumptions checked and a single-predictor model fit end to end.
+Nothing conceptually new happens here: $x_1, x_2, \dots, x_k$ are just more predictors, each with its own slope, and $\beta_0$ is still where $y$ sits when every predictor is at its baseline. What *does* change is the interpretation of each $\beta$: it is now the expected difference in $y$ for a one-unit difference in that predictor, comparing animals that have the same values of all the other predictors (@fig-what-mixer). That is a statement about comparisons within the data, not automatically about what would happen if you intervened on that predictor, a distinction we will keep honest as the book goes on. We'll put this to work properly in @sec-linear-regression-multiple, once you've seen assumptions checked and a single-predictor model fit end to end.
 
 ![Several predictors are several sliders on one mixing desk. Each coefficient says how the sound changes when you nudge one slider and leave the others where they are.](images/linear-regression-what_mixing-desk-sliders.png){#fig-what-mixer fig-align="center" width="90%" fig-alt="Watercolor sketch of a small mixing console with five vertical sliders at different heights and a hand with a teal sleeve nudging one ochre slider, while the other four stay put. A small speaker beside the console gives off teal and ochre sound arcs."}
 
-It's also worth saying plainly, once, why this book doesn't reach for a t-test or an ANOVA here the way a lot of neuroscience training does: a two-group t-test is @eq-linear-regression-simple with a 0/1 predictor, and an ANOVA is @eq-linear-regression-multiple with one 0/1 indicator for each additional group [@gelman2020]. @sec-intro-applied-modeling already showed you that directly when the sham/MCAO comparison turned out to be a linear regression. There's no separate machinery to learn for "comparing groups"; you already have it.
+It's also worth saying plainly, once, why this book doesn't reach for a t-test or an ANOVA here the way a lot of neuroscience training does: a two-group t-test is @eq-linear-regression-simple with a 0/1 predictor, and an ANOVA is @eq-linear-regression-multiple with one 0/1 indicator for each additional group [@gelman2020]. @sec-intro-applied-modeling already showed you that directly when the sham/MCAO comparison turned out to be a linear regression. There's no separate machinery to learn for "comparing groups"; you already have it (@fig-what-multitool).
 
 ![A t-test, an ANOVA and a regression are tools on the same handle. Learn the handle, a linear model, and you already own the rest.](images/linear-regression-what_multitool-one-handle.png){#fig-what-multitool fig-align="center" width="85%" fig-alt="Watercolor sketch of a pocket multi-tool lying on a wooden bench with a blade, a screwdriver, a small saw, scissors and a bottle opener all unfolded from one teal handle."}
 
