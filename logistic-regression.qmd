@@ -11,10 +11,18 @@ subtitle: Logistic regression for yes/no outcomes and for successes out of trial
 library(ggplot2)
 library(here)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 
+# Read the cell data (used in the last two sections)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+
+# Size of the wire file, quoted in the text
+wire_file <- read.csv(here("project/AnalysisData/Wire_TrainingSum.csv"))
+n_mice_file <- length(unique(wire_file$ReCode))
+n_geno_file <- length(unique(wire_file$Genotype))
+n_rows_file <- nrow(wire_file)
 ```
 
 [The introduction to GLMs](glm-intro.qmd#sec-glm-intro) gave the recipe: pick a family, keep the linear predictor, choose a link. It also promised that the logit link deserved to be taken on its own terms. This chapter keeps that promise, and it does so with the smallest possible amount of data per animal: one yes or no.
@@ -23,22 +31,27 @@ That's a real change of scene from a continuous measurement. A single yes/no, a 
 
 ## A wire, three attempts, and one yes or no per mouse
 
-Here is the experiment. In the hanging wire test, a mouse is put on a wire and has to cross it to reach a platform on the other side. Each mouse gets three attempts per day, on three consecutive days, and for each attempt the file records how long the mouse took to get into position (`Position`), how long it took to cross (`Wire`), and whether it made it (`Success`, 1 or 0). The test stops at 60 seconds, so a mouse that never makes it is recorded at 60. The file, `project/AnalysisData/Wire_TrainingSum.csv`, has 118 mice from seven genotype groups, one row per mouse and day, 354 rows in all. These are real data, and the mice come in the numbers neuroscience experiments usually have: dozens, not hundreds.
+Here is the experiment. In the hanging wire test, a mouse is put on a wire and has to cross it to reach a platform on the other side. Each mouse gets three attempts per day, on three consecutive days, and for each attempt the file records how long the mouse took to get into position (`Position`), how long it took to cross (`Wire`), and whether it made it (`Success`, 1 or 0). The test stops at 60 seconds, so a mouse that never makes it is recorded at 60. The file, `project/AnalysisData/Wire_TrainingSum.csv`, has `r n_mice_file` mice from `r n_geno_file` genotype groups, one row per mouse and day, `r n_rows_file` rows in all. These are real data, and the mice come in the numbers neuroscience experiments usually have: dozens, not hundreds.
 
 ![One mouse, one wire, one yes or no. Did it reach the platform? That single answer is the whole datum.](images/logistic-regression_mouse-on-the-wire.png){#fig-logistic-wire fig-align="center" width="90%" fig-alt="Watercolor sketch of a small white mouse hanging beneath a thin wire strung between two wooden platforms, gripping it with its paws and stretching its tail behind, with a piece of cheese on the right platform and a soft teal cushion below."}
 
-I'll use two of the seven groups, `Klf4-KO` and `WildType-Control`, because they ran in the same four sessions and so are the natural comparison. The other groups stay in the file; one of them will show up later in the chapter, for a reason you'll appreciate once you've met the problem.
+I'll use two of the seven groups (@fig-logistic-wire shows what a mouse is asked to do), `Klf4-KO` and `WildType-Control`, because they ran in the same four sessions and so are the natural comparison. The other groups stay in the file; one of them will show up later in the chapter, for a reason you'll appreciate once you've met the problem.
 
 The question is a plain one, and it's the kind of question a motor test is run to answer: after a day of practice, **do the KO mice still stumble on the wire more often than the wild-type controls, and does how a mouse did on day 1 explain it?** To turn that into one yes/no per mouse, I'll define the outcome as `completed_all`: 1 if the mouse completed all six crossings of days 2 and 3, 0 if it failed at least one. And I'll use one predictor besides genotype, `wire1`: the mean time a mouse took on the wire on day 1, over its three attempts, in seconds (a value near 60 means the mouse mostly didn't make it). It's the mean of the recorded times, so a failed attempt counts at whatever time was written down, usually the 60-second cap.
 
 ```{r}
+# Read the wire file and keep the two genotype groups we compare
 wire_raw <- read.csv(here("project/AnalysisData/Wire_TrainingSum.csv"))
 wire_raw <- wire_raw[wire_raw$Genotype %in% c("Klf4-KO", "WildType-Control"), ]
+
+# Number of successful attempts in each row (day)
 wire_raw$n_ok <- with(wire_raw, Trial1_Success + Trial2_Success + Trial3_Success)
 
+# Day 1 rows (the predictor) and the successes on days 2 and 3 (the outcome)
 day1 <- wire_raw[wire_raw$Day == 1, ]
 later <- aggregate(n_ok ~ ReCode, data = wire_raw[wire_raw$Day %in% c(2, 3), ], FUN = sum)
 
+# One row per mouse: genotype, session and the mean day-1 time on the wire
 wire <- data.frame(
   mouse = day1$ReCode,
   genotype = factor(ifelse(day1$Genotype == "Klf4-KO", "KO", "WT"), levels = c("WT", "KO")),
@@ -50,14 +63,16 @@ wire$completed_all <- as.integer(later$n_ok[match(wire$mouse, later$ReCode)] == 
 # Centering at 25 s and counting in tens of seconds makes the intercept describe a typical day-1 time
 wire$wire1_c <- (wire$wire1 - 25) / 10
 
+# Stop the render if the table is not what the text describes
 stopifnot(nrow(wire) == 63, !anyNA(wire))
 ```
 
-This is one row per mouse, so the 63 rows are independent animals. That wasn't automatic: the file itself has three rows per mouse (one per day) and three attempts per row, and treating those as independent observations would count each mouse several times. Collapsing to one yes/no per mouse is the price of a model that counts each mouse once. It throws away how *many* crossings failed, which a count of successes out of six would keep, and the section on successes out of trials later in the chapter shows the tool for that. The structure of repeated attempts comes back, as a structure to model instead of avoid, in the multilevel part of the book. <!-- TODO: link @sec-multilevel-glmm once that chapter exists. -->
+This is one row per mouse, so the `r nrow(wire)` rows are independent animals. That wasn't automatic: the file itself has three rows per mouse (one per day) and three attempts per row, and treating those as independent observations would count each mouse several times. Collapsing to one yes/no per mouse is the price of a model that counts each mouse once. It throws away how *many* crossings failed, which a count of successes out of six would keep, and the section on successes out of trials later in the chapter shows the tool for that. The structure of repeated attempts comes back, as a structure to model instead of avoid, in @sec-multilevel-glmm.
 
 One more thing about these data, so you can hold me to it: the mice ran in sessions (batches that were handled together), and I ignore that here. With so few mice that didn't complete, there is no room to estimate session effects, and I'll say what that costs when we get there.
 
 ```{r}
+# Completers and non-completers per genotype, and the overall number of failures
 pass_n <- table(wire$genotype, wire$completed_all)
 pass_rate <- tapply(wire$completed_all, wire$genotype, mean)
 n_events <- sum(wire$completed_all == 0)
@@ -65,7 +80,7 @@ n_events <- sum(wire$completed_all == 0)
 
 In the raw counts, `r round(100 * pass_rate["WT"])`% of the wild-type mice (`r pass_n["WT", "1"]` of `r sum(pass_n["WT", ])`) completed all six crossings, against `r round(100 * pass_rate["KO"])`% of the KO mice (`r pass_n["KO", "1"]` of `r sum(pass_n["KO", ])`). Only `r n_events` mice in the whole sample failed at least once, and that number will matter more than any other in this chapter. Whatever the model says, the raw proportions are what it has to agree with.
 
-Before any model, let's look. With a binary outcome there isn't much to summarize (each mouse is a 0 or a 1), so I'd rather show every mouse. I'll put the day-1 time on the horizontal axis, jitter the 0s and 1s vertically so they don't pile on top of each other, and use both color and shape for genotype, so the figure survives a grayscale printout.
+Before any model, let's look. With a binary outcome there isn't much to summarize (each mouse is a 0 or a 1), so I'd rather show every mouse. I'll put the day-1 time on the horizontal axis, jitter the 0s and 1s vertically so they don't pile on top of each other, and use both color and shape for genotype, so the figure survives a grayscale printout (@fig-logistic_raw). Showing every mouse, instead of a bar of the proportion completing, is what lets you see that the failures cluster on the right.
 
 ```{r}
 #| label: fig-logistic_raw
@@ -74,8 +89,10 @@ Before any model, let's look. With a binary outcome there isn't much to summariz
 #| fig-height: 3.8
 #| warning: false
 
+# One colour per genotype (colour-blind-safe); shape repeats the distinction
 group_cols <- c(WT = "#D55E00", KO = "#0072B2")
 
+# Every mouse as a point, jittered a little vertically so 0s and 1s do not overlap
 set.seed(1)
 ggplot(wire, aes(x = wire1, y = completed_all, color = genotype, shape = genotype)) +
   geom_jitter(height = 0.05, width = 0.2, size = 2.5, alpha = 0.85) +
@@ -83,14 +100,14 @@ ggplot(wire, aes(x = wire1, y = completed_all, color = genotype, shape = genotyp
   scale_y_continuous(breaks = c(0, 1), labels = c("Failed at least once", "Completed all six")) +
   labs(x = "Mean time on the wire, day 1 (s)", y = NULL) +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
 Two things stand out, and I'd like you to notice them before I name them. The mice that failed sit mostly on the right, the slow side. And the KO mice are over there too: their day-1 times run longer than the controls'. Whatever the genotype does, it does it in company with day-1 speed, which is exactly the situation @sec-linear-regression-multiple taught us to be careful about.
 
 ## Why not just draw a straight line?
 
-You already have a tool for "how does an outcome change with a predictor": the linear model. Nothing stops you from coding completed as 1 and failed as 0 and fitting a line to it. It's called a [linear probability model]{style="color:green; font-weight:bold;"}, and inside the range of the data it's often a perfectly decent summary. Let's see what it does here.
+You already have a tool for "how does an outcome change with a predictor": the linear model. Nothing stops you from coding completed as 1 and failed as 0 and fitting a line to it. It's called a [linear probability model]{style="color:green; font-weight:bold;"}, and inside the range of the data it's often a perfectly decent summary. Let's see what it does here (@fig-logistic_lpm).
 
 ```{r}
 #| label: fig-logistic_lpm
@@ -99,10 +116,14 @@ You already have a tool for "how does an outcome change with a predictor": the l
 #| fig-height: 3.8
 #| warning: false
 
+# Linear probability model: a straight line fitted to the 0/1 outcome
 lpm <- lm(completed_all ~ genotype + wire1, data = wire)
+
+# Its predictions over the whole range of times, for each genotype
 lpm_grid <- expand.grid(wire1 = seq(0, 60, length.out = 100), genotype = levels(wire$genotype))
 lpm_grid$fit <- predict(lpm, newdata = lpm_grid)
 
+# The fitted lines against the raw 0/1 data; dashed lines mark probability 0 and 1
 ggplot(wire, aes(x = wire1, y = completed_all, color = genotype)) +
   geom_hline(yintercept = c(0, 1), linetype = "dashed", color = "grey50") +
   geom_line(data = lpm_grid, aes(y = fit, linetype = genotype), linewidth = 1) +
@@ -112,8 +133,9 @@ ggplot(wire, aes(x = wire1, y = completed_all, color = genotype)) +
   coord_cartesian(ylim = c(-0.1, 1.3)) +
   labs(x = "Mean time on the wire, day 1 (s)", y = "Completed all six (1) / failed (0)") +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 
+# The line's prediction for the fastest wild-type mouse in the sample
 lpm_fast <- predict(lpm, newdata = data.frame(wire1 = min(wire$wire1), genotype = "WT"))
 ```
 
@@ -121,7 +143,7 @@ The line is a fair description in the middle and a poor one at the edge. For the
 
 ## From probabilities to odds to log-odds
 
-[The introduction to GLMs](glm-intro.qmd#sec-glm-intro) described a GLM with the picture of two rooms: a room with no walls where the linear predictor does its arithmetic, and a small room where the mean has to live. For a yes/no outcome the small room is the interval from 0 to 1, and the doorway is the logit. To see why it's a sensible doorway, I'd like you to think like a bookmaker.
+[The introduction to GLMs](glm-intro.qmd#sec-glm-intro) described a GLM with the picture of two rooms: a room with no walls where the linear predictor does its arithmetic, and a small room where the mean has to live. For a yes/no outcome the small room is the interval from 0 to 1, and the doorway is the logit. To see why it's a sensible doorway, I'd like you to think like a bookmaker (@fig-logistic-seesaw).
 
 A bookmaker doesn't quote probabilities. When a horse has a 75% chance of winning, the bookmaker says "3 to 1": for every time it loses, it wins three times. That ratio, $p / (1 - p)$, is the [odds]{style="color:green; font-weight:bold;"}. Odds have a nice property that probabilities lack, they live on the whole positive half-line: a probability can't exceed 1, but the odds can grow as big as you like as the event gets more certain. The last step takes the logarithm of the odds, which drags the positive half-line onto the whole number line. That's the [log-odds]{style="color:green; font-weight:bold;"}, or *logit*:
 
@@ -131,7 +153,7 @@ $$
 \text{logit}(p) = \log\left(\frac{p}{1 - p}\right)
 $$ {#eq-logit}
 
-The table shows the three scales side by side. Watch the log-odds column: it's symmetric around zero (a 25% chance and a 75% chance are the same distance from even odds, in opposite directions), and moving from 50% to 90% costs about the same on the log-odds scale as moving from 90% to 99%.
+@tbl-logistic_ladder shows the three scales side by side. Watch the log-odds column: it's symmetric around zero (a 25% chance and a 75% chance are the same distance from even odds, in opposite directions), and moving from 50% to 90% costs about the same on the log-odds scale as moving from 90% to 99%.
 
 ```{r}
 #| label: tbl-logistic_ladder
@@ -139,6 +161,7 @@ The table shows the three scales side by side. Watch the log-odds column: it's s
 
 library(gt)
 
+# Probabilities and their odds and log-odds
 ladder <- data.frame(
   p = c(0.01, 0.10, 0.25, 0.50, 0.75, 0.90, 0.99)
 )
@@ -163,7 +186,7 @@ That is @eq-glm with a Bernoulli family and a logit link, nothing more. Same rec
 
 I'll start with only `genotype` in the model, before day-1 time enters the picture, because it lets us learn to read the output on the simplest possible case. `brms` fits it with the `bernoulli()` family, and `glm()` is its frequentist counterpart with the `binomial()` family (for 0/1 data a Bernoulli *is* a binomial with a single trial).
 
-Before fitting, one decision that I'm not going to leave to a default. [The introduction to GLMs](glm-intro.qmd#sec-glm-intro) warned that priors on link-scale coefficients need to be judged on the outcome scale, and this is where that warning starts to matter. Here's what two candidate priors imply for the chance of completing, before seeing any data. Each histogram shows probabilities obtained by pushing draws of the intercept through the inverse logit.
+Before fitting, one decision that I'm not going to leave to a default. [The introduction to GLMs](glm-intro.qmd#sec-glm-intro) warned that priors on link-scale coefficients need to be judged on the outcome scale, and this is where that warning starts to matter. Here's what two candidate priors imply for the chance of completing, before seeing any data. Each histogram (@fig-logistic_prior_predictive) shows probabilities obtained by pushing draws of the intercept through the inverse logit.
 
 ```{r}
 #| label: fig-logistic_prior_predictive
@@ -172,6 +195,7 @@ Before fitting, one decision that I'm not going to leave to a default. [The intr
 #| fig-height: 3.2
 #| warning: false
 
+# Draw intercepts from two candidate priors and push them through the inverse logit
 set.seed(2)
 prior_draws <- rbind(
   data.frame(p = plogis(rnorm(10000, 0, 10)), prior = "Normal(0, 10)"),
@@ -179,6 +203,7 @@ prior_draws <- rbind(
 )
 prior_draws$prior <- factor(prior_draws$prior, levels = c("Normal(0, 10)", "Normal(0, 1.5)"))
 
+# One histogram of implied probabilities per prior
 ggplot(prior_draws, aes(x = p)) +
   geom_histogram(bins = 30, fill = "#0072B2", color = "white") +
   facet_wrap(~prior) +
@@ -191,11 +216,13 @@ A `Normal(0, 10)` looks humble and behaves like a zealot: it believes, before se
 ```{r}
 library(brms)
 
+# Weakly informative prior for the intercept and the coefficient, on the log-odds scale
 prior_logit <- c(
   prior(normal(0, 1.5), class = "Intercept"),
   prior(normal(0, 1.5), class = "b")
 )
 
+# Bernoulli family with a logit link, genotype only (fit cached in models/)
 fit_group <- brm(
   completed_all ~ genotype,
   data = wire,
@@ -211,6 +238,7 @@ fit_group <- brm(
 ### brms
 
 ```{r}
+# Posterior summary on the log-odds scale
 summary(fit_group)
 ```
 
@@ -219,6 +247,7 @@ summary(fit_group)
 ```{r}
 library(broom)
 
+# The same model by maximum likelihood (binomial with one trial = Bernoulli)
 glm_group <- glm(completed_all ~ genotype, family = binomial(), data = wire)
 
 tidy(glm_group, conf.int = TRUE)
@@ -226,6 +255,7 @@ tidy(glm_group, conf.int = TRUE)
 :::
 
 ```{r}
+# Posterior estimates of the genotype-only model, for the text
 b_group <- fixef(fit_group)
 ```
 
@@ -236,8 +266,10 @@ The `Intercept` (`r round(b_group["Intercept", "Estimate"], 2)`) is the log-odds
 Here is the reading I'd want from a paper, in order of how much I'd trust the reader to follow it. I'll do the arithmetic on the posterior draws, not on the point estimates, so every quantity carries its uncertainty with it.
 
 ```{r}
+# Posterior draws of the genotype-only model
 draws_group <- as.data.frame(posterior::as_draws_df(fit_group))
 
+# The same effect on three scales, computed draw by draw so uncertainty carries through
 three_ways <- data.frame(
   logodds = draws_group$b_genotypeKO,
   odds_ratio = exp(draws_group$b_genotypeKO),
@@ -246,6 +278,7 @@ three_ways <- data.frame(
 )
 three_ways$diff <- three_ways$p_ko - three_ways$p_wt
 
+# Helper: median and 95% interval as text
 summ <- function(x) sprintf("%.2f [%.2f, %.2f]", median(x), quantile(x, 0.025), quantile(x, 0.975))
 ```
 
@@ -267,9 +300,10 @@ summ <- function(x) sprintf("%.2f [%.2f, %.2f]", median(x), quantile(x, 0.025), 
 
 ### Does the prior matter?
 
-I promised a sensitivity check. Here is the genotype effect refit with a prior scale a third the size of my choice, and with one more than three times as large.
+I promised a sensitivity check. Here is the genotype effect refit with a prior scale a third the size of my choice, and with one more than three times as large (@tbl-logistic_sensitivity).
 
 ```{r}
+# Same model with a narrower prior (scale 0.5)
 fit_narrow <- brm(
   completed_all ~ genotype,
   data = wire,
@@ -281,6 +315,7 @@ fit_narrow <- brm(
   file_refit = "never"
 )
 
+# And with a wider prior (scale 5)
 fit_wide <- brm(
   completed_all ~ genotype,
   data = wire,
@@ -297,6 +332,7 @@ fit_wide <- brm(
 #| label: tbl-logistic_sensitivity
 #| tbl-cap: Genotype effect (log-odds) under three prior scales
 
+# Genotype coefficient and 95% interval under the three priors
 sens <- do.call(rbind, lapply(
   list("Normal(0, 0.5)" = fit_narrow, "Normal(0, 1.5)" = fit_group, "Normal(0, 5)" = fit_wide),
   function(m) as.data.frame(fixef(m)["genotypeKO", c("Estimate", "Q2.5", "Q97.5"), drop = FALSE])
@@ -314,6 +350,7 @@ This is not a clean bill of health, and I'd rather tell you than hide it. The es
 The dot plot at the start suggested that day-1 time matters, and that the KO mice are slower. Both are reasons to put `wire1_c` in the model: the mean time on the wire on day 1, in tens of seconds and centered at 25 seconds, so the intercept describes a wild-type mouse with a typical day-1 time and a coefficient is the change for ten extra seconds. Ten seconds is a little under a standard deviation of this variable, so the same prior scale we've used (`Normal(0, 1.5)`) is still a sensible, weakly informative one.
 
 ```{r}
+# Genotype plus day-1 time (centred at 25 s, in tens of seconds)
 fit_time <- brm(
   completed_all ~ genotype + wire1_c,
   data = wire,
@@ -329,12 +366,14 @@ fit_time <- brm(
 ### brms
 
 ```{r}
+# Posterior summary: one coefficient for genotype, one per ten seconds of day-1 time
 summary(fit_time)
 ```
 
 ### glm
 
 ```{r}
+# The same model by maximum likelihood
 glm_time <- glm(completed_all ~ genotype + wire1_c, family = binomial(), data = wire)
 
 tidy(glm_time, conf.int = TRUE)
@@ -342,6 +381,7 @@ tidy(glm_time, conf.int = TRUE)
 :::
 
 ```{r}
+# Estimates and mean day-1 time per genotype, for the text
 b_time <- fixef(fit_time)
 mean_wire1 <- tapply(wire$wire1, wire$genotype, mean)
 ```
@@ -356,7 +396,7 @@ What that means depends on a question the data can't answer. If a slow first day
 I'd be doing you a disservice if I let the tidy coefficient table pass without a warning. Only `r n_events` of the `r nrow(wire)` mice failed at least once, and a logistic model learns from the rarer of the two outcomes. Two predictors on `r n_events` events is thin, which is why the prior sensitivity matters here and why I haven't tried to add the session, a third predictor with several levels, on top. The model isn't wrong, it's weakly identified, and the honest summary is a wide interval and a statement of what the data cannot yet separate. Experiments with a few dozen animals are the norm, and this is what the analysis of one of them looks like.
 :::
 
-Now the picture that makes the "not one number" point. I'll compute, for every combination of genotype and day-1 time across the observed range, the model's expected probability of completing. `posterior_epred()` returns the expected outcome (here, a probability) for every posterior draw, so we can show the whole family of plausible curves as graded bands instead of a single line.
+Now the picture that makes the "not one number" point. I'll compute, for every combination of genotype and day-1 time across the observed range, the model's expected probability of completing. `posterior_epred()` returns the expected outcome (here, a probability) for every posterior draw, so we can show the whole family of plausible curves as graded bands instead of a single line (@fig-logistic_curve; the bands come from `stat_lineribbon()` in `ggdist`).
 
 ```{r}
 #| label: fig-logistic_curve
@@ -367,18 +407,22 @@ Now the picture that makes the "not one number" point. I'll compute, for every c
 
 library(ggdist)
 
+# A grid of day-1 times for each genotype
 grid <- expand.grid(wire1 = seq(10, 60, by = 1),
                     genotype = factor(c("WT", "KO"), levels = levels(wire$genotype)))
 grid$wire1_c <- (grid$wire1 - 25) / 10
 
+# Expected probability at each grid point, for 1000 posterior draws
 epred_grid <- posterior_epred(fit_time, newdata = grid, ndraws = 1000)
 
+# Long table for plotting: one row per (grid point, draw)
 curve_long <- data.frame(
   wire1 = rep(grid$wire1, each = nrow(epred_grid)),
   genotype = rep(grid$genotype, each = nrow(epred_grid)),
   p = as.vector(epred_grid)
 )
 
+# Curves with graded credible bands, and the observed mice on top
 set.seed(1)
 ggplot(curve_long, aes(x = wire1, y = p, color = genotype, fill = genotype, linetype = genotype)) +
   stat_lineribbon(.width = c(0.5, 0.8, 0.95), alpha = 0.25, linewidth = 1) +
@@ -390,7 +434,7 @@ ggplot(curve_long, aes(x = wire1, y = p, color = genotype, fill = genotype, line
   scale_y_continuous(breaks = seq(0, 1, 0.25)) +
   labs(x = "Mean time on the wire, day 1 (s)", y = "Probability of completing all six") +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
 The curves are S-shaped, in principle, but over the range we measured we see the descent: the fastest mice are close to certain to complete, and the slowest ones are much less so. The two genotype curves sit on top of each other, as the small genotype coefficient said they would. The odds ratio for day-1 time is the same at every point, because that's what a constant log-odds slope means, but the *vertical* change a person deciding whether to care would look at isn't: it's largest where the curve is steepest, and shrinks as it nears 1. What we want is an honest way to summarize a quantity that depends on who you're asking about.
@@ -408,9 +452,11 @@ $$ {#eq-apc}
 The advantage over evaluating the model at "the average mouse" is that no mouse has to be average: if the data sit near the ends of the curve, or interact with the predictor, the average over real mice keeps that. And because we do it on the Bayesian posterior, the APC comes with an interval for free: we compute one APC per posterior draw. With `posterior_epred()`, that's two prediction matrices and a subtraction.
 
 ```{r}
+# Every mouse set to KO, then every mouse set to wild-type, with its own day-1 time
 nd_ko <- transform(wire, genotype = factor("KO", levels = levels(wire$genotype)))
 nd_wt <- transform(wire, genotype = factor("WT", levels = levels(wire$genotype)))
 
+# Predicted probability of completing for every mouse and every posterior draw
 p_ko <- posterior_epred(fit_time, newdata = nd_ko)
 p_wt <- posterior_epred(fit_time, newdata = nd_wt)
 
@@ -427,17 +473,20 @@ apc_genotype <- rowMeans(p_ko - p_wt)
 
 library(patchwork)
 
+# KO minus wild-type probability along the day-1 time axis, per draw
 diff_long <- data.frame(
   wire1 = rep(unique(grid$wire1), each = nrow(epred_grid)),
   diff = as.vector(epred_grid[, grid$genotype == "KO"] - epred_grid[, grid$genotype == "WT"])
 )
 
+# Left panel: the difference as a function of day-1 time
 p_left <- ggplot(diff_long, aes(x = wire1, y = diff)) +
   stat_lineribbon(.width = c(0.5, 0.8, 0.95), color = "#0072B2", fill = "#0072B2", alpha = 0.25) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
   labs(x = "Mean time on the wire, day 1 (s)", y = "KO minus wild-type\n(probability of completing)") +
   Plot_theme
 
+# Right panel: the average predictive comparison as one half-eye
 p_right <- ggplot(data.frame(apc = apc_genotype), aes(x = apc)) +
   stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", point_interval = "median_qi") +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
@@ -445,19 +494,28 @@ p_right <- ggplot(data.frame(apc = apc_genotype), aes(x = apc)) +
   labs(x = "Average predictive\ncomparison", y = NULL) +
   Plot_theme
 
+# Side by side, the left panel a little wider
 p_left + p_right + plot_layout(widths = c(1.4, 1))
 ```
 
 ```{r}
+# The effect in percentage points, and the probability that KO is worse
 apc_pp <- 100 * apc_genotype
 apc_prob_neg <- mean(apc_genotype < 0)
 ```
 
-The left panel shows the point I was making above: the genotype difference isn't constant across day-1 times, and it is small and uncertain everywhere. The right panel collapses it into one distribution, and the sentence I'd now write in a paper is this one: **on average across the mice in this study, and adjusting for day-1 time, KO mice were `r round(abs(median(apc_pp)))` percentage points less likely than wild-type mice to complete all six later crossings (95% credible interval `r round(quantile(apc_pp, 0.025))` to `r round(quantile(apc_pp, 0.975))`), and the posterior probability that the KO is worse is `r round(100 * apc_prob_neg)`%.** A colleague who has never heard the word "logit" can use that sentence, and notice what it does not say: it does not claim the effect is large, because the interval doesn't. The odds ratio, `r round(exp(b_time["genotypeKO", "Estimate"]), 2)` in this model, is still the right summary of the *mechanism* and the right thing to compare across studies, but the percentage points are what you'd say to a person deciding whether a difference is worth caring about.
+The left panel shows the point I was making above: the genotype difference isn't constant across day-1 times, and it is small and uncertain everywhere. The right panel collapses it into one distribution (@fig-logistic_apc), and the sentence I'd now write in a paper is this one: **on average across the mice in this study, and adjusting for day-1 time, KO mice were `r round(abs(median(apc_pp)))` percentage points less likely than wild-type mice to complete all six later crossings (95% credible interval `r round(quantile(apc_pp, 0.025))` to `r round(quantile(apc_pp, 0.975))`), and the posterior probability that the KO is worse is `r round(100 * apc_prob_neg)`%.** A colleague who has never heard the word "logit" can use that sentence, and notice what it does not say: it does not claim the effect is large, because the interval doesn't. The odds ratio, `r round(exp(b_time["genotypeKO", "Estimate"]), 2)` in this model, is still the right summary of the *mechanism* and the right thing to compare across studies, but the percentage points are what you'd say to a person deciding whether a difference is worth caring about.
+
+::: {.callout-note title="How to report it"}
+**Results.** Across the `r nrow(wire)` mice, `r round(100 * pass_rate["WT"])`% of wild-type and `r round(100 * pass_rate["KO"])`% of KO mice completed all six crossings on days 2 and 3. Adjusting for day-1 time on the wire, KO mice were `r round(abs(median(apc_pp)))` percentage points less likely to complete (average predictive comparison; 95% credible interval `r round(quantile(apc_pp, 0.025))` to `r round(quantile(apc_pp, 0.975))`; posterior probability that KO is worse `r round(100 * apc_prob_neg)`%), a difference that is small and uncertain. Each additional ten seconds on day 1 multiplied the odds of completing by `r round(exp(b_time["wire1_c", "Estimate"]), 2)`.
+
+**Methods.** We modeled completion (1 = all six crossings of days 2 and 3, 0 = at least one failure) with a Bernoulli model with a logit link in `brms`, with Normal(0, 1.5) priors on the intercept and coefficients (chosen after a prior predictive check) and day-1 time centered at 25 seconds. Conclusions were checked under priors with scales 0.5 and 5. Only `r n_events` mice failed at least once, so estimates depend on the prior and should be read as imprecise.
+:::
 
 The same recipe works for a continuous predictor: pick two values, $D_{\text{lo}}$ and $D_{\text{hi}}$, set everyone to each in turn, and average. Here is day-1 time, comparing a mouse that averaged 20 seconds with one that averaged 30, for the whole sample.
 
 ```{r}
+# Everyone at 20 seconds, then everyone at 30 seconds
 nd_fast <- transform(wire, wire1_c = (20 - 25) / 10)
 nd_slow <- transform(wire, wire1_c = (30 - 25) / 10)
 
@@ -472,7 +530,7 @@ Going from 20 to 30 seconds changes the average probability of completing by `r 
 
 A binary outcome takes the usual checks and breaks them. The check we leaned on for continuous outcomes, plotting the density of the observed outcome against replicated ones, would tell no story here: every replicate is a column of zeros and ones. The way forward, following the checks for binary outcomes in the `brms` toolkit [@inchausti2023], is to compare *summaries* of the data, and to ask two different questions: does the model reproduce the overall rate of the outcome in the sample and in each group, and does it separate the mice that completed from the ones that didn't (a discrimination question)?
 
-I'll start with the first, using `pp_check()` with `type = "stat"`, and a summary that is meaningful for 0/1 data: the proportion of ones. I'll ask it for the whole sample and then split by group, because a model can get the overall rate right and still be wrong in every subgroup.
+I'll start with the first, using `pp_check()` with `type = "stat"`, and a summary that is meaningful for 0/1 data: the proportion of ones. I'll ask it for the whole sample and then split by group (@fig-logistic_ppc), because a model can get the overall rate right and still be wrong in every subgroup.
 
 ```{r}
 #| label: fig-logistic_ppc
@@ -481,8 +539,10 @@ I'll start with the first, using `pp_check()` with `type = "stat"`, and a summar
 #| fig-height: 3.8
 #| warning: false
 
+# The statistic to check: the proportion of mice that completed
 presences <- function(x) mean(x == 1)
 
+# Left: all mice. Right: by genotype. Histogram = replicated data, line = observed
 p1 <- pp_check(fit_time, type = "stat", stat = "presences", ndraws = 500) +
   labs(title = "All mice")
 
@@ -490,6 +550,7 @@ p2 <- pp_check(fit_time, type = "stat_grouped", stat = "presences",
                group = "genotype", ndraws = 500) +
   labs(title = "By genotype")
 
+# Side by side
 p1 + p2
 ```
 
@@ -506,8 +567,10 @@ For discrimination, the Bayesian move [@inchausti2023] is to compute the metric 
 #| fig-height: 3.2
 #| warning: false
 
+# The observed outcomes
 y <- wire$completed_all
 
+# AUC computed from ranks: the chance a completer outranks a non-completer
 auc_rank <- function(p, y) {
   r <- rank(p)
   n1 <- sum(y == 1)
@@ -515,12 +578,14 @@ auc_rank <- function(p, y) {
   (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
 }
 
+# Predicted probabilities for every posterior draw, then AUC and Brier score from them
 p_draws <- posterior_epred(fit_time)
 auc_obs <- auc_rank(colMeans(p_draws), y)
 aucs <- apply(p_draws, 1, auc_rank, y = y)
 briers <- apply(p_draws, 1, function(p) mean((p - y)^2))
 brier_null <- mean(y) * (1 - mean(y))
 
+# Distribution of the Brier score across draws; dashed line = a model with no predictors
 ggplot(data.frame(brier = briers), aes(x = brier)) +
   stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", point_interval = "median_qi") +
   geom_vline(xintercept = brier_null, linetype = "dashed", color = "grey40") +
@@ -529,7 +594,7 @@ ggplot(data.frame(brier = briers), aes(x = brier)) +
   Plot_theme
 ```
 
-The AUC is `r round(auc_obs, 2)` (across posterior draws it ranges from `r round(quantile(aucs, 0.025), 2)` to `r round(quantile(aucs, 0.975), 2)`, parameter uncertainty only), and the Brier score has a median of `r round(median(briers), 3)` (95% credible interval `r round(quantile(briers, 0.025), 3)` to `r round(quantile(briers, 0.975), 3)`) against `r round(brier_null, 3)` for the model that ignores the predictors. The model separates the mice that completed from the ones that didn't better than chance, and the improvement is real but modest, which is the honest reading of the biology: a slow first day is a warning sign, not a verdict. Both numbers come from the data the model was trained on, so treat them as an upper bound on how well the model would do on new mice.
+The AUC is `r round(auc_obs, 2)` (across posterior draws it ranges from `r round(quantile(aucs, 0.025), 2)` to `r round(quantile(aucs, 0.975), 2)`, parameter uncertainty only), and the Brier score has a median of `r round(median(briers), 3)` (95% credible interval `r round(quantile(briers, 0.025), 3)` to `r round(quantile(briers, 0.975), 3)`) against `r round(brier_null, 3)` for the model that ignores the predictors. The model separates the mice that completed from the ones that didn't better than chance, and the improvement is real but modest, which is the honest reading of the biology: a slow first day is a warning sign, not a verdict. Both numbers (@fig-logistic_metrics shows the Brier score) come from the data the model was trained on, so treat them as an upper bound on how well the model would do on new mice.
 
 ## Many yes/no answers at once: successes out of trials
 
@@ -538,6 +603,7 @@ So far every mouse contributed a single yes or no. A great deal of bench data co
 (There's also a `Pdgfrb_Neg` column, and where it's present, `Pos + Neg = Total` exactly. One animal, Td79, has an empty `Neg`, and its `Total` was computed as if that gap were zero, so for that animal `Pos` equals `Total` and its proportion is exactly 1. @sec-eda-missing-data tells the story.) That makes Td79's `Total` an artifact of the gap, not a number of cells anyone counted, and a binomial treats the total as the number of trials, so it can't be trusted as one. I leave Td79 out of this section, which leaves 48 animals. I'll check at the end that this choice isn't doing any work it shouldn't. As in the figure of the introduction, I treat `DPI` as a category, so each day gets its own mean, and day 0 is the sham group.
 
 ```{r}
+# Leave out the animal whose Pdgfrb_Neg is missing, and treat the day as a category
 cell_prop <- cell_data[!is.na(cell_data$Pdgfrb_Neg), ]
 cell_prop$DPI_f <- factor(cell_prop$DPI)
 cell_all <- cell_data  # all 49 animals, only used for the Td79 sensitivity check below
@@ -549,6 +615,7 @@ A proportion built from a known number of trials has its own family, the [binomi
 ```{r}
 library(brms)
 
+# Binomial model: positive cells out of the cells counted, one mean per day (cached)
 fit_binom <- brm(
   Pdgfrb_Pos | trials(Pdgfrb_Total) ~ DPI_f,
   data = cell_prop,
@@ -563,12 +630,14 @@ fit_binom <- brm(
 ### brms
 
 ```{r}
+# Posterior summary on the log-odds scale
 summary(fit_binom)
 ```
 
 ### glm
 
 ```{r}
+# The same model by maximum likelihood (successes and failures as two columns)
 glm_binom <- glm(cbind(Pdgfrb_Pos, Pdgfrb_Total - Pdgfrb_Pos) ~ DPI_f,
                  family = binomial(), data = cell_prop)
 
@@ -577,13 +646,14 @@ broom::tidy(glm_binom, conf.int = TRUE)
 :::
 
 ```{r}
+# Fitted proportion of positive cells on each day, back from log-odds
 b_bin <- fixef(fit_binom)[, "Estimate"]
 p_day <- plogis(b_bin["Intercept"] + c(0, b_bin[-1]))
 ```
 
 The coefficients are log-odds, the scale this chapter has been reading three ways. The intercept (about `r round(b_bin["Intercept"], 2)`) corresponds to a day-0 proportion of about `r round(100 * p_day[1])`% positive, and every later day is higher, up to about `r round(100 * max(p_day))`% at day `r levels(cell_prop$DPI_f)[which.max(p_day)]`. The doorway is doing its job: whatever the linear predictor says, the fitted proportion stays between 0 and 1.
 
-So does this family have the right idea about noise? Same question, same suspicion. The binomial says the scatter of a proportion around its mean is fixed by how many cells were counted and by the proportion itself, with nothing left over for animals that simply differ. To check, I'll ask the model where it expects each animal's proportion to land, and see whether the observed proportions honor that.
+So does this family have the right idea about noise? Same question, same suspicion. The binomial says the scatter of a proportion around its mean is fixed by how many cells were counted and by the proportion itself, with nothing left over for animals that simply differ. To check, I'll ask the model where it expects each animal's proportion to land, and see whether the observed proportions honor that (@fig-logistic_binom_check).
 
 ```{r}
 #| label: fig-logistic_binom_check
@@ -592,9 +662,11 @@ So does this family have the right idea about noise? Same question, same suspici
 #| fig-height: 3.8
 #| warning: false
 
+# Replicated counts for every animal, turned into proportions
 yrep <- posterior_predict(fit_binom, ndraws = 1000)
 prop_rep <- sweep(yrep, 2, cell_prop$Pdgfrb_Total, "/")
 
+# Observed proportion and the model's 95% predictive interval for each animal
 check <- cell_prop[, c("DPI_f", "Pdgfrb_Pos", "Pdgfrb_Total")]
 check$obs <- check$Pdgfrb_Pos / check$Pdgfrb_Total
 check$lo <- apply(prop_rep, 2, quantile, probs = 0.025)
@@ -603,6 +675,7 @@ check$outside <- check$obs < check$lo | check$obs > check$hi
 check <- check[order(check$DPI_f, check$obs), ]
 check$idx <- seq_len(nrow(check))
 
+# Grey bar = predicted range; point = observed; triangle = outside the range
 ggplot(check, aes(x = idx)) +
   geom_linerange(aes(ymin = lo, ymax = hi), color = "grey70", linewidth = 1.2) +
   geom_point(aes(y = obs, color = outside, shape = outside), size = 2.2) +
@@ -616,6 +689,7 @@ ggplot(check, aes(x = idx)) +
 ```
 
 ```{r}
+# Dispersion statistic: near 1 when the family's variance is right
 dispersion <- function(m) sum(residuals(m, type = "pearson")^2) / df.residual(m)
 
 disp_binom <- dispersion(glm_binom)
@@ -634,17 +708,19 @@ As for leaving Td79 out: putting it back changes the dispersion statistic from `
 Every model so far worked because there were completers and non-completers (or positive and negative cells) in every group we compared. Here is what happens when that isn't true. The wire file has one such group: in `Klf4-Flox-Control`, none of the 7 mice failed a single crossing on any of the three days, which is one reason that group stayed out of this chapter. In `cell_data` there is a cleaner example, and it is real too. `Condition` is binary (sham surgery or MCAO), so we can ask a diagnostic question: **can we tell whether an animal had an ischemic stroke from its GFAP staining?** I'll code MCAO as 1 and standardize `Gfap_IntDen` (one unit is one standard deviation), so that a coefficient is the change in log-odds for a one-standard-deviation increase in staining, which is also the scale on which the priors recommended for logistic models are defined [@gelman2026].
 
 ```{r}
+# MCAO as 1 and sham as 0; GFAP in standard deviations
 cell_data$MCAO <- as.integer(cell_data$Condition == "MCAO")
 cell_data$Gfap_z <- as.numeric(scale(cell_data$Gfap_IntDen))
 
 sep_summary <- aggregate(Gfap_IntDen ~ Condition, data = cell_data, FUN = range)
 ```
 
-The problem is visible before any model: the largest `Gfap_IntDen` in any sham animal (`r round(sep_summary$Gfap_IntDen[sep_summary$Condition == "SHAM", 2])`) is below the smallest in any MCAO animal (`r round(sep_summary$Gfap_IntDen[sep_summary$Condition == "MCAO", 1])`). One cutoff separates the two groups perfectly, which is called [complete separation]{style="color:green; font-weight:bold;"}. It's a wonderful result for a diagnostic and a disaster for a maximum-likelihood fit: the likelihood keeps improving as the slope grows, so the maximum lies at infinity.
+The problem is visible before any model: the largest `Gfap_IntDen` in any sham animal (`r round(sep_summary$Gfap_IntDen[sep_summary$Condition == "SHAM", 2])`) is below the smallest in any MCAO animal (`r round(sep_summary$Gfap_IntDen[sep_summary$Condition == "MCAO", 1])`). One cutoff separates the two groups perfectly (@fig-logistic-fence), which is called [complete separation]{style="color:green; font-weight:bold;"}. It's a wonderful result for a diagnostic and a disaster for a maximum-likelihood fit: the likelihood keeps improving as the slope grows, so the maximum lies at infinity.
 
 ![When one fence separates the two flocks perfectly, a steeper fence always fits better. The data never tell you where to stop; only a prior does.](images/logistic-regression_fence-between-flocks.png){#fig-logistic-fence fig-align="center" width="90%" fig-alt="Watercolor sketch of a green meadow with a flock of teal birds on the left and a flock of ochre birds on the right, divided by a row of fence posts that grows taller and more upright until the last post rises out of the top of the picture."}
 
 ```{r}
+# Maximum likelihood under perfect separation; the warning is captured for the text
 glm_sep <- suppressWarnings(
   glm(MCAO ~ Gfap_z, family = binomial(), data = cell_data)
 )
@@ -657,6 +733,7 @@ sep_warnings <- tryCatch(
 `glm()` returns something, but it warns: "`r sep_warnings`". The slope it reports is `r round(coef(glm_sep)["Gfap_z"], 0)` per standard deviation, with a standard error of `r format(round(summary(glm_sep)$coefficients["Gfap_z", "Std. Error"]), big.mark = ",", scientific = FALSE)`. Neither number means anything. The algorithm didn't converge to an answer; it stopped when the improvements became too small to see. A weakly informative prior turns this from a catastrophe into a statement. It doesn't tell the data what to say, it just refuses the absurd: coefficients that would imply probabilities of exactly 0 and 1. On a standardized predictor, `Normal(0, 2.5)` is the kind of prior the literature recommends for this: it considers a one-standard-deviation change in log-odds of ±5 (a jump from about 1% to about 99%) at the edge of what's plausible, and nothing more extreme [@gelman2026].
 
 ```{r}
+# The same model with a weakly informative prior (cached)
 fit_sep <- brm(
   MCAO ~ Gfap_z,
   data = cell_data,
@@ -670,12 +747,14 @@ fit_sep <- brm(
 ```
 
 ```{r}
+# Posterior summary: finite estimates, thanks to the prior
 summary(fit_sep)
 ```
 
 The Bayesian fit gives finite estimates with credible intervals. But read them carefully. The data say "the bigger the better" all the way out, so nothing in the likelihood tells the slope where to stop; what stops it is the prior. To see how much, here is the same model with a prior four times wider.
 
 ```{r}
+# Same model with a prior four times wider
 fit_sep_wide <- brm(
   MCAO ~ Gfap_z,
   data = cell_data,
@@ -700,6 +779,7 @@ names(sep_compare) <- c("Prior on b and Intercept", "Estimate", "Lower 2.5%", "U
 #| label: tbl-logistic_separation
 #| tbl-cap: Slope of MCAO status on GFAP intensity (log-odds per standard deviation) under two prior widths, when the groups are perfectly separated
 
+# Slope under the two priors
 gt(sep_compare)
 ```
 
@@ -713,12 +793,13 @@ The finite number is regularization, not discovery: @tbl-logistic_separation sho
 
 ## Can we trust the sampling?
 
-I have leaned on seven `brms` fits in this chapter and said "the sampling is fine" in passing for a few of them. That is the kind of claim worth backing with a number, and it matters most for the two separation fits, where a flat likelihood is exactly the situation that makes a sampler struggle. Same thresholds as @sec-mcmc-model-checking: Rhat below 1.01, both effective sample sizes above 400, no divergent transitions.
+I have leaned on seven `brms` fits in this chapter and said "the sampling is fine" in passing for a few of them. That is the kind of claim worth backing with a number (@tbl-logistic_mcmc), and it matters most for the two separation fits, where a flat likelihood is exactly the situation that makes a sampler struggle. Same thresholds as @sec-mcmc-model-checking: Rhat below 1.01, both effective sample sizes above 400, no divergent transitions.
 
 ```{r}
 #| label: tbl-logistic_mcmc
 #| tbl-cap: MCMC diagnostics for every model fitted in this chapter
 
+# mcmc_check() reports Rhat, effective sample sizes and divergences per model
 source("functions/mcmc_check.R")
 
 logistic_checks <- mcmc_check(list(
@@ -730,6 +811,7 @@ logistic_checks <- mcmc_check(list(
   "Separation, Normal(0, 2.5)" = fit_sep,
   "Separation, Normal(0, 10)" = fit_sep_wide
 ))
+# Stop the render if any model fails a check
 stopifnot(all(logistic_checks$ok))
 
 gt(logistic_checks) |>
@@ -738,6 +820,7 @@ gt(logistic_checks) |>
 ```
 
 ```{r}
+# The model with the smallest effective sample size, named in the text
 worst <- logistic_checks$model[which.min(pmin(logistic_checks$min_ess_bulk, logistic_checks$min_ess_tail))]
 ```
 
@@ -747,4 +830,4 @@ All seven pass: the worst Rhat is `r sprintf("%.3f", max(logistic_checks$max_rha
 
 We started with the logit link and one yes/no per animal. The logit is the log of the odds, and the odds are what a bookmaker quotes; writing a linear model on that scale gives a model that can't predict impossible probabilities. Reading it takes three translations, log-odds for the machinery, odds ratios for comparing across studies, and probabilities for the sentence you'd say to a colleague. Because the probability scale is curved, the effect of a genotype depends on who you're talking about, and the *average predictive comparison* gives a single honest number by averaging over the mice you actually studied. Checking a binary model means checking summaries (the share of ones, AUC, Brier) instead of densities, and choosing a prior on the link scale carefully matters most exactly when the data are few or extreme, which is to say, in most experiments.
 
-Two loose ends, both on purpose. The overdispersion of the binomial model on the cell proportions, a proportion whose scatter is bigger than the family allows, is still unresolved: the beta-binomial of @sec-beta-robust-regression is the repair, and the three attempts each wire mouse made on each day are the same problem in a different costume, one we meet again in the multilevel part of the book. <!-- TODO: link @sec-multilevel-glmm once that chapter exists. --> And before that, @sec-count-regression returns to the counts of the introduction, the ones a Gaussian model could not describe, and gives them a Poisson, a negative binomial and a denominator.
+Two loose ends, both on purpose. The overdispersion of the binomial model on the cell proportions, a proportion whose scatter is bigger than the family allows, is still unresolved: the beta-binomial of @sec-beta-robust-regression is the repair, and the three attempts each wire mouse made on each day are the same problem in a different costume, one we meet again in @sec-multilevel-glmm. And before that, @sec-count-regression returns to the counts of the introduction, the ones a Gaussian model could not describe, and gives them a Poisson, a negative binomial and a denominator.
