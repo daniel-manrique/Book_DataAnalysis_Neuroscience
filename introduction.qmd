@@ -2,7 +2,7 @@
 title: Foundations
 ---
 
-Imagine a labmate hands you a Western blot and says, "the band is there, we're done." You'd ask a dozen questions before believing it: what was the loading control, how long was the exposure, was the antibody ever validated in this species? Nobody trusts a result just because it came out of the machine. And yet that is exactly how many of us treat the output of a statistical model. Most of the time we don't even read the coefficients: we scan the table for the p-value, check whether it crossed the magic line, and move on to the next experiment. Ask what that number actually means and you'll often get a shrug, because the person who taught us to look for it was taught the same way by someone who also couldn't say. It's a chain of well-meaning people handing down a ritual, and [it has the question backwards]{style="color:red;"}.
+Imagine a labmate hands you a Western blot and says, "the band is there, we're done." You'd ask a dozen questions before believing it: what was the loading control, how long was the exposure, was the antibody ever validated in this species? Nobody trusts a result just because it came out of the machine. And yet that is exactly how many of us treat the output of a statistical model. Most of the time we don't even read the coefficients: we scan the table for the p-value, check whether it crossed the magic line, and move on to the next experiment. Ask what that number actually means and you'll often get a shrug, because the person who taught us to look for it was taught the same way by someone who also couldn't say. It's a chain of well-meaning people handing down a ritual, and [it has the question backwards]{style="color:red;"}. @fig-foundations-blot is the contrast I have in mind.
 
 ![We'd never trust a Western blot without a dozen questions. Somehow we trust the table of a statistical model after a glance for the asterisk.](images/introduction_blot-vs-table.png){#fig-foundations-blot fig-align="center" width="90%" fig-alt="Watercolor sketch of a researcher in a white lab coat and green sweater leaning over a bench, examining a strip of Western blot with a magnifying glass. Beside it, a printed grid with a single small asterisk and a faint ochre check mark lies untouched."}
 
@@ -12,7 +12,7 @@ We'll do it with a single, deliberately modest question: **does cerebral ischemi
 
 ## What you'll find in the next four chapters
 
-The arc is one I'd describe as *use it, understand it, aim it, verify it*.
+The arc is one I'd describe as *use it, understand it, aim it, verify it*, and @fig-foundations-bicycle is the picture to keep in mind.
 
 ![One machine, four moments: take it for a ride, take it apart, point it somewhere, and check it's straight.](images/introduction_bicycle-workshop.png){#fig-foundations-bicycle fig-align="center" width="90%" fig-alt="Watercolor sketch of an upside-down bicycle on a wooden workshop bench. The front wheel is blurred as if just spun, the chain and a wrench lie loose on the bench, a small compass hangs from the handlebar, and a wooden spirit level rests along the frame."}
 
