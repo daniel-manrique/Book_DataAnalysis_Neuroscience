@@ -9,7 +9,17 @@ bibliography: references.bib
 library(here)
 library(gt)
 
+# Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+
+# Numbers quoted in the text, computed from the data so they cannot drift
+gfap_range <- range(cell_data$Gfap_IntDen)
+gfap_mean_d0 <- mean(cell_data$Gfap_IntDen[cell_data$DPI == 0])
+gfap_mean_d7 <- mean(cell_data$Gfap_IntDen[cell_data$DPI == 7])
+gfap_sd_d0 <- sd(cell_data$Gfap_IntDen[cell_data$DPI == 0])
+gfap_sd_d7 <- sd(cell_data$Gfap_IntDen[cell_data$DPI == 7])
+r_pdgfrb_area <- cor(cell_data$Pdgfrb_IntDen, cell_data$Tissue_Area)
+r_area_dpi <- cor(cell_data$Tissue_Area, cell_data$DPI)
 ```
 
 By now you've watched a posterior distribution get built, taken apart, and interrogated from every angle: priors, likelihood, MCMC, posterior predictive checks, the works. That machinery is honest, but it's also patient: it will just as happily process a badly-behaved dataset as a well-behaved one, and it won't warn you which kind you handed it. The one place where we already compared data against something, the `pp_check()` of @sec-mcmc-model-checking, was a look at the data *after* the model was fitted. This part is about the look that comes *before*, and about learning to do it ourselves instead of trusting a function to do it for us. Before we put the machinery to work on anything more ambitious than the `cell_data` comparison from @sec-intro-applied-modeling, I want to make sure you know how to look at your data: really look, not just glance at a mean and a standard deviation and move on.
@@ -47,6 +57,7 @@ The very first look needs no plot at all: what does one row represent, and which
 #| label: tbl-eda-intro-design
 #| tbl-cap: Number of animals in `cell_data` by condition and day post-ischemia (DPI)
 
+# Count animals for every combination of condition (rows) and day (columns)
 as.data.frame.matrix(table(cell_data$Condition, cell_data$DPI)) |>
   tibble::rownames_to_column("Condition") |>
   gt() |>
@@ -67,11 +78,11 @@ Without first examining the data, we might [naively assume]{style="color:red;"} 
 
 ![Before you model, learn to recognize the species: the tidy hill, the two-humped camel, the long-tailed lizard. Each calls for a different kind of model.](images/eda-intro_field-guide-distributions.png){#fig-eda-intro-fieldguide fig-align="center" width="90%" fig-alt="Watercolor sketch of an open field notebook on a wooden bench showing three sketches whose outlines trace distribution curves: a symmetric hill with a small bird on top, a two-humped camel, and a long-tailed lizard with a steep back and a very long tail. Binoculars and a pencil rest beside the notebook."}
 
-A two-humped shape is often a clue that you are looking at a mixture: two cell populations, or, as in `cell_data`, animals sampled at very different days lumped into one column. Pooled across days, `Gfap_IntDen` runs from about 25 to 1245, but the day-0 animals sit around 70 and the day-7 animals around 670. A single histogram of the pooled values blends those groups, which is why the next move is always to ask whether the picture changes once you split it by the variables you know about.
+A two-humped shape is often a clue that you are looking at a mixture: two cell populations, or, as in `cell_data`, animals sampled at very different days lumped into one column. Pooled across days, `Gfap_IntDen` runs from about `r round(gfap_range[1])` to `r round(gfap_range[2])`, but the day-0 animals sit around `r round(gfap_mean_d0)` and the day-7 animals around `r round(gfap_mean_d7)`. A single histogram of the pooled values blends those groups, which is why the next move is always to ask whether the picture changes once you split it by the variables you know about.
 
 ### Looking at relationships
 
-Beyond single variables, EDA examines how variables move together. A scatter plot of marker intensity against `Tissue_Area`, for example, shows a clear negative relationship (r ≈ −0.73 for `Pdgfrb_IntDen`), and it is not hard to see why: the section shrinks as the injury progresses (r ≈ −0.81 between `Tissue_Area` and DPI) while the markers increase. Grouped boxplots, violin plots, or the raincloud plots we will build later (a half-density, the raw points, and a boxplot in one picture) show how location and [variability]{style="color:green; font-weight:bold;"} change across groups or time points. That is where the second surprise of `cell_data` lives: the spread of `Gfap_IntDen` is not constant, with a standard deviation near 25 at day 0 against nearly 320 at day 7. These plots are not decorations for publication, adorned with asterisks and p-values. They are how we decide what to ask next.
+Beyond single variables, EDA examines how variables move together. A scatter plot of marker intensity against `Tissue_Area`, for example, shows a clear negative relationship (r ≈ `r sprintf("%.2f", r_pdgfrb_area)` for `Pdgfrb_IntDen`), and it is not hard to see why: the section shrinks as the injury progresses (r ≈ `r sprintf("%.2f", r_area_dpi)` between `Tissue_Area` and DPI) while the markers increase. Grouped boxplots, violin plots, or the raincloud plots we will build later (a half-density, the raw points, and a boxplot in one picture) show how location and [variability]{style="color:green; font-weight:bold;"} change across groups or time points. That is where the second surprise of `cell_data` lives: the spread of `Gfap_IntDen` is not constant, with a standard deviation near `r round(gfap_sd_d0)` at day 0 against nearly `r round(gfap_sd_d7)` at day 7. These plots are not decorations for publication, adorned with asterisks and p-values. They are how we decide what to ask next.
 
 Two ideas often get mixed up at this stage, and they deserve their own names. Two predictors that are strongly correlated with each other (like `Pdgfrb_Area` and `Pdgfrb_IntDen`) are [collinear]{style="color:green; font-weight:bold;"}: they carry overlapping information, and a model that includes both will struggle to apportion credit between them. A [confounder]{style="color:green; font-weight:bold;"} is something different: a variable that influences both the predictor you care about and the outcome, and so can manufacture or hide an association. Here, DPI plays that role in the relationship between the two markers. Plots can alert you to both, but only your knowledge of the experiment tells you which one you are looking at. We screen for collinearity systematically in @sec-eda-ggpairs and quantify it on a fitted model in @sec-linear-regression-assumptions.
 
