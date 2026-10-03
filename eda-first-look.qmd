@@ -11,9 +11,19 @@ library(here)
 library(gt)
 library(ggplot2)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")$value
 
+# Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+
+# Numbers quoted in the text, computed from the data so they cannot drift
+n_rows <- nrow(cell_data)
+n_cols <- ncol(cell_data)
+mean_area_mm <- mean(cell_data$Tissue_Area)
+mean_area_um <- mean(cell_data$Tisue_Area)
+gfap_mean <- tapply(cell_data$Gfap_IntDen, cell_data$DPI, mean)
+gfap_sd <- tapply(cell_data$Gfap_IntDen, cell_data$DPI, sd)
 ```
 
 Picture the moment a collaborator sends you a spreadsheet. Maybe it is the quantification from a set of histology sections, maybe an export from FIJI that someone has already "tidied" a little. The temptation is to open a plotting window straight away, because plots are the fun part. I have learned, usually the hard way, to resist for about five minutes. Before drawing anything, I like to ask a plainer question:
@@ -33,6 +43,7 @@ Think of the first thing you do with a new antibody lot: before you stain anythi
 
 library(skimr)
 
+# One row per column: type, missing values, quartiles and a mini histogram
 skim(cell_data)
 ```
 
@@ -40,11 +51,11 @@ Take a minute with this output and read it the way you would read a datasheet: s
 
 ![Read the table like a datasheet and look for what doesn't belong: a missing tube, two odd caps, one that's a million times too big. None of it needed a plot.](images/eda-first-look_tube-rack-three-oddities.png){#fig-first-look-tubes fig-align="center" width="90%" fig-alt="Watercolor sketch of a wooden rack of two rows of identical small lab tubes with teal caps. One slot in the front row is empty, marked by a dotted circle; two neighboring tubes have ochre caps and sit crooked; and one tube in the back row is much taller than the rest. A blank index card and a pencil lie in front of the rack."}
 
-**First, one value is missing.** Look at the `n_missing` column for `Pdgfrb_Neg`: a `1`, and a `complete_rate` just under one. Every other column is complete. That single `NA` belongs to the animal `Td79`. It is easy to miss in a spreadsheet of 49 rows and 20 columns, and it is the kind of thing that makes a function silently drop a row (or return `NA` for a mean) without telling you why. We deal with it properly in @sec-eda-missing-data, where we ask what a single missing value can and cannot tell us.
+**First, one value is missing.** Look at the `n_missing` column for `Pdgfrb_Neg`: a `1`, and a `complete_rate` just under one. Every other column is complete. That single `NA` belongs to the animal `Td79`. It is easy to miss in a spreadsheet of `r n_rows` rows and `r n_cols` columns, and it is the kind of thing that makes a function silently drop a row (or return `NA` for a mean) without telling you why. We deal with it properly in @sec-eda-missing-data, where we ask what a single missing value can and cannot tell us.
 
 **Second, two column names look wrong.** Read down the `skim_variable` column against what you know about the experiment. There is `Tisue_Area`, which is surely meant to be `Tissue_Area`, and `Pdgfbr_MeanInt`, where the receptor has become PDGFBR instead of PDGFR-β (every neighboring column says `Pdgfrb`). A typo in a column name is harmless right up to the moment you type the *correct* spelling in a formula and get an "object not found" error, or worse, you type the wrong one and pick the wrong column without noticing. Notice that I am **not** fixing them here, and throughout the book the raw CSV and its original names stay exactly as they came. How and where to repair names safely, in a script and never by hand in the file, is the subject of @sec-eda-data-quality.
 
-**Third, one column is a million times bigger than its twin.** Compare the `mean` and the quartiles of `Tissue_Area` (a mean near 12) with `Tisue_Area` (a mean near 12 million). The histograms next to them are identical, down to the last bar, which is the giveaway: it is the same measurement written down twice, once in mm² and once in µm², because 1 mm² is 10^6^ µm². The duplicate is harmless on its own, but give a model both and it is being asked to apportion credit between a variable and itself in different units. Whether to keep one, drop the other, or flag them as a pair is again a job for @sec-eda-data-quality. The unit matters later too: when we model cell counts with `Tissue_Area` as the exposure in @sec-count-regression, it has to be the mm² column, and the other one goes unused.
+**Third, one column is a million times bigger than its twin.** Compare the `mean` and the quartiles of `Tissue_Area` (a mean near `r round(mean_area_mm)`) with `Tisue_Area` (a mean near `r round(mean_area_um / 1e6)` million). The histograms next to them are identical, down to the last bar, which is the giveaway: it is the same measurement written down twice, once in mm² and once in µm², because 1 mm² is 10^6^ µm². The duplicate is harmless on its own, but give a model both and it is being asked to apportion credit between a variable and itself in different units. Whether to keep one, drop the other, or flag them as a pair is again a job for @sec-eda-data-quality. The unit matters later too: when we model cell counts with `Tissue_Area` as the exposure in @sec-count-regression, it has to be the mm² column, and the other one goes unused.
 
 ::: callout-tip
 ### What `skim()` just did for us
@@ -66,6 +77,7 @@ Remember from the opening of this part (@tbl-eda-intro-design) that `cell_data` 
 
 library(gtsummary)
 
+# Table 1 split by condition; continuous variables as median (IQR)
 cell_data |>
   tbl_summary(
     by = Condition,
@@ -80,6 +92,7 @@ cell_data |>
       Pdgfrb_Pos ~ "PDGFR-β+ cells"
     )
   ) |>
+  # Add a pooled column, then hand the table to gt for rendering
   add_overall() |>
   modify_header(label = "**Variable**") |>
   as_gt()
@@ -93,6 +106,7 @@ But go back to the picture of the two shadows from @fig-eda-intro-shadow. This t
 #| label: tbl-first-look-dpi
 #| tbl-cap: "The same summaries split by `DPI`. Reported as mean (SD) here on purpose: the standard deviations are the point."
 
+# Same variables, now split by day; continuous variables as mean (SD)
 cell_data |>
   tbl_summary(
     by = DPI,
@@ -111,11 +125,11 @@ cell_data |>
   as_gt()
 ```
 
-Now compare the two. In @tbl-first-look-condition, `Gfap_IntDen` in MCAO animals is a single block. In @tbl-first-look-dpi it is a story: a mean of about 73 at day 0 (the SHAM animals, with a standard deviation near 25), about 361 at day 3 (SD near 71), and roughly 666 at day 7 with a standard deviation near 319. The spread did not just shift with the mean: from day 0 to day 7 the standard deviation grew more than tenfold, and it stays large at days 14 and 30 (about 266 and 247). Part of that is plain scale, since a variable that gets bigger usually gets noisier too, and part of it is that day 0 is the SHAM group, so surgery and time are tangled here as they were in @tbl-eda-intro-design. Either way, a model that assumes one common variance for all of these animals will be wrong about at least some of them, and the Condition-only Table 1 gave no hint of it. We will meet that problem again as heteroscedasticity in @sec-linear-regression-assumptions.
+Now compare the two. In @tbl-first-look-condition, `Gfap_IntDen` in MCAO animals is a single block. In @tbl-first-look-dpi it is a story: a mean of about `r round(gfap_mean["0"])` at day 0 (the SHAM animals, with a standard deviation near `r round(gfap_sd["0"])`), about `r round(gfap_mean["3"])` at day 3 (SD near `r round(gfap_sd["3"])`), and roughly `r round(gfap_mean["7"])` at day 7 with a standard deviation near `r round(gfap_sd["7"])`. The spread did not just shift with the mean: from day 0 to day 7 the standard deviation grew `r round(gfap_sd["7"] / gfap_sd["0"])`-fold, and it stays large at days 14 and 30 (about `r round(gfap_sd["14"])` and `r round(gfap_sd["30"])`). Part of that is plain scale, since a variable that gets bigger usually gets noisier too, and part of it is that day 0 is the SHAM group, so surgery and time are tangled here as they were in @tbl-eda-intro-design. Either way, a model that assumes one common variance for all of these animals will be wrong about at least some of them, and the Condition-only Table 1 gave no hint of it. We will meet that problem again as heteroscedasticity in @sec-linear-regression-assumptions.
 
 Let me be fair to Table 1, because I do not want to swing into the opposite sermon. It is genuinely useful for two jobs. It tells a reader of your paper who the animals were and whether the groups were comparable at baseline, and it is a fast sanity check for *you* (group sizes, ranges, no impossible values). It becomes a problem when it is the only thing you look at, because every cell in it is a single number standing in for a whole distribution. A practical rule I follow: a Table 1 is a good place to *start* an exploration and a poor place to *end* one. When you catch yourself reading a conclusion off it, that is the cue to go and draw the data, which is what @sec-eda-ggplot does.
 
-To see how much the pooled summary swallows, here is the one figure I allow myself in this chapter. It plots every animal's `Gfap_IntDen` against its day, with the single pooled MCAO median that @tbl-first-look-condition reported drawn as a horizontal line. It is a point plot rather than a boxplot or a bar on purpose: with seven to twelve animals per day, every individual dot can be shown, and a summary glyph would only re-hide what we are trying to expose. Condition is encoded twice, by color and by shape, so the figure still reads in a grayscale printout of the PDF edition.
+To see how much the pooled summary swallows, here is the one figure I allow myself in this chapter (@fig-first-look-pooled). It plots every animal's `Gfap_IntDen` against its day, with the single pooled MCAO median that @tbl-first-look-condition reported drawn as a horizontal line. It is a point plot rather than a boxplot or a bar on purpose: with seven to twelve animals per day, every individual dot can be shown, and a summary glyph would only re-hide what we are trying to expose. Condition is encoded twice, by color and by shape, so the figure still reads in a grayscale printout of the PDF edition.
 
 ```{r}
 #| label: fig-first-look-pooled
@@ -124,10 +138,14 @@ To see how much the pooled summary swallows, here is the one figure I allow myse
 #| fig-width: 7
 #| fig-height: 4.5
 
+# Colour-blind-safe pair (Okabe-Ito), one colour per condition
 okabe_ito <- c(SHAM = "#E69F00", MCAO = "#0072B2")
 
+# The single pooled MCAO median that a Table 1 by condition would report
 mcao_median <- median(cell_data$Gfap_IntDen[cell_data$Condition == "MCAO"])
 
+# Every animal as a point, jittered sideways a little so none hides another;
+# colour and shape both encode condition, so the figure survives grayscale
 ggplot(cell_data, aes(x = factor(DPI), y = Gfap_IntDen,
                       color = Condition, shape = Condition)) +
   geom_hline(yintercept = mcao_median, linetype = "dashed", color = "grey40") +
@@ -137,7 +155,7 @@ ggplot(cell_data, aes(x = factor(DPI), y = Gfap_IntDen,
   scale_shape_manual(values = c(SHAM = 16, MCAO = 17)) +
   labs(x = "Days post-ischemia", y = "GFAP integrated density") +
   Plot_theme +
-  theme(legend.position = "top")
+  legend_top()
 ```
 
 The dashed line is a perfectly correct summary of the MCAO animals as a group. It is also a poor description of day 3, where every animal sits well below it, and it says nothing about the wide scatter at days 7, 14 and 30. That is the whole argument for the next chapters in one picture.
@@ -150,10 +168,11 @@ You will run into them quickly if you search for exploratory analysis in R: `Dat
 #| label: dataexplorer-report
 #| eval: false
 
+# Not run here: writes a standalone HTML report with every default plot
 DataExplorer::create_report(cell_data)
 ```
 
-I am not running that line inside the book, because its output is a standalone page. Instead, let me run three of the functions it is built from, and leave every setting at its default on purpose: defaults are exactly what the "one click" promise is about. The first is the report's opening table, the equivalent of the header of `skim()`.
+I am not running that line inside the book, because its output is a standalone page. Instead, let me run three of the functions it is built from, and leave every setting at its default on purpose: defaults are exactly what the "one click" promise is about. The first is the report's opening table, the equivalent of the header of `skim()` (@tbl-first-look-introduce).
 
 ```{r}
 #| label: tbl-first-look-introduce
@@ -161,12 +180,13 @@ I am not running that line inside the book, because its output is a standalone p
 
 library(DataExplorer)
 
+# The report's opening table, turned into two columns (measure, value)
 introduce(cell_data) |>
   tidyr::pivot_longer(everything(), names_to = "Measure", values_to = "Value") |>
   gt()
 ```
 
-The second is its missing-data profile. I include it because it is where a report is at its best: finding a missing value is a purely mechanical job, and the function does it for every column at once.
+The second is its missing-data profile. I include it because it is where a report is at its best: finding a missing value is a purely mechanical job, and the function does it for every column at once (@fig-first-look-plot-missing).
 
 ```{r}
 #| label: fig-first-look-plot-missing
@@ -175,10 +195,11 @@ The second is its missing-data profile. I include it because it is where a repor
 #| fig-width: 7
 #| fig-height: 5.5
 
+# Percentage of missing values per column, default settings
 plot_missing(cell_data)
 ```
 
-The third is a histogram of every numeric column. This is the same job as the mini-histograms of `skim()`, drawn larger and with its own axes, and the contrast is instructive.
+The third is a histogram of every numeric column. This is the same job as the mini-histograms of `skim()`, drawn larger and with its own axes, and the contrast is instructive (@fig-first-look-plot-histogram).
 
 ```{r}
 #| label: fig-first-look-plot-histogram
@@ -189,6 +210,7 @@ The third is a histogram of every numeric column. This is the same job as the mi
 #| message: false
 #| warning: false
 
+# One histogram per numeric column, arranged in a 5 by 4 grid
 plot_histogram(cell_data, nrow = 5, ncol = 4)
 ```
 
@@ -198,6 +220,7 @@ What did the report give us, set against the table we built by hand? The honest 
 #| label: tbl-first-look-compare
 #| tbl-cap: "What each approach told us about `cell_data`."
 
+# Which of the three looks caught which finding
 data.frame(
   Finding = c(
     "One missing value in `Pdgfrb_Neg`",
@@ -225,6 +248,10 @@ The pattern is clear. The report is faster and more complete than I am at the me
 ### How I use them
 
 A one-click report is a good first five minutes on a dataset you have never seen, and a poor substitute for the next five hours. Run one to get oriented, then do the looking yourself, in a script you can rerun, with questions that come from knowing your experiment. That is what EDA as a state of mind means in practice: the report asks every column the same questions, and you get to ask better ones. If you would rather drive than be driven, @sec-eda-gwalkr explores the same dataset interactively, with you choosing every question.
+:::
+
+::: {.callout-note title="How to report it"}
+**Methods.** Before analysis we screened the dataset with `skimr` and a stratified Table 1. The screen found one missing value (animal Td79, PDGFR-β-negative cell count), one measurement stored twice in different units (`Tissue_Area` in mm² and `Tisue_Area` in µm²), and two misspelled column names. These are handled in the analysis script; the raw file was not modified. Design: SHAM animals were measured only at day 0 and MCAO animals from day 3 to day 30 (`r n_rows` animals in total).
 :::
 
 ## Take home message
