@@ -392,7 +392,7 @@ var_mouse <- as.numeric(VarCorr(m_icc)$cond$mouse[1, 1])
 icc_wire <- var_mouse / (var_mouse + sigma(m_icc)^2)
 ```
 
-There are two features here and it matters to separate them. The first is the [skew]{style="color:green; font-weight:bold;"}: a time is positive, and the natural way for it to vary is multiplicatively, a slow mouse is 20% slower, not four seconds slower. Taking logs turns multiplication into addition, and it's why the bulk of the distribution on the right looks like a decent hump. That is a *transformation* problem and the log deals with it. The second feature is a single point at the far left of the log scale: one attempt, by mouse `r fastest$mouse` on day `r fastest$day`, recorded a crossing time of `r fastest$wire` second, for an attempt in which the same row records `r fastest$position` seconds to get into position. That is impossible if the total time includes getting into position, and the file has `r n_impossible` such record among these two genotypes. I don't know what happened (a typo, a stopwatch pressed late), and neither will the model. The real distribution has no cluster of "lapses" the way a distracted-animal dataset might; it has one value that doesn't belong.
+There are two features here and it matters to separate them. The first is the [skew]{style="color:green; font-weight:bold;"}: a time is positive, and the natural way for it to vary is multiplicatively, a slow mouse is 20% slower, not four seconds slower. Taking logs turns multiplication into addition, and it's why the bulk of the distribution on the right looks like a decent hump. That is a *transformation* problem and the log deals with it. The second feature is a single point at the far left of the log scale: one attempt, by mouse `r fastest$mouse` on day `r fastest$day`, recorded a crossing time of `r fastest$wire` second, for an attempt in which the same row records `r fastest$position` seconds to get into position. That is impossible if the total time includes getting into position, and the file has `r n_impossible` such record among these two genotypes. I don't know what happened (a typo, a stopwatch pressed late), and neither will the model. Like the treatment labels of the open field further on, this is an inconsistency that only appears when you check a rule the data should obey (a total cannot be shorter than one of its parts), and I made the decision explicit: keep the record, let the Student-*t* absorb it, and show the analysis again with the record removed (@tbl-beta_rt_sensitivity), so you can see what the decision cost. The real distribution has no cluster of "lapses" the way a distracted-animal dataset might; it has one value that doesn't belong.
 
 ::: callout-tip
 ### Why not model the raw seconds with a Student-*t*?
@@ -744,9 +744,12 @@ n_animal <- length(unique(of$animal))
 n_animal_multi <- sum(labels_per(of$animal) > 1)
 n_animal_6 <- sum(table(of$animal) == 6)
 
-# For the few animals whose label changes, use the label held in most of their sessions
+# Animals whose treatment label changes between days: nobody can tell which label is true
+bad_animals <- names(which(labels_per(of$animal) > 1))
+n_bad_rows <- sum(of$animal %in% bad_animals)
+
+# For the sensitivity analysis only: the label an animal holds in most of its sessions
 of$group_maj <- ave(of$label, of$animal, FUN = function(x) names(which.max(table(x))))
-n_changed <- sum(of$label != of$group_maj)
 ```
 
 ::: callout-warning
@@ -754,7 +757,7 @@ n_changed <- sum(of$label != of$group_maj)
 
 I meant `ReCode` to be the column that identifies each animal, and for a while I trusted it. It fails the check above for `r n_recode_multi` of its `r n_recode` codes: M011, for example, is a Klf4-KO mouse on day 0, a wild-type on day 1 and a sham-operated floxed mouse on day 4. Nothing about the file looked wrong before I asked: no `ReCode` is repeated within a day, no cell is empty, every value is plausible. The error is invisible row by row. It only shows up when you check a rule that the *design* guarantees (the treatment of an animal does not change) instead of a rule about the cells (no duplicates, no blanks).
 
-`Animal`, the other column that looks like an identifier, mostly passes: `r n_animal` animals, `r n_animal_6` of them with all six days, and `r n_animal_multi` whose treatment label changes across days. Those are real errors in the labels, and I can't tell from the file which label is the right one. So I did three things. I did not touch the CSV: the raw file stays as it came, and every decision lives in code, as in @sec-eda-data-quality. I identified animals by `Animal`. And for the animals whose label changes, I gave each the label it has in most of its sessions, which alters `r n_changed` of `r nrow(of)` rows; at the end of the section I'll show that nothing that follows depends on that choice. The habit to take away is to write down, as a rule in code, every fact that the design guarantees, and to run it before you model anything.
+`Animal`, the other column that looks like an identifier, mostly passes: `r n_animal` animals, `r n_animal_6` of them with all six days, and `r n_animal_multi` whose treatment label changes across days. Those are real errors in the labels, and I can't tell from the file which label is the right one. Nobody can: not the person who wrote the file, a few years after the experiment, and not you if you download it tomorrow. That is the position of anyone who reuses data, and the book's data are no different from yours. So I did three things. I did not touch the CSV: the raw file stays as it came, and every decision lives in code, as in @sec-eda-data-quality. I identified animals by `Animal`. And I excluded the `r length(bad_animals)` animals whose label changes, in all of their sessions (`r n_bad_rows` of `r nrow(of)` rows). Keeping them under any label would be a guess about the one thing a treatment comparison cannot afford to guess, which treatment the animal received. Exclusion costs animals, and at the end of the section I'll refit with them back in, under two different rules, so you can see what the decision cost and whether anything depends on it. The habit to take away is to write down, as a rule in code, every fact that the design guarantees, and to run it before you model anything.
 :::
 
 Now the sample of this section, and the three decisions that define it. I made all three after looking at the data, so I'll test them at the end (@tbl-beta_sensitivity) rather than ask you to trust them.
@@ -764,11 +767,13 @@ Now the sample of this section, and the three decisions that define it. I made a
 groups4 <- c("WildType", "WT-Sham", "Klf4-KO", "KO-Sham")
 
 # The sample of this section: day 1, four groups, sessions with enough tracked time
-make_day1 <- function(min_tracked = 270, labels = c("majority", "recorded")) {
+make_day1 <- function(min_tracked = 270, labels = c("exclude", "majority", "recorded")) {
   labels <- match.arg(labels)
   g <- if (labels == "majority") of$group_maj else of$label
+  # By default, animals with an inconsistent label are left out altogether
+  ok_animal <- if (labels == "exclude") !(of$animal %in% bad_animals) else TRUE
   # A session with nothing tracked has no share to compute, so it never qualifies
-  keep <- of$dpi == 1 & g %in% groups4 & of$tracked > 0 & of$tracked >= min_tracked
+  keep <- of$dpi == 1 & g %in% groups4 & ok_animal & of$tracked > 0 & of$tracked >= min_tracked
   x <- of[keep, ]
   g <- g[keep]
   x$genotype <- factor(ifelse(grepl("KO", g), "KO", "WT"), levels = c("WT", "KO"))
@@ -822,7 +827,7 @@ share_means <- tapply(oft$share, oft$group, mean)
 share_sds <- tapply(oft$share, oft$group, sd)
 ```
 
-That leaves `r nrow(oft)` animals: `r group_n["WT sham"]` wild-type and `r group_n["KO sham"]` Klf4-KO mice with sham surgery, and `r group_n["WT ischemia"]` and `r group_n["KO ischemia"]` with ischemia. The sham groups are small, and I'll keep that in mind when I read the intervals. Let me look at every animal before any model (@fig-beta_share_raw). Each mouse is a jittered point, and the black bar is only the group mean: with four to seventeen mice per group, every animal is worth seeing, and a bar with an asterisk would hide the zeros and the very different spreads that drive this section.
+That leaves `r nrow(oft)` animals: `r group_n["WT sham"]` wild-type and `r group_n["KO sham"]` Klf4-KO mice with sham surgery, and `r group_n["WT ischemia"]` and `r group_n["KO ischemia"]` with ischemia. The sham groups are small, and I'll keep that in mind when I read the intervals. Let me look at every animal before any model (@fig-beta_share_raw). Each mouse is a jittered point, and the black bar is only the group mean: with `r min(group_n)` to `r max(group_n)` mice per group, every animal is worth seeing, and a bar with an asterisk would hide the zeros and the very different spreads that drive this section.
 
 ```{r}
 #| label: fig-beta_share_raw
@@ -964,7 +969,7 @@ summary(glmm_share)
 draws_share <- as.data.frame(posterior::as_draws_df(fit_share))
 ```
 
-Sampling is healthy. The `Intercept` (`r round(fixef(fit_share)["Intercept", "Estimate"], 2)`) is the log-odds of the mean share for a sham-operated wild-type mouse, a mean of about `r round(100 * plogis(median(draws_share$b_Intercept)))`%. The effect of ischemia in wild-type mice (`surgeryischemia`) is `r summ(draws_share$b_surgeryischemia)` log-odds, and the one precision `phi` is `r summ(draws_share$phi, 1)`. Before reading any further into it, let's ask the model whether it could have produced our data. The check is the one the family itself makes a claim about, the spread, so I'll compare the standard deviation of the real mice with that of replicated mice, group by group. (A density overlay per group is the usual first look, but with four to seventeen mice per group it is a wobbly picture, and the standard deviation says the same thing more plainly.)
+Sampling is healthy. The `Intercept` (`r round(fixef(fit_share)["Intercept", "Estimate"], 2)`) is the log-odds of the mean share for a sham-operated wild-type mouse, a mean of about `r round(100 * plogis(median(draws_share$b_Intercept)))`%. The effect of ischemia in wild-type mice (`surgeryischemia`) is `r summ(draws_share$b_surgeryischemia)` log-odds, and the one precision `phi` is `r summ(draws_share$phi, 1)`. Before reading any further into it, let's ask the model whether it could have produced our data. The check is the one the family itself makes a claim about, the spread, so I'll compare the standard deviation of the real mice with that of replicated mice, group by group. (A density overlay per group is the usual first look, but with `r min(group_n)` to `r max(group_n)` mice per group it is a wobbly picture, and the standard deviation says the same thing more plainly.)
 
 ```{r}
 #| label: fig-beta_share_ppc
@@ -1066,7 +1071,7 @@ gt(data.frame(
 ))
 ```
 
-@tbl-beta_sd_group is the check from before, in numbers. With one precision, the replicates for the sham groups are several times too spread; with a precision for each surgery, they land much closer to the observed values (the five Klf4-KO sham mice are still a little more spread out in the replicates than in the data, which is not surprising with so few animals). Leave-one-out cross-validation (@tbl-beta_loo_share), for the same `r nrow(oft_pos)` mice and the same outcome, agrees.
+@tbl-beta_sd_group is the check from before, in numbers. With one precision, the replicates for the sham groups are several times too spread; with a precision for each surgery, they land much closer to the observed values (the `r group_n["KO sham"]` Klf4-KO sham mice, which sit very tightly together, are still more spread out in the replicates than in the data, which is not surprising with so few animals). Leave-one-out cross-validation (@tbl-beta_loo_share), for the same `r nrow(oft_pos)` mice and the same outcome, agrees.
 
 ```{r}
 #| label: tbl-beta_loo_share
@@ -1092,7 +1097,7 @@ gt(data.frame(
 best_share <- rownames(cmp_share)[1]
 ```
 
-The model that comes out ahead is the `r best_share`, by `r round(abs(cmp_share[2, "elpd_diff"]), 1)` elpd units over the next one, against a standard error of `r round(cmp_share[2, "se_diff"], 1)`. One mouse has a problematic Pareto-$k$ in every model, so I would not lean on the exact size of the differences, but the ranking is not close. As always, that is a *relative* statement; it's the predictive check that says the winner is a credible description of the data, and the table of standard deviations above is where it earns that.
+The model that comes out ahead is the `r best_share`, by `r round(abs(cmp_share[2, "elpd_diff"]), 1)` elpd units over the next one, against a standard error of `r round(cmp_share[2, "se_diff"], 1)`. The number of mice with a problematic Pareto-$k$ is `r paste(n_bad_share[rownames(cmp_share)], collapse = ", ")` in the order of the table, so the elpd differences are not badly distorted, and the ranking is not close. As always, that is a *relative* statement; it's the predictive check that says the winner is a credible description of the data, and the table of standard deviations above is where it earns that.
 
 ### Three mice that never went to the center
 
@@ -1218,12 +1223,12 @@ In wild-type mice, ischemia raised the expected share of the time in the center 
 ::: {.callout-note title="How to report it"}
 **Results.** On day 1, ischemia increased the expected share of the session spent in the center by `r summ(100 * diff_wt, 0)` percentage points in wild-type mice and by `r summ(100 * diff_ko, 0)` points in Klf4-KO mice (posterior median and 95% credible interval). The difference between the two genotypes was `r summ(100 * diff_diff, 0)` points, so the experiment cannot tell whether the effect differs by genotype. The probability of never entering the center was `r summ(100 * p0_wt, 0)`% in wild types and `r summ(100 * p0_ko, 0)`% in Klf4-KO mice.
 
-**Methods.** The share of tracked time in the center (`r nrow(oft)` mice, sessions with at least 270 s tracked) was modeled with a zero-inflated beta likelihood, with genotype, surgery and their interaction on the mean, surgery on the precision and genotype on the probability of an exact zero. Day 1 and the tracking threshold were chosen after inspecting the data; results did not change with thresholds of 250 s or none, or with the labels as recorded.
+**Methods.** The share of tracked time in the center (`r nrow(oft)` mice, sessions with at least 270 s tracked, after excluding `r length(bad_animals)` animals whose treatment label changed between days) was modeled with a zero-inflated beta likelihood, with genotype, surgery and their interaction on the mean, surgery on the precision and genotype on the probability of an exact zero. Day 1 and the tracking threshold were chosen after inspecting the data; results did not change with thresholds of 250 s or none, or with the excluded animals brought back under either label.
 :::
 
 ### Do my three decisions matter?
 
-I made three choices after looking at the data: the 270-second threshold, the majority label for the few animals whose label changes, and day 1 itself (which I can't test without choosing another day, so I'll leave it as the caveat it is). The first two I can vary. Here is the same model refitted with a looser threshold, with no threshold at all, and with the labels exactly as recorded for the day, so that you can see whether any of them moves the answer.
+I made three choices after looking at the data: the 270-second threshold, the exclusion of the animals with inconsistent labels, and day 1 itself (which I can't test without choosing another day, so I'll leave it as the caveat it is). The first two I can vary. Here is the same model refitted with a looser threshold, with no threshold at all, and with the excluded animals brought back, once with the label they hold in most of their sessions and once with the label recorded on day 1, so that you can see whether any of them moves the answer.
 
 ```{r}
 # The same model refitted under alternative decisions (cached)
@@ -1233,6 +1238,8 @@ fit_zib_all <- update(fit_zib, newdata = make_day1(min_tracked = 0),
                       file = "models/beta-robust-regression_fit14.rds", file_refit = "never")
 fit_zib_rec <- update(fit_zib, newdata = make_day1(labels = "recorded"),
                       file = "models/beta-robust-regression_fit15.rds", file_refit = "never")
+fit_zib_maj <- update(fit_zib, newdata = make_day1(labels = "majority"),
+                      file = "models/beta-robust-regression_fit16.rds", file_refit = "never")
 ```
 
 ```{r}
@@ -1240,10 +1247,11 @@ fit_zib_rec <- update(fit_zib, newdata = make_day1(labels = "recorded"),
 #| tbl-cap: Effect of ischemia in wild-type mice and its difference in Klf4-KO mice (log-odds, posterior median and 95% credible interval) under alternative decisions about which sessions and which labels to use
 
 # Collect the fits and extract the two quantities of interest
-fits_dec <- list("As used (270 s, majority label)" = fit_zib,
+fits_dec <- list("As used (270 s, inconsistent animals excluded)" = fit_zib,
                  "Threshold of 250 s" = fit_zib_250,
                  "No threshold" = fit_zib_all,
-                 "Labels as recorded on day 1" = fit_zib_rec)
+                 "Excluded animals kept, majority label" = fit_zib_maj,
+                 "Excluded animals kept, label recorded on day 1" = fit_zib_rec)
 
 get_row <- function(m) {
   d <- as.data.frame(posterior::as_draws_df(m))
@@ -1260,7 +1268,7 @@ gt(data.frame(
 ))
 ```
 
-The effect of ischemia in wild-type mice stays clearly positive under all four, and the interaction keeps its wide interval around zero under all four. That is what I wanted to be able to say: the conclusion doesn't depend on the two choices I could vary, even though both of them were mine. That table is what you can show instead of the usual alternative with a messy file, which is to quietly drop whatever looks odd and report the clean result.
+The effect of ischemia in wild-type mice stays clearly positive under all five, and the interaction keeps its wide interval around zero under all five. That is what I wanted to be able to say: the conclusion doesn't depend on the two choices I could vary, even though both of them were mine. That table is what you can show instead of the usual alternative with a messy file, which is to quietly drop whatever looks odd and report the clean result.
 
 ```{r}
 #| include: false
@@ -1310,7 +1318,8 @@ beta_checks <- mcmc_check(list(
   "Zero-inflated beta" = fit_zib,
   "Zero-inflated beta, threshold of 250 s" = fit_zib_250,
   "Zero-inflated beta, no threshold" = fit_zib_all,
-  "Zero-inflated beta, labels as recorded" = fit_zib_rec
+  "Zero-inflated beta, excluded animals kept (majority label)" = fit_zib_maj,
+  "Zero-inflated beta, excluded animals kept (label recorded)" = fit_zib_rec
 ))
 # Stop the render if any model fails a check
 stopifnot(all(beta_checks$ok))

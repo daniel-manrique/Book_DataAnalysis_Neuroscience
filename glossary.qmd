@@ -30,6 +30,18 @@ How probable the data you observed would be for each possible value of the param
 
 :::
 
+## Model Expansion {#gl-model-expansion .unnumbered .unlisted}
+
+Starting with a simple model, checking it against the data, and extending it (a more flexible shape, hierarchical structure, extra data) only where the check shows it fails.
+
+*Think of it as:* Like adding instruments to a recording rig only when the signal you care about is not coming through, not building the whole rig on day one.
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-model-expansion-1) ([2](linear-models-reflection.qmd#ix-model-expansion-2))
+
+:::
+
 ## Offset {#gl-offset .unnumbered .unlisted}
 
 A term in a count model whose coefficient is fixed at 1, so that the model describes a rate (counts per unit of exposure) instead of a raw count. In a log-link model the offset is the log of the exposure.

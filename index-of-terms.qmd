@@ -86,7 +86,7 @@
 - **missing at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-at-random-1)
 - **missing completely at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-completely-at-random-1)
 - **missing not at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-not-at-random-1)
-- **model expansion**: [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-model-expansion-1)
+- **model expansion** ([glossary](glossary.qmd#gl-model-expansion)): [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-model-expansion-1) ([2](linear-models-reflection.qmd#ix-model-expansion-2))
 - **multicollinearity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-multicollinearity-1)
 
 ## N {.unnumbered .unlisted}

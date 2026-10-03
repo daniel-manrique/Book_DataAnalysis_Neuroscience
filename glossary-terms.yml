@@ -72,3 +72,13 @@
     A model that expects every animal to behave about the same, while in
     reality some animals respond far more than others.
   see_also: [offset]
+
+- term: model expansion
+  status: draft
+  definition: >
+    Starting with a simple model, checking it against the data, and extending it
+    (a more flexible shape, hierarchical structure, extra data) only where the
+    check shows it fails.
+  analogy: >
+    Like adding instruments to a recording rig only when the signal you care
+    about is not coming through, not building the whole rig on day one.
