@@ -52,7 +52,7 @@ The subscript $i$ simply says "for animal number $i$": every animal gets its own
 
 -   $y$ is the [outcome]{style="color:green; font-weight:bold;"}: the thing you measured and want to explain. In that model, $y$ was `Gfap_Intensity`. Elsewhere in this book it'll be `Tissue_Area`, a cell count, a reaction time, whatever column in your dataset you're trying to account for.
 
--   $x$ is the [predictor]{style="color:green; font-weight:bold;"}: the thing you believe moves $y$. There, $x$ was `Condition` (sham or ischemic, coded as $0$ or $1$). It could just as easily be `DPI`, drug dose, or any other column that might explain why $y$ varies from animal to animal. On a plot, the outcome is what sits on the vertical axis and the predictor is what sits on the horizontal one.
+-   $x$ is the [predictor]{style="color:green; font-weight:bold;"}: the thing you believe moves $y$. There, $x$ was `Condition` (sham or ischemic, coded as $0$ or $1$). It could just as easily be `DPI`, drug dose, or any other column that might explain why $y$ varies from animal to animal. On a plot, the outcome is what sits on the vertical axis and the predictor is what sits on the horizontal one. If you have ever drawn a standard curve for an ELISA or a protein assay, you already know the roles: the concentration is the thing you set (the predictor), and the absorbance is the thing you read off the plate (the outcome).
 
 Both $y$ and $x$ come straight out of your dataset: nothing here is invented, which is exactly why the two parts you just finished weren't a detour. Every distribution you looked at, every trend over `DPI` you spotted, was you getting acquainted with the raw material these two symbols are about to stand in for.
 
