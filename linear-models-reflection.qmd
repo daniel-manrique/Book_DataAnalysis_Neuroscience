@@ -15,14 +15,17 @@ library(brms)
 library(posterior)
 library(ggdist)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 
+# Read the cell data; the day as a number and as a category; SHAM as reference
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI <- as.numeric(cell_data$DPI)
 cell_data$DPI_f <- factor(cell_data$DPI)
 cell_data$Condition <- factor(cell_data$Condition, levels = c("SHAM", "MCAO"))
 
+# The window of days 3, 7 and 14
 win <- subset(cell_data, DPI %in% c(3, 7, 14))
 
 # Every fit in this chapter comes from the cache of an earlier chapter; nothing is refitted here.
@@ -104,7 +107,7 @@ reflection_checks <- mcmc_check(list(
 stopifnot(all(reflection_checks$ok))
 ```
 
-Imagine the review arrives, and in the margin of the second page, between a comment about the antibody dilution and a request for a larger font, someone has written: "Why a linear model?" You open the lab notebook looking for an answer. What you find, if you are honest, is the answer most of us would give at eleven at night: because it is what I know how to do, because the tutorial did it, because the last paper in this journal did it. That is an explanation of your habits. It is not a reason about your data, and the reviewer (who, by the way, is probably asking because their own last model failed in an interesting way) knows the difference.
+Imagine the review arrives, and in the margin of the second page, between a comment about the antibody dilution and a request for a larger font, someone has written: "Why a linear model?" You open the lab notebook looking for an answer (@fig-reflection-margin). What you find, if you are honest, is the answer most of us would give at eleven at night: because it is what I know how to do, because the tutorial did it, because the last paper in this journal did it. That is an explanation of your habits. It is not a reason about your data, and the reviewer (who, by the way, is probably asking because their own last model failed in an interesting way) knows the difference.
 
 ![A pencilled question in the margin of the review: "why a line?" Your habits are an explanation of you. Your data deserve a reason.](images/linear-models-reflection_margin-note-in-manuscript.png){#fig-reflection-margin fig-align="center" width="90%" fig-alt="Watercolor sketch of an open printed manuscript on a wooden desk, with wavy lines for text, a small figure of a line through dots with error bars, and a red pencil circle around a block of text with a curved arrow leading to a hand-drawn question mark. A red pencil lies across the page and a cup of tea sits in the corner."}
 
@@ -114,7 +117,7 @@ This chapter exists to give you a better answer. We are not going to learn a new
 
 In @sec-linear-regression-assumptions we met McElreath's golem, the clay robot that does exactly what you tell it and has no opinion on whether you told it the right thing [@mcelreath2020]. The equation $y_i = \beta_0 + \beta_1 x_i + \epsilon_i$ is that golem. Fitting it with `lm()` or `brm()` is not a neutral act, like weighing a sample. It is a bet that your data behave in a few specific ways, and the software will place the bet for you without a murmur whether or not it is a good one.
 
-Spelled out, the bet has five parts. You bet that the outcome is a continuous quantity that can sit anywhere on the number line, so that a bell curve around the mean is a fair account of the scatter. You bet that effects add up: that a day costs the same amount of tissue wherever you are along the time axis, and that two predictors can be summed. You bet that the scatter is about the same size for every animal, so one $\sigma$ suffices. You bet that each row brings its own information, that no two rows are echoes of each other. And you bet that the question you are asking is one a line can answer, which is usually a question about *how much* something changes on average, not about, say, which of two mechanisms is at work.
+Spelled out (@fig-reflection-bets), the bet has five parts. You bet that the outcome is a continuous quantity that can sit anywhere on the number line, so that a bell curve around the mean is a fair account of the scatter. You bet that effects add up: that a day costs the same amount of tissue wherever you are along the time axis, and that two predictors can be summed. You bet that the scatter is about the same size for every animal, so one $\sigma$ suffices. You bet that each row brings its own information, that no two rows are echoes of each other. And you bet that the question you are asking is one a line can answer, which is usually a question about *how much* something changes on average, not about, say, which of two mechanisms is at work.
 
 ![Fitting a line is five bets placed at once: bell-shaped scatter, effects that add up, one spread, independent rows, and a question a line can answer.](images/linear-models-reflection_five-bets-on-a-table.png){#fig-reflection-bets fig-align="center" width="90%" fig-alt="Watercolor sketch of a green gaming table with five round chips in an arc, each marked with a simple icon: a bell curve on a teal chip, a straight arrow on an ochre chip, a double-headed arrow on a pink chip, a chain link on a green chip and a question mark on a grey-blue chip, with a die beside them."}
 
@@ -124,7 +127,7 @@ The useful question, then, is never "can I use `lm()`?" Of course you can; it wi
 
 ## What happened to each bet in `cell_data`
 
-I find it easiest to keep score. The table below takes the five bets and says what became of each one in the tissue-area story and its neighbors. It is not a second copy of @tbl-assumptions_map, which lists the conditions and what each protects; that table is the theory, and this one is the verdict on one dataset, with the chapter where you can see the evidence.
+I find it easiest to keep score. @tbl-reflection_conditions takes the five bets and says what became of each one in the tissue-area story and its neighbors. It is not a second copy of @tbl-assumptions_map, which lists the conditions and what each protects; that table is the theory, and this one is the verdict on one dataset, with the chapter where you can see the evidence.
 
 | Bet | What happened in `cell_data` | Where |
 |:-----------------|:--------------------------------------|:--------------|
@@ -168,7 +171,7 @@ I have five answers to that question. Four come from models you have already met
 
 A word on why the fourth model, fitted on days 0 to 30, can sit beside the others. Its estimate of the day-7 to day-14 change is made from the same `r n_day["7"]` animals at day 7 and `r n_day["14"]` at day 14 that the window uses, because each day has its own mean and its own spread. The other days cannot influence this contrast. So the models are not answering different questions with different animals; they differ in what they assume.
 
-Before the numbers, a picture of the data with what each model draws, because the comparison is easier to feel than to read. I use a plain scatter with every animal visible (there are only 49, and I would not hide any of them behind a summary), the observed mean of each day as a black diamond, and the two straight lines labeled directly on the plot, so you do not have to go back and forth to a legend. Color and line type carry the same distinction twice, so it survives a grayscale printout.
+Before the numbers, a picture of the data with what each model draws (@fig-reflection_four_answers), because the comparison is easier to feel than to read. I use a plain scatter with every animal visible (there are only `r nrow(cell_data)`, and I would not hide any of them behind a summary), the observed mean of each day as a black diamond, and the two straight lines labeled directly on the plot, so you do not have to go back and forth to a legend. Color and line type carry the same distinction twice, so it survives a grayscale printout.
 
 ```{r}
 #| label: fig-reflection_four_answers
@@ -177,16 +180,20 @@ Before the numbers, a picture of the data with what each model draws, because th
 #| fig-width: 7
 #| fig-height: 4.8
 
+# The observed mean of each day, for the black diamonds
 means_df <- data.frame(DPI = as.numeric(names(mean_day)), area = as.numeric(mean_day))
 
+# Intercept and slope of the two straight lines, from the cached fits
 b_full <- fixef(fit_line_full)[, "Estimate"]
 b_win <- fixef(fit_line_win)[, "Estimate"]
 
+# End points of each line over the range it covers
 seg_full <- data.frame(DPI = c(0, 30))
 seg_full$area <- b_full["Intercept"] + b_full["DPI"] * seg_full$DPI
 seg_win <- data.frame(DPI = c(3, 14))
 seg_win$area <- b_win["Intercept"] + b_win["DPI_c"] * (seg_win$DPI - 3)
 
+# Every animal, the two lines (labelled directly on the plot) and the day means
 ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
   geom_jitter(width = 0.4, height = 0, color = "grey45", alpha = 0.7, size = 2) +
   geom_line(data = seg_full, aes(y = area), color = "#D55E00", linetype = "dashed", linewidth = 1) +
@@ -201,7 +208,7 @@ ggplot(cell_data, aes(x = DPI, y = Tissue_Area)) +
   Plot_theme
 ```
 
-The dashed line is the one that does not touch the diamonds where the interesting things happen, and the solid one is the one that does. Notice also what the figure cannot say. It says nothing about the spread, which is the other half of what the models disagree about. For that we need the posterior of the quantity we agreed to ask about, so let me compute it from each model's draws and plot the five answers on one axis. A half-eye is the honest glyph here: some of these intervals are lopsided or narrow in ways a bare interval would flatten, and the *width* of each answer is half of what I want you to see.
+The dashed line is the one that does not touch the diamonds where the interesting things happen, and the solid one is the one that does. Notice also what the figure cannot say. It says nothing about the spread, which is the other half of what the models disagree about. For that we need the posterior of the quantity we agreed to ask about, so let me compute it from each model's draws and plot the answers on one axis (@fig-reflection_change_7_14). A half-eye is the honest glyph here: some of these intervals are lopsided or narrow in ways a bare interval would flatten, and the *width* of each answer is half of what I want you to see.
 
 ```{r}
 #| label: fig-reflection_change_7_14
@@ -210,11 +217,13 @@ The dashed line is the one that does not touch the diamonds where the interestin
 #| fig-width: 8
 #| fig-height: 4.2
 
+# The four models whose answer we plot, in display order
 model_levels <- c("Line, days 0 to 30",
                   "Line, days 3 to 14",
                   "One mean per day, days 3 to 14",
                   "Mean and spread per day, days 0 to 30")
 
+# One row per posterior draw per model: the change between day 7 and day 14
 change_df <- rbind(
   data.frame(model = model_levels[1], change = change_full),
   data.frame(model = model_levels[2], change = change_win_line),
@@ -223,6 +232,7 @@ change_df <- rbind(
 )
 change_df$model <- factor(change_df$model, levels = rev(model_levels))
 
+# Half-eye per model; the dashed line is the difference of the observed means
 ggplot(change_df, aes(x = change, y = model, fill = model)) +
   stat_halfeye(.width = c(0.5, 0.95), point_interval = "median_qi") +
   geom_vline(xintercept = change_obs, linetype = "dashed", color = "grey25") +
@@ -232,7 +242,8 @@ ggplot(change_df, aes(x = change, y = model, fill = model)) +
                                "Mean and spread per day, days 0 to 30" = "#009E73")) +
   labs(x = "Change in tissue area from day 7 to day 14 (mm²)", y = NULL) +
   Plot_theme +
-  theme(legend.position = "none", axis.text.y = element_text(size = 12))
+  legend_none() +
+  theme(axis.text.y = element_text(size = 12))
 ```
 
 Read it from top to bottom. The line across the whole range says the loss is about `r fq(change_full)` mm², with a narrow interval. Every other model puts it between `r f1(min(median(change_win_line), median(change_win_day), median(change_free)))` and `r f1(max(median(change_win_line), median(change_win_day), median(change_free)))` mm², and the observed means differ by `r f2(change_obs)`. The whole-range line is not just slightly off. Its interval does not overlap with any of the others. This is the failure we saw by eye, now expressed in the units of the question, and it is why I keep saying the line is not wrong because it is a line. It is wrong because I asked one slope to describe a rise, a fall and a plateau. Give the same kind of model a stretch where the decline is nearly steady, and it agrees with models that make no assumption about shape at all.
@@ -247,18 +258,21 @@ The agreement is not an artifact of the Bayesian fits. With no prior doing real 
 ```{r}
 library(glmmTMB)
 
+# Straight line in the window by least squares; the change over 7 days and its 95% interval
 lm_win <- lm(Tissue_Area ~ I(DPI - 3), data = win)
 est_win <- 7 * coef(lm_win)[2]
 ci_win <- 7 * confint(lm_win)[2, ]
 
+# One mean and one spread per day (dispformula models the spread), by maximum likelihood
 free_tmb <- glmmTMB(Tissue_Area ~ DPI_f, dispformula = ~ DPI_f, data = cell_data)
+# Day-14 minus day-7 mean and its standard error (variance of a difference)
 b <- fixef(free_tmb)$cond
 V <- vcov(free_tmb)$cond
 est_free <- unname(b["DPI_f14"] - b["DPI_f7"])
 se_free <- sqrt(V["DPI_f14", "DPI_f14"] + V["DPI_f7", "DPI_f7"] - 2 * V["DPI_f14", "DPI_f7"])
 ```
 
-The window line gives `r f1(est_win)` mm² (95% confidence interval `r f1(ci_win[1])` to `r f1(ci_win[2])`) and the free-spread model gives `r f1(est_free)` (`r f1(est_free - 1.96 * se_free)` to `r f1(est_free + 1.96 * se_free)`), against `r fq(change_win_line)` and `r fq(change_free)` from `brms`. The two lenses agree because, with 31 or 49 animals and diffuse priors, the likelihood does nearly all the work. What differs from model to model is the assumption, not the lens.
+The window line gives `r f1(est_win)` mm² (95% confidence interval `r f1(ci_win[1])` to `r f1(ci_win[2])`) and the free-spread model gives `r f1(est_free)` (`r f1(est_free - 1.96 * se_free)` to `r f1(est_free + 1.96 * se_free)`), against `r fq(change_win_line)` and `r fq(change_free)` from `brms`. The two lenses agree because, with `r nrow(win)` or `r nrow(cell_data)` animals and diffuse priors, the likelihood does nearly all the work. What differs from model to model is the assumption, not the lens.
 :::
 
 ```{r}
@@ -269,7 +283,7 @@ n_checked <- nrow(reflection_checks)
 
 All `r n_checked` fits used in this chapter pass the sampler checks of @sec-mcmc-model-checking (worst Rhat `r sprintf("%.3f", max(reflection_checks$max_rhat))`, smallest effective sample size `r round(min(reflection_checks$min_ess_bulk, reflection_checks$min_ess_tail))`, `r sum(reflection_checks$divergences)` divergent transitions in total). That vouches for the sampling and says nothing about whether any of these models describes the biology, which is the question the rest of the chapter is about.
 
-Now the ledger. The table sets the five answers side by side with what each assumes and what it costs, because the number in the previous figure is only half of an honest comparison. The other half is the price tag.
+Now the ledger. @tbl-reflection_models sets the five answers side by side with what each assumes and what it costs, because the number in the previous figure is only half of an honest comparison. The other half is the price tag.
 
 | Answer | Question it answers | What it assumes | What it costs |
 |:------------------|:---------------------|:------------------|:------------------------------|
@@ -283,9 +297,15 @@ Now the ledger. The table sets the five answers side by side with what each assu
 
 Notice that no row is "the right model". Each row is a different trade between what it takes for granted and what it lets you say. Choosing among them is a decision about your question and about your audience, not a procedure to be run.
 
+::: {.callout-note title="How to report it"}
+**Results.** Tissue area fell by `r fq(-change_win_line)` mm² between day 7 and day 14 under a straight line fitted to days 3 to 14 (posterior median and 95% credible interval), by `r fq(-change_win_day)` mm² with one mean per day, and by `r fq(-change_free)` mm² with a separate mean and spread per day; the observed means differed by `r f2(-change_obs)` mm². A straight line fitted to the whole 0 to 30 day course gave `r fq(-change_full)` mm², which we did not interpret because it failed the model checks.
+
+**Methods.** We chose the window from day 3 to day 14 after inspecting the day means, and we report conclusions only for that window. We assessed the line with residual plots by day and posterior predictive checks of the mean and standard deviation of each day, and we repeated the analysis with models that make fewer assumptions about shape and spread.
+:::
+
 ## Do you need a model at all?
 
-The last row of the table looks like a joke, and it is not. Suppose the question at the lab meeting is simply "what happened to these `r sum(n_day[c("3", "7", "14")])` animals between day 3 and day 14?" Then the answer is on the page.
+The last row of the table looks like a joke, and it is not. Suppose the question at the lab meeting is simply "what happened to these `r sum(n_day[c("3", "7", "14")])` animals between day 3 and day 14?" Then the answer is on the page (@fig-reflection_descriptive).
 
 ```{r}
 #| label: fig-reflection_descriptive
@@ -294,10 +314,12 @@ The last row of the table looks like a joke, and it is not. Suppose the question
 #| fig-width: 6.5
 #| fig-height: 4.2
 
+# Per day: number of animals, mean and SD of tissue area
 desc <- do.call(rbind, lapply(split(win, win$DPI), function(g) {
   data.frame(DPI = factor(g$DPI[1]), n = nrow(g), mean = mean(g$Tissue_Area), sd = sd(g$Tissue_Area))
 }))
 
+# Every animal as a point, with each day's mean and SD beside it in orange
 ggplot(win, aes(x = factor(DPI), y = Tissue_Area)) +
   geom_jitter(width = 0.12, height = 0, color = "grey35", alpha = 0.75, size = 2.2) +
   geom_pointrange(data = desc, aes(y = mean, ymin = mean - sd, ymax = mean + sd),
@@ -331,7 +353,6 @@ The first is *what the model is for*. Gelman, Hill, and Vehtari are explicit tha
 
 : What a line is asked to do depends on the goal. {#tbl-reflection_goals}
 
-<!-- TODO: @sec-causal-inference-splines (Part 5, chapter planned) does not exist yet; keep this reference until it does. -->
 
 The second is *what the design allows*. This is the lesson of `Condition * DPI`: some questions are closed before analysis begins, and a more flexible model cannot reopen them. If your design has no shams after day 0, no choice of family will tell you whether sham and ischemic trajectories differ. Look at the design table before you look at model options.
 
@@ -341,7 +362,7 @@ None of this is a flowchart, because the questions interact: a modest sample may
 
 ## What else is on the table
 
-Everything above was done with tools from this part, because I wanted you to see how far a careful line goes. Now a look at the road ahead, with one rule: I am not going to teach any of it here. The reason to see it now is so that, the next time a model fails in a way you recognize, you know which drawer to open.
+Everything above was done with tools from this part, because I wanted you to see how far a careful line goes. Now a look at the road ahead, with one rule: I am not going to teach any of it here. The reason to see it now is so that, the next time a model fails in a way you recognize, you know which drawer to open (@fig-reflection-drawers).
 
 ![The line is the first drawer. When a model fails in a way you recognize, you now know which other drawer to open.](images/linear-models-reflection_drawers-of-tools.png){#fig-reflection-drawers fig-align="center" width="45%" fig-alt="Watercolor sketch of a wooden chest of six drawers in a workshop. The top drawer is open and holds a single ruler; the five closed drawers below are painted with a row of dots, two overlapping faces, a pie with one slice missing, a wavy line and three linked rings."}
 
@@ -350,7 +371,6 @@ There are two kinds of change, and the rest of the book is organized around them
 **You can change the noise.** That is the next part. When the outcome is a count, a yes or no, a proportion or a crossing time, the line keeps its job and the family changes. The PDGFR-β+ counts we met in this chapter are the first case, and [the introduction to GLMs](glm-intro.qmd#sec-glm-intro) explains why a Gaussian that predicts negative cells has to give way to a model that respects what a count is. Three more outcome types follow: @sec-logistic-regression for a pass or a fail, @sec-count-regression for counts with an exposure and extra zeros, and @sec-beta-robust-regression for proportions and crossing times.
 
 **You can change the structure.** That is the part after it. The day-3 spread, which no predictor in this part could absorb, is a job for a model that lets $\sigma$ depend on the day, which the book builds in @sec-multivariate-distributional-regression. The bump followed by a plateau that forced us to cut the time axis is a job for a model that bends, taken up with the whole 0 to 30 day course in @sec-longitudinal-timeseries and with splines in @sec-causal-inference-splines. And the day you analyze several sections or several cells per animal, rows stop being independent, and @sec-multilevel-varying-intercepts is the first of the models that handle it.
-<!-- TODO: @sec-multivariate-distributional-regression, @sec-longitudinal-timeseries, @sec-causal-inference-splines and @sec-multilevel-varying-intercepts (Part 5, chapters planned) do not exist yet; keep these references until they do. -->
 
 There are also whole families of approaches this book does not cover, such as rank-based tests or flexible prediction algorithms from machine learning. They answer different questions, and an honest answer to the reviewer's "why this model?" is sometimes "because that other one answers a different question." <!-- TODO(NotebookLM Q2 and Q3): ground this preview (goal-driven model choice, model expansion, and the alternatives to a straight line over time) in how the books discuss it, and name which book explains the alternatives best for a non-statistician. -->
 
