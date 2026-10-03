@@ -43,7 +43,10 @@ book:
         - linear-regression-assumptions.qmd
         - linear-regression-single-continuous.qmd
         - linear-regression-multiple.qmd
-        - glm-intro.qmd
+        - linear-models-reflection.qmd
+
+    - part: glm-intro.qmd
+      chapters:
         - logistic-regression.qmd
         - count-regression.qmd
         - beta-robust-regression.qmd

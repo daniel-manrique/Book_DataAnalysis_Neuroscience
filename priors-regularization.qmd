@@ -109,7 +109,7 @@ That's why the slope prior above is centered on **zero** ("before seeing this co
 ::: callout-tip
 ### A trap for later: priors on a link scale
 
-Every prior in this chapter lives on the same scale as GFAP intensity itself, because our model uses an identity link: the coefficients *are* GFAP units, so "does this number look plausible" is a direct question. That stops being true the moment we move to a model with a non-identity link, like the generalized linear models waiting for us in @sec-glm-intro. A prior that *looks* just as timid there, say `normal(0, 100)` on a log-odds coefficient, is actually one of the most opinionated priors you could write: the logistic function saturates, so that "vague-looking" number dumps almost all its prior mass onto probabilities crushed up against 0 or 1. Keep this in your back pocket; we'll return to it properly once we're there.
+Every prior in this chapter lives on the same scale as GFAP intensity itself, because our model uses an identity link: the coefficients *are* GFAP units, so "does this number look plausible" is a direct question. That stops being true the moment we move to a model with a non-identity link, like the generalized linear models waiting for us in [the introduction to GLMs](glm-intro.qmd#sec-glm-intro). A prior that *looks* just as timid there, say `normal(0, 100)` on a log-odds coefficient, is actually one of the most opinionated priors you could write: the logistic function saturates, so that "vague-looking" number dumps almost all its prior mass onto probabilities crushed up against 0 or 1. Keep this in your back pocket; we'll return to it properly once we're there.
 :::
 
 ## Before touching real data: the prior predictive check

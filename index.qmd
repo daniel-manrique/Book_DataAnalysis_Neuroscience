@@ -66,12 +66,13 @@ Read it in order the first time. The chapters build on one another, and the data
 
 ## A quick look at where we're going
 
-The book has four parts. I'll keep this brief, because each part opens with its own introduction that tells the story properly.
+The book has five parts. I'll keep this brief, because each part opens with its own introduction that tells the story properly.
 
 1.  **Foundations.** What it means to model, and the mechanics of Bayesian inference itself: priors, likelihoods, posteriors, how MCMC gets you there, and how to check whether you should trust the result.
 2.  **Data exploration.** Before any model, learn to look. Distributions, relationships, anomalies, and the habits that keep you from feeding a model something it shouldn't eat.
-3.  **Linear models.** The workhorse. From a single predictor to several, and out to the generalized models that handle binary outcomes, counts, proportions, and outliers, the shapes neuroscience data usually takes.
-4.  **Hierarchical and advanced models.** Where the real structure of our experiments lives: cells in sections in animals, trials in neurons, measurements over time. This is where I think the book earns its keep, and it's the part still under construction as I write this.
+3.  **Linear models.** The workhorse. From a single predictor to several, and how far a straight line can be trusted.
+4.  **Generalized linear models.** What to do when the outcome is a count, a yes or a no, a proportion, or a reaction time with lapses: the shapes neuroscience data usually takes, and the one recipe that handles them.
+5.  **Hierarchical and advanced models.** Where the real structure of our experiments lives: cells in sections in animals, trials in neurons, measurements over time. This is where I think the book earns its keep, and it's the part still under construction as I write this.
 
 That last point deserves honesty: the book is a work in progress. Some chapters are polished, some are drafts, and some are still ideas on a whiteboard. I'd rather show you the real state of things than pretend it's finished.
 
