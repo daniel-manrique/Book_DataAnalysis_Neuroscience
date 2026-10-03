@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Ordinal and nominal regression
+---
+
+# Grading neurological deficit {#sec-ordinal-nominal-regression}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

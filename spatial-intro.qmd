@@ -1,0 +1,7 @@
+---
+title: Reading the geometry of tissue
+subtitle: Spatial and structural analysis
+bibliography: references.bib
+---
+
+<!-- STUB: part opener, content to be written in its own chat. See planning/roadmap.md. -->

@@ -1,0 +1,20 @@
+# Terms that are green-highlighted for emphasis but are not index terms.
+# One per line, lower case, after the cleaning rule (no leading article, no quotes).
+# scripts/build-index.R and filters/ix.lua both read this file.
+patterns
+range
+alternative strategies
+increasing trend
+personalised theme
+publication-ready graphs
+overall distribution
+shape our interpretation
+best tools
+individual observations
+rigorously and accurately
+mean value
+table 1
+usefulness of a model
+mathematical and statistical models
+bayesian modeling with brms
+existing knowledge

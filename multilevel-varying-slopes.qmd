@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Multilevel models with varying slopes and correlated effects
+---
+
+# Letting each animal have its own response {#sec-multilevel-varying-slopes}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Multilevel models with varying intercepts
+---
+
+# Untangling cells, sections and animals {#sec-multilevel-varying-intercepts}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

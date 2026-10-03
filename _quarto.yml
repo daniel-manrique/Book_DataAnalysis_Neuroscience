@@ -1,6 +1,7 @@
 project:
   type: book
   output-dir: _book
+  pre-render: scripts/build-index.R
 
 book:
   title: "Data analysis for Neuroscientists"
@@ -51,6 +52,26 @@ book:
         - count-regression.qmd
         - beta-robust-regression.qmd
 
+    - part: multilevel-intro.qmd
+      chapters:
+        - multilevel-varying-intercepts.qmd
+        - multilevel-varying-slopes.qmd
+        - multilevel-glmm.qmd
+        - ordinal-nominal-regression.qmd
+        - multivariate-distributional-regression.qmd
+        - longitudinal-timeseries.qmd
+        - missing-data-measurement-error.qmd
+        - causal-inference-splines.qmd
+
+    - part: spatial-intro.qmd
+      chapters:
+        - point-pattern-analysis.qmd
+        - spatial-point-process-models.qmd
+        - morphology-topology.qmd
+        - spatial-multilevel.qmd
+
+    - part: exercises.qmd
+
     - references.qmd
 
   appendices:
@@ -58,6 +79,8 @@ book:
     - appendix-p-values.qmd
     - appendix-assumption-tests.qmd
     - appendix-ai-assisted-modeling.qmd
+    - glossary.qmd
+    - index-of-terms.qmd
 
 format:
   html:
@@ -83,6 +106,13 @@ format:
     highlight-style: a11y
     colorlinks: true
     fig-pos: "H"
+    include-in-header:
+      - text: |
+          \usepackage{makeidx}
+          \makeindex
+
+filters:
+  - filters/ix.lua
 
 editor: source
 

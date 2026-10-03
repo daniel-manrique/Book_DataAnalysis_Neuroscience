@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Causal inference and splines
+---
+
+# Asking what causes what, and drawing curves {#sec-causal-inference-splines}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

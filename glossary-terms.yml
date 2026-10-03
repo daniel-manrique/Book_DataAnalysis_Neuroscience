@@ -1,0 +1,74 @@
+# Hand-written glossary entries. scripts/build-index.R turns this file into
+# glossary.qmd and adds "Where it appears" links from the terms marked in the
+# chapters. Fields: term (required), definition (required, 1 to 3 sentences),
+# analogy (one everyday picture), see_also (list of other terms).
+# status: draft means the definition still has to be checked against the
+# textbooks (NotebookLM) before the book is published.
+
+- term: prior
+  status: draft
+  definition: >
+    The probability distribution you give a parameter before seeing the data.
+    It states which values you consider plausible and how strongly.
+  analogy: >
+    The hunch you carry into the lab before you open the results: a colleague
+    mentioned a similar finding, or a pilot run pointed that way. It is worth
+    something, but it is not proof.
+  see_also: [posterior distribution, likelihood]
+
+- term: likelihood
+  status: draft
+  definition: >
+    How probable the data you observed would be for each possible value of the
+    parameter. It is the part of the model that carries the evidence in your
+    data.
+  analogy: >
+    A detective ranking suspects by how well each one explains the clues on the
+    table.
+  see_also: [prior, posterior distribution]
+
+- term: posterior distribution
+  status: draft
+  definition: >
+    The prior updated by the data through Bayes' theorem: a full distribution
+    showing how plausible each value of the parameter is, given the model and
+    the data.
+  analogy: >
+    What is left of your hunch after you let the experiment speak. You neither
+    discard the hunch nor ignore the data; you blend them.
+  see_also: [prior, likelihood, credible interval]
+
+- term: credible interval
+  status: draft
+  definition: >
+    A range of parameter values that holds a stated share (for example 95%) of
+    the posterior distribution. Given the model, the data and the priors, the
+    parameter lies inside it with that probability.
+  analogy: >
+    A direct statement about the effect itself: "there is a 95% probability it
+    sits in this range". A confidence interval makes a different claim, about
+    how often the procedure that built it captures the true value over many
+    repetitions.
+  see_also: [posterior distribution]
+
+- term: offset
+  status: draft
+  definition: >
+    A term in a count model whose coefficient is fixed at 1, so that the model
+    describes a rate (counts per unit of exposure) instead of a raw count. In
+    a log-link model the offset is the log of the exposure.
+  analogy: >
+    Cell counts from sections of different sizes are not comparable until you
+    divide by the area counted. The offset does that division inside the model.
+  see_also: [overdispersion]
+
+- term: overdispersion
+  status: draft
+  definition: >
+    More variability in the data than the chosen distribution allows. For a
+    Poisson model, the variance equals the mean; overdispersion means the
+    observed variance is clearly larger.
+  analogy: >
+    A model that expects every animal to behave about the same, while in
+    reality some animals respond far more than others.
+  see_also: [offset]

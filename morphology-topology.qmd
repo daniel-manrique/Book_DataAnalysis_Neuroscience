@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Morphometrics, Sholl analysis and topological data analysis
+---
+
+# Comparing the shape of cells and vascular networks {#sec-morphology-topology}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

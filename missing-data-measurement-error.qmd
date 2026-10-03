@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Missing data, measurement error and censoring
+---
+
+# Dealing with values the microscope cannot see {#sec-missing-data-measurement-error}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

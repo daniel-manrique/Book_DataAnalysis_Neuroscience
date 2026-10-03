@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Multilevel generalized linear models
+---
+
+# Modeling trials within neurons and mice {#sec-multilevel-glmm}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

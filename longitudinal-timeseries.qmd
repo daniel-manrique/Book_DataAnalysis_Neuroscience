@@ -1,0 +1,8 @@
+---
+bibliography: references.bib
+subtitle: Longitudinal and time-series models
+---
+
+# Following the scar over thirty days {#sec-longitudinal-timeseries}
+
+<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->

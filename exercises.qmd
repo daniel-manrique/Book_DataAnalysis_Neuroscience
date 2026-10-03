@@ -1,0 +1,15 @@
+---
+title: Reanalyzing data from the literature
+subtitle: Exercises (web edition only)
+bibliography: references.bib
+---
+
+<!-- STUB: this part is intentionally empty for now. It will collect reanalyses of published datasets and is updated continuously, so it lives in the web edition only. See planning/roadmap.md. -->
+
+::: {.content-visible when-format="pdf"}
+::: callout-note
+### Exercises live in the web edition
+
+This part is a living collection of exercises, each one reanalyzing an interesting dataset from the published literature. It keeps growing, so it exists only in the online edition of the book, where it can be updated without reprinting anything. If you are reading the PDF, this is the one part worth switching to the web edition for.
+:::
+:::
