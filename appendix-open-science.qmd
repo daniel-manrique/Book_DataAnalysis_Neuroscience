@@ -16,6 +16,7 @@ Imagine handing a colleague your exact reagents, your exact protocol, and your e
 #| label: tbl-open-science-repro-replic
 #| tbl-cap: Reproducibility vs. replicability, and what each actually tests
 
+# Two concepts, what stays fixed in each, and what each tests
 library(gt)
 
 gt(data.frame(
@@ -28,7 +29,7 @@ gt(data.frame(
 ))
 ```
 
-Both matter, and they fail for different reasons. A result can be perfectly reproducible (the code runs, the numbers match) and still fail to replicate, because the original finding was a fluke, a fragile effect, or an artifact of one particular sample. But if a result *isn't even reproducible* (nobody, including future-you, can regenerate the original numbers from the original data), then replicability isn't even a question you can ask yet. Reproducibility is the floor, not the ceiling.
+@tbl-open-science-repro-replic sets the two side by side. Both matter, and they fail for different reasons. A result can be perfectly reproducible (the code runs, the numbers match) and still fail to replicate, because the original finding was a fluke, a fragile effect, or an artifact of one particular sample. But if a result *isn't even reproducible* (nobody, including future-you, can regenerate the original numbers from the original data), then replicability isn't even a question you can ask yet. Reproducibility is the floor, not the ceiling.
 
 ## Why this gets taken especially seriously in neuroscience
 

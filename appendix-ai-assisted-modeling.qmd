@@ -9,6 +9,7 @@ bibliography: references.bib
 
 library(ggplot2)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 ```
@@ -25,6 +26,7 @@ That's not a reason to avoid these tools. It's a reason to be precise about what
 #| label: tbl-ai-loop
 #| tbl-cap: The model-infer-check-improve loop, and where an AI assistant can actually carry weight
 
+# The four steps of the loop and what an assistant can do at each
 library(gt)
 
 gt(data.frame(
@@ -44,7 +46,7 @@ gt(data.frame(
 ))
 ```
 
-Two of those four rows are not negotiable, and they're not negotiable for the same reason: nothing about a transformer model trained on text gives it access to what cerebral ischemia does to astrocytes, or to whether a 6.5% tail of implausible posterior predictions matters for the question you're actually asking (the exact judgment call @sec-mcmc-model-checking walked through at length). An assistant can describe the general shape of that reasoning back to you, convincingly, because it has read a great many papers that contain that kind of reasoning. It cannot tell you whether it's true of *your* data, because it has never seen your animals, your protocol, or your field's accumulated, half-written-down sense of what a plausible effect size looks like.
+@tbl-ai-loop spells it out. Two of those four rows are not negotiable, and they're not negotiable for the same reason: nothing about a transformer model trained on text gives it access to what cerebral ischemia does to astrocytes, or to whether a 6.5% tail of implausible posterior predictions matters for the question you're actually asking (the exact judgment call @sec-mcmc-model-checking walked through at length). An assistant can describe the general shape of that reasoning back to you, convincingly, because it has read a great many papers that contain that kind of reasoning. It cannot tell you whether it's true of *your* data, because it has never seen your animals, your protocol, or your field's accumulated, half-written-down sense of what a plausible effect size looks like.
 
 ## Where it actually helps
 

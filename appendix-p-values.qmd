@@ -9,6 +9,7 @@ bibliography: references.bib
 
 library(ggplot2)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 ```
@@ -27,22 +28,26 @@ Here's the sharp-point null hypothesis that almost every p-value in the biomedic
 
 Let's make that concrete instead of just asserting it, because it's the kind of thing that's easy to nod along to and easy to forget the next time a p-value crosses your desk.
 
-The comparison a reader most needs to see with their own eyes is two "results" that land on opposite sides of the 0.05 line for reasons that have nothing to do with how big or important the underlying effect is. So instead of chasing a canonical example from a textbook, let's build one ourselves (a huge sample chasing a genuinely tiny effect, and a small sample chasing a genuinely large one) and put both through exactly the same significance test.
+The comparison a reader most needs to see with their own eyes is two "results" that land on opposite sides of the 0.05 line for reasons that have nothing to do with how big or important the underlying effect is. So instead of chasing a canonical example from a textbook, let's build one ourselves (a huge sample chasing a genuinely tiny effect, and a small sample chasing a genuinely large one) and put both through exactly the same significance test (@tbl-appendix_pvalue_sim).
 
 ```{r}
 #| label: tbl-appendix_pvalue_sim
 #| tbl-cap: Two simulated studies, nearly identical p-values, wildly different effects
 
+# Fixed seed so the simulated studies are the same on every render
 set.seed(22)
 
+# Study 1: huge sample, true difference of half a unit
 big_n_a <- rnorm(6000, mean = 50, sd = 10)
 big_n_b <- rnorm(6000, mean = 50.5, sd = 10)
 huge_sample_tiny_effect <- t.test(big_n_b, big_n_a)
 
+# Study 2: tiny sample, true difference of ten units
 small_n_a <- rnorm(8, mean = 50, sd = 10)
 small_n_b <- rnorm(8, mean = 60, sd = 10)
 tiny_sample_huge_effect <- t.test(small_n_b, small_n_a)
 
+# One row per study: estimate, 95% confidence interval and p-value
 sim_results <- data.frame(
   study = c("Huge sample, trivial effect (n = 6,000/group)",
             "Tiny sample, large effect (n = 8/group)"),
@@ -52,11 +57,12 @@ sim_results <- data.frame(
   p_value  = c(huge_sample_tiny_effect$p.value, tiny_sample_huge_effect$p.value)
 )
 
+# Show the table with three decimals
 library(gt)
 gt(sim_results) |> fmt_number(columns = c(estimate, ci_low, ci_high, p_value), decimals = 3)
 ```
 
-Both studies land right on the 0.05 boundary: one just under, one just over. Plotted side by side, the actual difference between them is impossible to miss:
+Both studies land right on the 0.05 boundary: one just under, one just over. Plotted side by side, the actual difference between them is impossible to miss (@fig-appendix_pvalue_sim). I draw each study as a point with its interval, from `ggplot2`'s `geom_pointrange()`, because the question is how big the effect is and how well we know it; a bar with an asterisk would show only which side of 0.05 each study landed on, which is exactly the misleading part.
 
 ```{r}
 #| label: fig-appendix_pvalue_sim
@@ -64,16 +70,21 @@ Both studies land right on the 0.05 boundary: one just under, one just over. Plo
 #| fig-width: 6
 #| fig-height: 3
 
+# Estimate and interval of each study; the dashed line marks no difference
 ggplot(sim_results, aes(x = estimate, y = study, color = study)) +
   geom_pointrange(aes(xmin = ci_low, xmax = ci_high), linewidth = 1, size = 0.9) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
   scale_color_manual(values = c("#0072B2", "#D55E00")) +
   labs(x = "Estimated group difference", y = NULL) +
   Plot_theme +
-  theme(legend.position = "none")
+  legend_none()
 ```
 
 The huge-sample study found a difference of half a unit (likely too small to matter biologically in almost any assay) and called it significant, because six thousand animals per group is enough to detect almost anything. The tiny-sample study found a difference twenty times larger, plausibly a real and important biological effect, and called it *not* significant, because eight animals per group barely constrains anything. If you only read the p-values, you'd walk away with exactly the wrong impression of which result deserves your attention. That's not a contrived edge case; it's what a p-value does by construction, because it was never built to measure the thing "significant" makes readers assume it measures.
+
+::: {.callout-note title="How to report it"}
+**Results.** The difference between groups was `r round(sim_results$estimate[1], 2)` units (95% confidence interval `r round(sim_results$ci_low[1], 2)` to `r round(sim_results$ci_high[1], 2)`) in the large study and `r round(sim_results$estimate[2], 1)` units (`r round(sim_results$ci_low[2], 1)` to `r round(sim_results$ci_high[2], 1)`) in the small one. Reporting the size and the interval, and saying whether that size matters for the biology, tells the reader what "p = 0.05" cannot.
+:::
 
 ## Where "p < 0.05" actually came from
 

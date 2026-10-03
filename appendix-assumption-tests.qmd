@@ -14,9 +14,11 @@ library(brms)
 library(posterior)
 library(ggdist)
 
+# The book's shared plot theme (this also loads the legend helpers)
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 
+# The histology data, used in the last section
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data$DPI <- as.numeric(cell_data$DPI)
 cell_data$DPI_f <- factor(cell_data$DPI)
@@ -45,25 +47,31 @@ The setup is a straight line with a true slope of 0.5 and errors that are not no
 #| fig-width: 7
 #| fig-height: 4.5
 
+# Fixed seed so the simulation is the same on every render
 set.seed(101)
 
+# For each sample size: 1,000 datasets with a true slope of 0.5 and heavy-tailed errors
 exp1 <- do.call(rbind, lapply(c(10, 20, 50, 200, 1000, 5000), function(n) {
   x <- seq(-1, 1, length.out = n)
   res <- t(vapply(seq_len(1000), function(i) {
+    # t errors with 5 df, rescaled to unit variance
     e <- rt(n, df = 5) / sqrt(5 / 3)
     y <- 1 + 0.5 * x + e
     fit <- lm(y ~ x)
     ci <- confint(fit)[2, ]
+    # Did Shapiro-Wilk raise an alarm, and did the interval cover the true slope?
     c(shapiro.test(residuals(fit))$p.value < 0.05, ci[1] <= 0.5 & ci[2] >= 0.5)
   }, numeric(2)))
   data.frame(n = n, alarm = mean(res[, 1]), coverage = mean(res[, 2]))
 }))
 
+# Long format: one row per sample size and quantity
 exp1_long <- rbind(
   data.frame(n = exp1$n, share = exp1$alarm, what = "Shapiro-Wilk raises an alarm"),
   data.frame(n = exp1$n, share = exp1$coverage, what = "Interval for the slope covers the truth")
 )
 
+# Both rates against sample size; direct labels replace the legend
 ggplot(exp1_long, aes(x = n, y = share, color = what, shape = what)) +
   geom_hline(yintercept = 0.95, linetype = "dashed", color = "grey60") +
   geom_line(linewidth = 1) +
@@ -76,10 +84,10 @@ ggplot(exp1_long, aes(x = n, y = share, color = what, shape = what)) +
   annotate("text", x = 12, y = 0.88, label = "Coverage (target: 95%)", color = "#0072B2", hjust = 0, size = 5) +
   labs(x = "Sample size (log scale)", y = "Share of simulated datasets") +
   Plot_theme +
-  theme(legend.position = "none")
+  legend_none()
 ```
 
-At 10 observations the alarm sounds in `r round(100 * exp1$alarm[exp1$n == 10])`% of datasets, barely above the 5% a test raises by luck alone. At 200 it sounds in `r round(100 * exp1$alarm[exp1$n == 200])`%, and from 1,000 on it sounds every time. Over exactly the same range, the interval for the slope does what it is supposed to do: coverage sits between `r round(100 * min(exp1$coverage), 1)`% and `r round(100 * max(exp1$coverage), 1)`% at every sample size. Nothing got worse as the alarm got louder. The test is measuring how well it can see the heavy tails, which depends on how many observations it has, and not how much they hurt the inference. This is the central-limit-theorem argument from the main chapter, seen from the other side: the larger your sample, the less the shape of the residuals matters for the line, and the more eagerly the test objects to it.
+I draw this one as two labelled lines from `ggplot2` because the whole argument is a comparison of two curves over the same axis, and labelling the lines directly saves the reader a trip to a legend. At 10 observations (@fig-appendix_alarm_vs_n) the alarm sounds in `r round(100 * exp1$alarm[exp1$n == 10])`% of datasets, barely above the 5% a test raises by luck alone. At 200 it sounds in `r round(100 * exp1$alarm[exp1$n == 200])`%, and from 1,000 on it sounds every time. Over exactly the same range, the interval for the slope does what it is supposed to do: coverage sits between `r round(100 * min(exp1$coverage), 1)`% and `r round(100 * max(exp1$coverage), 1)`% at every sample size. Nothing got worse as the alarm got louder. The test is measuring how well it can see the heavy tails, which depends on how many observations it has, and not how much they hurt the inference. This is the central-limit-theorem argument from the main chapter, seen from the other side: the larger your sample, the less the shape of the residuals matters for the line, and the more eagerly the test objects to it.
 
 ## And silent exactly where it hurts
 
@@ -91,19 +99,23 @@ For 1,000 such datasets I record whether the 95% interval for the treatment effe
 #| label: tbl-appendix_tests_clustered
 #| tbl-cap: How often each diagnostic raised an alarm when 12 animals with 5 measurements each were analyzed as 60 independent rows, with no true effect
 
+# Design: 12 animals, 5 measurements each, no true treatment effect
 set.seed(202)
 
 n_animals <- 12
 rows_per_animal <- 5
 
+# One simulated dataset, analyzed as if all 60 rows were independent
 one_clustered_dataset <- function() {
   animal <- rep(seq_len(n_animals), each = rows_per_animal)
   treat <- as.numeric(animal > n_animals / 2)
+  # Animal baseline plus measurement noise, so rows of one animal are correlated
   y <- rnorm(n_animals, 0, 1)[animal] + rnorm(n_animals * rows_per_animal, 0, 1)
   fit <- lm(y ~ treat)
   r <- residuals(fit)
   ci <- confint(fit)["treat", ]
   levene_p <- anova(lm(abs(y - ave(y, treat, FUN = median)) ~ factor(treat)))$`Pr(>F)`[1]
+  # Covered the truth, then five diagnostics that may raise an alarm
   out <- c(
     ci[1] <= 0 & ci[2] >= 0,
     shapiro.test(r)$p.value < 0.05,
@@ -116,8 +128,10 @@ one_clustered_dataset <- function() {
   out
 }
 
+# Average over 1,000 datasets
 exp2 <- colMeans(t(vapply(seq_len(1000), function(i) one_clustered_dataset(), numeric(6))))
 
+# Share of datasets flagged by each diagnostic
 exp2_tbl <- data.frame(
   check = c("Shapiro-Wilk on the residuals",
             "Non-constant variance score test (car::ncvTest)",
@@ -132,7 +146,7 @@ gt(exp2_tbl) |>
   fmt_percent(columns = flagged, decimals = 0)
 ```
 
-The interval that claims to be 95% covered the truth in `r round(100 * exp2["covered"])`% of these datasets. Put differently, an analysis with a nominal 5% false-positive rate declared an effect that did not exist in about `r round(100 * (1 - exp2["covered"]))`% of them. And the diagnostics? Shapiro-Wilk and the shuffled-rows autocorrelation test sit at about the 5% that luck alone would give. The two variance tests flag a bit more, but for the wrong reason: they notice that the two groups differ in spread, and the cure they point to (an unequal-variance correction) addresses a different problem from the one we have. The single check that finds the damage, the lag-1 test on rows sorted by animal, works only if you already know the animal structure well enough to sort by it.
+@tbl-appendix_tests_clustered has the answer. The interval that claims to be 95% covered the truth in `r round(100 * exp2["covered"])`% of these datasets. Put differently, an analysis with a nominal 5% false-positive rate declared an effect that did not exist in about `r round(100 * (1 - exp2["covered"]))`% of them. And the diagnostics? Shapiro-Wilk and the shuffled-rows autocorrelation test sit at about the 5% that luck alone would give. The two variance tests flag a bit more, but for the wrong reason: they notice that the two groups differ in spread, and the cure they point to (an unequal-variance correction) addresses a different problem from the one we have. The single check that finds the damage, the lag-1 test on rows sorted by animal, works only if you already know the animal structure well enough to sort by it.
 
 That is the lesson of this simulation. Independence is a property of how the data were collected, not of what the residuals look like, and no test of the residuals can substitute for knowing your design. When the structure is known, you do not need a test: you model it, which is what @sec-multilevel-varying-intercepts is for.
 
@@ -146,8 +160,10 @@ Here is the distortion, in a situation that is common at the bench: a small grou
 #| label: tbl-appendix_two_stage
 #| tbl-cap: False-positive rate of three ways to compare two groups when there is no true difference, small group of 10 and large group of 40, 5,000 simulated experiments per row
 
+# A small and a large group with no true difference; the small one is more variable
 set.seed(303)
 
+# One experiment: Student, Welch and the Levene-then-choose procedure
 one_comparison <- function(ratio) {
   y <- c(rnorm(10, 0, ratio), rnorm(40, 0, 1))
   g <- factor(rep(1:2, c(10, 40)))
@@ -158,6 +174,7 @@ one_comparison <- function(ratio) {
   c(student$p.value < 0.05, welch$p.value < 0.05, chosen$p.value < 0.05, levene_p < 0.05)
 }
 
+# 5,000 experiments for each spread ratio
 exp3 <- do.call(rbind, lapply(c(1, 1.5, 2, 3), function(ratio) {
   r <- colMeans(t(vapply(seq_len(5000), function(i) one_comparison(ratio), numeric(4))))
   data.frame(sd_ratio = ratio, student = r[1], welch = r[2], twostage = r[3], levene = r[4])
@@ -173,7 +190,7 @@ gt(exp3) |>
   fmt_percent(columns = -sd_ratio, decimals = 0)
 ```
 
-Read the table row by row. With equal spreads all three procedures behave, and Welch gives up nothing in false positives: it is as good as Student when Student's assumption is true. As the ratio grows, Student's false-positive rate climbs to `r round(100 * exp3$student[exp3$sd_ratio == 3])`%, as expected. Welch holds at about 5% in every row. The two-stage procedure is the interesting column. At a ratio of 2 the pretest catches the problem in only `r round(100 * exp3$levene[exp3$sd_ratio == 2])`% of experiments, so the combined procedure still gives `r round(100 * exp3$twostage[exp3$sd_ratio == 2])`% false positives, nearly double what it advertises. It looks best, at `r round(100 * exp3$twostage[exp3$sd_ratio == 3])`%, in the row where the problem is so blatant (the alarm sounds `r round(100 * exp3$levene[exp3$sd_ratio == 3])`% of the time) that you did not need a test to see it. The pretest protects you when you need it least, and the simplest strategy, using Welch's test always, beats the whole ritual.
+Read @tbl-appendix_two_stage row by row. With equal spreads all three procedures behave, and Welch gives up nothing in false positives: it is as good as Student when Student's assumption is true. As the ratio grows, Student's false-positive rate climbs to `r round(100 * exp3$student[exp3$sd_ratio == 3])`%, as expected. Welch holds at about 5% in every row. The two-stage procedure is the interesting column. At a ratio of 2 the pretest catches the problem in only `r round(100 * exp3$levene[exp3$sd_ratio == 2])`% of experiments, so the combined procedure still gives `r round(100 * exp3$twostage[exp3$sd_ratio == 2])`% false positives, nearly double what it advertises. It looks best, at `r round(100 * exp3$twostage[exp3$sd_ratio == 3])`%, in the row where the problem is so blatant (the alarm sounds `r round(100 * exp3$levene[exp3$sd_ratio == 3])`% of the time) that you did not need a test to see it. The pretest protects you when you need it least, and the simplest strategy, using Welch's test always, beats the whole ritual.
 
 ## A fair word for the tests
 
@@ -191,6 +208,7 @@ The books this one leans on are remarkably consistent about the alternative. Gel
 Step 3 is the one that replaces a test, so let's run it on real data. We return to the full-range line for tissue area from @sec-linear-regression-assumptions, and ask a question a reader of that experiment would actually ask: how much does tissue area change between day 7 and day 14? Under a straight line, the answer is seven times the slope. I fit three models. The line with normal errors, as in the main chapter. The same line with Student-t errors, which relaxes normality. And a model in which every day gets its own mean *and* its own spread (`sigma ~ DPI_f`), which relaxes linearity and equal variance at once. I leave the `brms` default priors in all three, as in the main chapter: the point here is to see whether the assumptions move the answer, not to elicit priors.
 
 ```{r}
+# Straight line with normal errors, the main chapter's model (cached)
 assumptions_fit <- brm(
   Tissue_Area ~ DPI,
   data = cell_data,
@@ -199,6 +217,7 @@ assumptions_fit <- brm(
   file_refit = "never"
 )
 
+# The same line with Student-t errors: relaxes normality (cached)
 student_fit <- brm(
   Tissue_Area ~ DPI,
   data = cell_data,
@@ -208,6 +227,7 @@ student_fit <- brm(
   file_refit = "never"
 )
 
+# One mean and one spread per day: relaxes linearity and equal variance (cached)
 free_fit <- brm(
   bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f),
   data = cell_data,
@@ -220,6 +240,7 @@ free_fit <- brm(
 ```{r}
 #| include: false
 
+# Sampler checks that stop the render if a fit fails them
 diag_ok <- function(fit) {
   d <- summarise_draws(as_draws_df(fit), "rhat", "ess_bulk", "ess_tail")
   n_div <- sum(subset(nuts_params(fit), Parameter == "divergent__")$Value)
@@ -228,6 +249,7 @@ diag_ok <- function(fit) {
 }
 diag_all <- rbind(line = diag_ok(assumptions_fit), student = diag_ok(student_fit), free = diag_ok(free_fit))
 
+# Posterior draws and the day 7 to day 14 change under each model
 d_line <- as_draws_df(assumptions_fit)
 d_student <- as_draws_df(student_fit)
 d_free <- as_draws_df(free_fit)
@@ -236,11 +258,13 @@ change_line <- 7 * d_line$b_DPI
 change_student <- 7 * d_student$b_DPI
 change_free <- d_free$b_DPI_f14 - d_free$b_DPI_f7
 
+# 95% interval and median, rounded
 qi <- function(x) round(unname(quantile(x, c(0.025, 0.5, 0.975))), 1)
 q_line <- qi(change_line)
 q_student <- qi(change_student)
 q_free <- qi(change_free)
 
+# The free model's spread on each day
 sigma_draws <- list(
   `0` = exp(d_free$b_sigma_Intercept),
   `3` = exp(d_free$b_sigma_Intercept + d_free$b_sigma_DPI_f3),
@@ -251,7 +275,7 @@ sigma_draws <- list(
 sigma_med <- sapply(sigma_draws, median)
 ```
 
-All three fits pass the sampler checks (the largest Rhat across them is `r sprintf("%.3f", max(diag_all[, "rhat"]))`, the smallest effective sample size is `r round(min(diag_all[, "ess"]))`, and there are no divergent transitions). Now the answer to our question, under each model.
+All three fits pass the sampler checks (the largest Rhat across them is `r sprintf("%.3f", max(diag_all[, "rhat"]))`, the smallest effective sample size is `r round(min(diag_all[, "ess"]))`, and there are no divergent transitions). Now the answer to our question, under each model (@fig-appendix_change_7_14). I use a half-eye from `ggdist` because the point is how the whole posterior moves when an assumption is relaxed, and a bar with an asterisk could not show that the intervals do not even overlap.
 
 ```{r}
 #| label: fig-appendix_change_7_14
@@ -260,8 +284,10 @@ All three fits pass the sampler checks (the largest Rhat across them is `r sprin
 #| fig-width: 8
 #| fig-height: 4
 
+# Order and labels of the three models
 model_levels <- c("Straight line, normal errors", "Straight line, Student-t errors", "Free mean and spread per day")
 
+# One row per posterior draw per model
 change_df <- rbind(
   data.frame(model = model_levels[1], change = change_line),
   data.frame(model = model_levels[2], change = change_student),
@@ -269,6 +295,7 @@ change_df <- rbind(
 )
 change_df$model <- factor(change_df$model, levels = rev(model_levels))
 
+# Half-eye per model with 50% and 95% intervals
 ggplot(change_df, aes(x = change, y = model, fill = model)) +
   stat_halfeye(.width = c(0.5, 0.95), point_interval = "median_qi") +
   scale_fill_manual(values = c("Straight line, normal errors" = "#0072B2",
@@ -276,7 +303,7 @@ ggplot(change_df, aes(x = change, y = model, fill = model)) +
                                "Free mean and spread per day" = "#D55E00")) +
   labs(x = "Change in tissue area from day 7 to day 14 (mm²)", y = NULL) +
   Plot_theme +
-  theme(legend.position = "none")
+  legend_none()
 ```
 
 Two things happened, and a test told us neither. First, relaxing normality did essentially nothing: the Student-t line puts the change at `r q_student[2]` mm² (95% interval `r q_student[1]` to `r q_student[3]`), against `r q_line[2]` (`r q_line[1]` to `r q_line[3]`) for the normal line. Normality was not carrying this claim, exactly as the Shapiro-Wilk result in the main chapter ($p$ = 0.36) happened to suggest, though for reasons that result could not have told us. Second, relaxing linearity and equal variance changed the answer completely: `r q_free[2]` mm² (`r q_free[1]` to `r q_free[3]`), more than twice as much tissue lost, with an interval that does not overlap the line's. The narrow interval of the straight line is not careful. It is confidently wrong, because the line is being asked to describe two stretches of the time course with one slope.
@@ -291,8 +318,10 @@ The same free model exists on the frequentist side, but not in `parsnip`, which 
 ```{r}
 library(glmmTMB)
 
+# One mean and one spread per day by maximum likelihood
 free_tmb <- glmmTMB(Tissue_Area ~ DPI_f, dispformula = ~ DPI_f, data = cell_data)
 
+# Day-14 minus day-7 mean and its standard error (variance of a difference)
 b <- fixef(free_tmb)$cond
 V <- vcov(free_tmb)$cond
 est <- unname(b["DPI_f14"] - b["DPI_f7"])
