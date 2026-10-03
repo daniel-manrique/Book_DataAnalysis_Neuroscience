@@ -13,6 +13,8 @@ library(brms)
 library(ggdist)
 library(patchwork)
 library(gt)
+library(parsnip)
+library(broom)
 
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
@@ -34,17 +36,311 @@ summ <- function(x, digits = 2) {
 }
 ```
 
-@sec-glm-intro ended with a negative binomial model that finally behaved, and with two promises I made in passing. The first was about the counting window. I told you I was treating the region of interest as the same size for every animal, and that the fix for the day it isn't (an *offset*) would wait for this chapter. The second was about zeros: the PDGFR-β counts of that chapter never dropped below about ninety cells, which is a luxury. Spike counts, and most counts you'll collect in an electrophysiology rig, are not so kind.
+[The introduction to GLMs](glm-intro.qmd#sec-glm-intro) left a promise on the table. It showed you the PDGFR-β counts (@fig-glm_counts_by_dpi), pointed at the floor and the fan, and said that a Gaussian model would fail on them, without letting you watch it happen. This chapter keeps that promise first. Then it goes on to two things the introduction set aside: the fact that every animal's section has a different area (the fix, an *offset*, comes later in this chapter), and the zeros that spike counts, unlike these, are known for. The PDGFR-β counts never drop below about ninety cells, which is a luxury. Spike counts, and most counts you'll collect in an electrophysiology rig, are not so kind.
 
-I'll say something about how the chapter is put together, because it changes scene halfway. We start on the histology counts you know, and go back to the negative binomial to read the one number, `shape`, that I let you skip over last time. Then we give those counts what they've been missing, a denominator. And then we leave the microscope for the rig, where a new kind of zero appears and the negative binomial, on its own, can't explain it.
+I'll say something about how the chapter is put together, because it changes scene halfway. We start on the histology counts you know. We fit the Gaussian model the last part would have reached for, watch what it does, and swap the family until the model fits what a count is: first a Poisson, then a negative binomial. Then we read the one number the negative binomial adds, `shape`. Then we give those counts what they've been missing, a denominator. And then we leave the microscope for the rig, where a new kind of zero appears and the negative binomial, on its own, can't explain it.
+
+## First attempt: pretend it's Gaussian
+
+Two things about how I'm treating the histology counts for now, so you can hold me to them. First, there is one row per animal (49 animals, 49 rows), so there is no nesting to worry about here. Second, I'm going to ignore something I know. The sections do not all have the same area: `Tissue_Area`, the area of the section over which the cells were counted, runs from about 6 to 20 mm², and it shrinks as the days go by. A raw count therefore mixes "more cells" with "more tissue counted". For now, the count is the count. And because we want the whole time course, including the sham animals at day 0, I'll treat `DPI` as a categorical predictor, exactly as in @sec-linear-regression-multiple, so each day gets its own mean and I don't have to assume a straight line through a curve I already know isn't straight.
+
+I could tell you why a Gaussian is a bad idea for counts, and you'd nod. I'd rather show you, because seeing a model fail on your own data teaches more than being warned about it. So here is the straight linear model, one mean per day and one common `sigma`, fit with the flat `brms` defaults, the same deliberate choice @sec-linear-regression-multiple made, so the data speak with as little interference as possible, and beside its `lm` counterpart.
+
+```{r}
+fit_gauss <- brm(
+  Pdgfrb_Pos ~ DPI_f,
+  data = cell_data,
+  seed = 123,
+  file = "models/count-regression_fit8.rds",
+  file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_gauss)
+```
+
+The `Intercept` is the day-0 mean (about 513 cells) and each `DPI_f` coefficient is how far that day sits from it, just like the categorical predictor in @sec-linear-regression-multiple. Sampling is healthy, and the means themselves are perfectly reasonable summaries. The trouble is `sigma`: a single number, around 700, meant to describe how far an animal typically sits from its day's mean.
+
+### parsnip
+
+```{r}
+parsnip_gauss <- linear_reg() %>%
+  set_engine("lm") %>%
+  fit(Pdgfrb_Pos ~ DPI_f, data = cell_data)
+
+tidy(parsnip_gauss, conf.int = TRUE)
+```
+:::
+
+The coefficients aren't wrong. What a model *believes* about the world lives in the data it would simulate, and that's what @sec-mcmc-model-checking taught us to check. So let's ask the model to generate fake animals, day by day, and see whether they look like real counts. I'm using `posterior_predict()` to draw new observations (not just new means) and `ggdist`'s graded intervals to show where the model thinks a new animal would land, with the real animals on top and a dashed line at zero.
+
+```{r}
+#| label: fig-count_gauss_predictive
+#| fig-cap: Where the Gaussian model expects a new animal's count to fall on each day (bands are 50%, 80% and 95% predictive intervals), against the observed animals
+#| fig-width: 6.5
+#| fig-height: 4
+#| warning: false
+
+pp_gauss <- posterior_predict(fit_gauss, ndraws = 1000)
+
+pp_long <- data.frame(
+  y = as.vector(pp_gauss),
+  DPI_f = rep(cell_data$DPI_f, each = nrow(pp_gauss))
+)
+
+ggplot(pp_long, aes(x = DPI_f, y = y)) +
+  stat_interval(.width = c(0.5, 0.8, 0.95)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey30") +
+  geom_point(data = cell_data, aes(y = Pdgfrb_Pos),
+             color = "black", size = 1.6, alpha = 0.7,
+             position = position_jitter(width = 0.08, height = 0)) +
+  scale_color_brewer(palette = "Blues", name = "Predictive\ninterval") +
+  labs(x = "Days post-ischemia (DPI)", y = "PDGFR-β+ cells per section") +
+  Plot_theme
+```
+
+```{r}
+neg_share <- tapply(colMeans(pp_gauss < 0), cell_data$DPI_f, mean)
+```
+
+On days 0 and 3 the bands spill below zero: the model thinks there is a `r round(100 * neg_share["0"])`% chance that a new day-0 animal has a *negative* number of cells, and about `r round(100 * neg_share["3"])`% for day 3. Nobody has ever counted minus three hundred pericytes. And notice the second problem, which you've met before: the bands are exactly as wide on day 3 as on day 7, because there is only one `sigma`. The real animals disagree. The standard deviation of the counts runs from about 190 cells on day 0 to over 900 on day 7. This is the same complaint @sec-linear-regression-multiple ended on, a single `sigma` that's too generous for the tight groups and too stingy for the loose ones, only now the tight groups are pushed against a wall.
+
+One quieter thing before we move on: the *means* stayed sensible. The Gaussian's failure is in what it thinks is possible around them, in the predictions and the uncertainty, which is exactly where it would hurt you if you reported an interval for a new animal, or trusted the standard errors on the low-count days.
+
+## Same question, new clothes: Poisson with a log link
+
+The smallest change that respects what a count *is* is to swap the family for the Poisson, the distribution for counts of independent events at a steady rate, and the link for the log. That's it: same formula, same predictor, two changes. In `brms` it's one argument. I'm using the `brms` defaults again while we learn the structure; remember the warning from the introduction about priors on the link scale, because later in this chapter I set one deliberately.
+
+```{r}
+fit_pois <- brm(
+  Pdgfrb_Pos ~ DPI_f,
+  data = cell_data,
+  family = poisson(),
+  seed = 123,
+  file = "models/count-regression_fit9.rds",
+  file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_pois)
+```
+
+### glm
+
+```{r}
+glm_pois <- glm(Pdgfrb_Pos ~ DPI_f, family = poisson(), data = cell_data)
+
+tidy(glm_pois, conf.int = TRUE)
+```
+:::
+
+Read these coefficients carefully, because they're not on the scale you're used to. They're on the *link* scale, the log scale. The `Intercept` of about 6.24 is $\log(\mu)$ for day 0, so the expected day-0 count is $e^{6.24} \approx 513$, the same mean the Gaussian gave. The `DPI_f7` coefficient of about 1.43 isn't "1.43 more cells", it's "1.43 more on the log scale", and adding on the log scale means multiplying on the count scale: $e^{1.43} \approx 4.2$, so day 7 has about four times as many PDGFR-β+ cells as day 0. This is the price of the doorway: you can't read a coefficient off the summary and add it to a count anymore, you have to translate through the inverse link. What you gain is that the model can never predict fewer than zero cells.
+
+The floor problem is gone. What about the fan? Let's find out whether the Poisson family's *own* idea of how variance should behave matches the data. A Poisson count has one defining property: its variance equals its mean. Here are the two side by side, one point per day, on log axes, with the variance each family says a group should have.
+
+```{r}
+#| label: fig-count_pois_variance
+#| fig-cap: Variance against mean for each day's counts (points), and the variance each family assumes (lines). Both axes are logarithmic.
+#| fig-width: 6.5
+#| fig-height: 4.5
+#| warning: false
+
+day_stats <- aggregate(Pdgfrb_Pos ~ DPI_f, data = cell_data,
+                       FUN = function(x) c(m = mean(x), v = var(x)))
+day_stats <- do.call(data.frame, day_stats)
+names(day_stats) <- c("DPI_f", "m", "v")
+
+sigma_gauss <- summary(fit_gauss)$spec_pars["sigma", "Estimate"]
+mu_grid <- exp(seq(log(350), log(4000), length.out = 100))
+
+var_lines <- data.frame(
+  mu = mu_grid,
+  Poisson = mu_grid,
+  Gaussian = sigma_gauss^2
+)
+var_lines <- rbind(
+  data.frame(mu = var_lines$mu, v = var_lines$Poisson, family = "Poisson"),
+  data.frame(mu = var_lines$mu, v = var_lines$Gaussian, family = "Gaussian")
+)
+
+line_labels <- var_lines[var_lines$mu == max(var_lines$mu), ]
+
+ggplot() +
+  geom_line(data = var_lines, aes(x = mu, y = v, color = family, linetype = family),
+            linewidth = 1) +
+  geom_text(data = line_labels, aes(x = mu, y = v, label = family, color = family),
+            hjust = -0.1, size = 3.5) +
+  geom_point(data = day_stats, aes(x = m, y = v), size = 3, color = "black") +
+  ggrepel::geom_text_repel(data = day_stats, aes(x = m, y = v, label = paste("DPI", DPI_f)),
+                  size = 3, min.segment.length = 0.2) +
+  scale_x_log10(breaks = c(500, 1000, 2000, 4000), labels = scales::label_comma(),
+                expand = expansion(mult = c(0.05, 0.3))) +
+  scale_y_log10(labels = scales::label_comma()) +
+  scale_color_manual(values = c(Poisson = "#D55E00", Gaussian = "grey40")) +
+  labs(x = "Mean of the day's counts", y = "Variance of the day's counts") +
+  Plot_theme +
+  theme(legend.position = "none")
+
+vm_ratio <- day_stats$v / day_stats$m
+```
+
+The Gaussian says the variance should be the same no matter the mean: that's the flat grey line, and the points refuse to lie on it. The Poisson says the variance should equal the mean: the orange diagonal. The points *do* climb with the mean, so the Poisson has the right instinct, but they sit about two orders of magnitude above the line: each day's variance is between `r round(min(vm_ratio))` and `r round(max(vm_ratio))` times its mean, where a Poisson says 1. The day-7 group, for instance, has a variance near 850,000 where a Poisson expects about 2,100. The standard summary is the [dispersion statistic]{style="color:green; font-weight:bold;"}, the sum of squared Pearson residuals divided by the residual degrees of freedom, which should be near 1 for a well-specified Poisson [@inchausti2023; @gelman2020].
+
+```{r}
+dispersion <- function(m) sum(residuals(m, type = "pearson")^2) / df.residual(m)
+disp_pois <- dispersion(glm_pois)
+```
+
+Ours is about `r round(disp_pois)`. To see what that means for the predictions, I'll do what we did for the Gaussian: ask the fitted model to generate data and compare. This time I'm using `pp_check()`, and truncating the axis at 6,000 because a few Poisson replicates wander out further than any real animal.
+
+```{r}
+#| label: fig-count_pois_ppcheck
+#| fig-cap: Posterior predictive check for the Poisson model. The observed counts (dark line) are far more spread out than any replicate (light lines).
+#| fig-width: 6
+#| fig-height: 4
+#| warning: false
+
+pp_check(fit_pois, ndraws = 50) +
+  coord_cartesian(xlim = c(0, 6000))
+```
+
+The replicates (light lines) are lumpy little spikes, one cluster for the low days and one for the high ones, because the model believes each day's counts cluster tightly around their mean. The observed density (dark line) is a single broad plateau. The Poisson family fixed the floor and got the direction of the variance right, and it is still off by a factor of hundreds, which means every interval it reports would be wildly too narrow. A GLM isn't a spell: it gives you a family, and if the family's idea of noise is wrong, the model is wrong, just in a more respectable-looking way.
+
+## Changing one word: the negative binomial
+
+So here is the natural question: can a count model fail and then, with a small change, work? Yes. And the change is the whole point of having a *framework* instead of a menu of separate techniques.
+
+Why is the Poisson too tight? Think about what it assumes. It describes what you'd see if every animal in a group had the same true density of PDGFR-β+ cells and the only randomness was which cells happened to fall inside your counting window. But animals aren't identical. Some mice just have more pericytes in that patch of tissue than others, before you ever count anything. So your count is noisy twice: once because you sampled a window, and again because the *underlying rate* itself differs from animal to animal. The Poisson has room for the first kind of noise and none for the second.
+
+The [negative binomial]{style="color:green; font-weight:bold;"} family adds exactly that second source. It is a Poisson whose rate varies from animal to animal, and it does so with one extra parameter that lets the variance exceed the mean: $\text{Var}(y) = \mu + \mu^2/\phi$, where a larger $\phi$ means less extra scatter, and $\phi \to \infty$ gives the Poisson back [@inchausti2023]. Same linear predictor, same log link. In `brms`, the change is one word.
+
+```{r}
+fit_nb <- brm(
+  Pdgfrb_Pos ~ DPI_f,
+  data = cell_data,
+  family = negbinomial(),
+  seed = 123,
+  file = "models/count-regression_fit10.rds",
+  file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+summary(fit_nb)
+```
+
+### glm.nb
+
+```{r}
+glm_nb <- MASS::glm.nb(Pdgfrb_Pos ~ DPI_f, data = cell_data)
+
+tidy(glm_nb, conf.int = TRUE)
+```
+:::
+
+The coefficient table looks almost the same as the Poisson's: the same log-scale means, the same fourfold jump at day 7. That's the point: the *mean model* didn't change. What changed is `shape` (the $\phi$ above), which the Poisson didn't have, and which is now estimated to be around `r round(summary(fit_nb)$spec_pars["shape", "Estimate"], 1)`: small enough that the extra variance is substantial. Now the same check as before, side by side with the Poisson.
+
+```{r}
+#| label: fig-count_ppcheck_compare
+#| fig-cap: Posterior predictive checks for the Poisson (left) and negative binomial (right) models
+#| fig-width: 8
+#| fig-height: 3.5
+#| warning: false
+
+p_pois <- pp_check(fit_pois, ndraws = 50) +
+  coord_cartesian(xlim = c(0, 6000)) +
+  labs(title = "Poisson")
+
+p_nb <- pp_check(fit_nb, ndraws = 50) +
+  coord_cartesian(xlim = c(0, 6000)) +
+  labs(title = "Negative binomial")
+
+p_pois + p_nb
+```
+
+Now the replicates are broad enough to cover the observed density instead of ignoring it. They aren't perfect: their right tail reaches past 6,000, further than any animal we counted, so the negative binomial is slightly generous with the high counts. That's a much smaller sin than being off by a factor of hundreds. And the mean-variance picture finally has a curve that runs through the points. I'm adding the negative binomial's variance function, $\mu + \mu^2/\phi$, to the same plot as before.
+
+```{r}
+#| label: fig-count_nb_variance
+#| fig-cap: The same variance-against-mean plot, now with the negative binomial's variance function
+#| fig-width: 6.5
+#| fig-height: 4.5
+#| warning: false
+
+shape_nb <- summary(fit_nb)$spec_pars["shape", "Estimate"]
+
+var_lines_nb <- rbind(
+  var_lines,
+  data.frame(mu = mu_grid, v = mu_grid + mu_grid^2 / shape_nb,
+             family = "Negative binomial")
+)
+line_labels_nb <- var_lines_nb[var_lines_nb$mu == max(var_lines_nb$mu), ]
+
+ggplot() +
+  geom_line(data = var_lines_nb, aes(x = mu, y = v, color = family, linetype = family),
+            linewidth = 1) +
+  geom_text(data = line_labels_nb, aes(x = mu, y = v, label = family, color = family),
+            hjust = -0.1, size = 3.5) +
+  geom_point(data = day_stats, aes(x = m, y = v), size = 3, color = "black") +
+  ggrepel::geom_text_repel(data = day_stats, aes(x = m, y = v, label = paste("DPI", DPI_f)),
+                  size = 3, min.segment.length = 0.2) +
+  scale_x_log10(breaks = c(500, 1000, 2000, 4000), labels = scales::label_comma(),
+                expand = expansion(mult = c(0.05, 0.4))) +
+  scale_y_log10(labels = scales::label_comma()) +
+  scale_color_manual(values = c(Poisson = "#D55E00", Gaussian = "grey40",
+                                "Negative binomial" = "#0072B2")) +
+  labs(x = "Mean of the day's counts", y = "Variance of the day's counts") +
+  Plot_theme +
+  theme(legend.position = "none")
+```
+
+Strictly speaking, the negative binomial isn't "a Poisson that works": it's a different family. But nothing else in the model moved: the predictor, the log link, the formula, the way we read coefficients. That's what "generalized" buys you. The choice of noise is a dial you turn independently of the rest.
+
+Since the log link now gives us trustworthy uncertainty, let's finally read the effect the way it deserves to be read: as a ratio. Each `DPI_f` coefficient exponentiates to a fold change relative to day 0. A half-eye shows the whole posterior for each ratio, not just an interval, on a log axis so that "twice as many" and "half as many" are the same distance from 1.
+
+```{r}
+#| label: fig-count_fold_raw
+#| fig-cap: Posterior fold change in PDGFR-$\beta$+ cell count relative to day 0 (negative binomial model, raw counts). The dashed line at 1 means no change.
+#| fig-width: 6.5
+#| fig-height: 3.8
+#| warning: false
+
+draws_nb <- as.data.frame(posterior::as_draws_df(fit_nb))
+day_cols <- c("b_DPI_f3", "b_DPI_f7", "b_DPI_f14", "b_DPI_f30")
+
+fold <- data.frame(
+  day = factor(rep(c(3, 7, 14, 30), each = nrow(draws_nb)), levels = c(30, 14, 7, 3)),
+  fold_change = exp(unlist(draws_nb[, day_cols]))
+)
+
+ggplot(fold, aes(x = fold_change, y = day)) +
+  stat_halfeye(.width = c(0.5, 0.95), fill = "#0072B2", point_interval = "median_qi") +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  scale_x_log10(breaks = c(0.5, 1, 2, 4, 8, 16)) +
+  labs(x = "Fold change in PDGFR-β+ cells vs. day 0 (log scale)",
+       y = "Days post-ischemia") +
+  Plot_theme
+```
+
+Day 3 straddles the dashed line: no detectable change from the day-0 baseline. Then day 7 jumps to roughly four times baseline, day 14 to roughly six times, and day 30 comes back down a little, to about four. That's a delayed surge, which makes biological sense for cells that respond to injury after the acute phase is over, and it's a very different picture from the "no change" a low-count Gaussian's overconfident intervals would have hidden. One caution about the reference point: day 0 is the sham group, so every one of these fold changes compares an ischemic animal at some time point to a sham animal. It cannot separate the effect of the ischemia from the effect of the passage of time, because there are no sham animals at later days (the design limit we met in @sec-linear-regression-multiple).
+
 
 ## What `shape` is really telling us
 
-Last chapter I reported the `shape` of the negative binomial, said it was "small enough that the extra variance is substantial", and moved on. That was a bit like handing you a thermometer reading without saying which way is hot. So before we add anything, let me reopen that fit, without refitting it, and read it properly.
+A few pages ago I reported the `shape` of the negative binomial, said it was "small enough that the extra variance is substantial", and moved on. That was a bit like handing you a thermometer reading without saying which way is hot. So before we add anything, let me go back to that fit and read it properly.
 
 ```{r}
-# The negative binomial of @sec-glm-intro, loaded from its cache (not refit)
-fit_nb <- readRDS("models/glm-intro_fit3.rds")
 shape_draws <- as.data.frame(posterior::as_draws_df(fit_nb))$shape
 ```
 
@@ -56,7 +352,7 @@ $$
 \text{CV}(y) = \sqrt{\frac{1}{\mu} + \frac{1}{\phi}}
 $$ {#eq-cv-nb}
 
-The first term is the counting noise: it shrinks as the count grows. The second is the animal-to-animal noise: it doesn't depend on the count at all. I'll draw both against each other, with the Poisson (which has only the first term) for contrast, and the observed CV of each day's animals as points. I'm using the CV, not the variance as in @sec-glm-intro, because the CV is on the scale a scientist thinks in ("the counts wobble by 40% or so"), and it turns the two noise terms into a picture: one keeps falling, the other is a floor.
+The first term is the counting noise: it shrinks as the count grows. The second is the animal-to-animal noise: it doesn't depend on the count at all. I'll draw both against each other, with the Poisson (which has only the first term) for contrast, and the observed CV of each day's animals as points. I'm using the CV, not the variance as in the plot above, because the CV is on the scale a scientist thinks in ("the counts wobble by 40% or so"), and it turns the two noise terms into a picture: one keeps falling, the other is a floor.
 
 ```{r}
 #| label: fig-count_cv_floor
@@ -112,7 +408,7 @@ The Poisson (dashed) says that a group averaging four thousand cells should be p
 
 Every scientist has had the following conversation. You report that treated animals have 1,900 PDGFR-β+ cells and the controls have 500. Somebody at the back asks: *per what?* A count is like a receipt with the shop's name torn off: it tells you how many, and it says nothing about how big the window was that you looked through. If sections differ in size, the count mixes two things: how dense the cells are, and how much tissue you counted.
 
-`cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it; @sec-eda-data-quality shows the check and explains the choice.) I assumed in @sec-glm-intro that this area was the same for every animal. It isn't.
+`cell_data` does have that denominator. `Tissue_Area` is the area of the section, in mm², over which the cells were counted. (There's a second column, `Tisue_Area`, with a typo in its name: it is the very same measurement in µm², a million times bigger, so I won't use it; @sec-eda-data-quality shows the check and explains the choice.) I set that aside earlier in the chapter, when I said the count was the count. It isn't.
 
 ```{r}
 #| label: fig-count_area
@@ -149,7 +445,7 @@ $$ {#eq-offset}
 
 The term $\log(A_i)$ is called an **offset**. It is a predictor whose coefficient isn't estimated but fixed to exactly 1, which is how the model says "double the window, double the expected count" [@gelman2020; @inchausti2023; @mcelreath2020]. What remains on the right, $\beta_0 + \beta_1 x_1 + \dots$, is now a model for the *density*: cells per mm², not cells per section. The coefficients keep the interpretation they had before (log fold changes), but the thing being multiplied is a rate.
 
-Before fitting I need priors on the log scale, and I'd like to keep them judged on the *outcome* scale, per the warning in @sec-glm-intro. With the offset, the `Intercept` is the log of the density (cells per mm²) of a day-0 animal with a typical section size. In @sec-glm-intro the day-0 mean was about 500 cells, over sections of about 14 mm², so around 35 cells/mm². I'll use `Normal(4, 1.5)`, which puts 95% of its mass between roughly 3 and 1,100 cells/mm², a range that comfortably includes what we saw and is far from "anything goes". For the day coefficients, `Normal(0, 1.5)` allows fold changes from about 1/20 to 20, wider than anything the biology here would deliver (the largest change we saw last time was under tenfold). I keep `brms`'s default for `shape`, an inverse-gamma(0.4, 0.3), which is weakly informative and keeps the parameter away from zero.
+Before fitting I need priors on the log scale, and I'd like to keep them judged on the *outcome* scale, per the warning in [the introduction to GLMs](glm-intro.qmd#sec-glm-intro). With the offset, the `Intercept` is the log of the density (cells per mm²) of a day-0 animal with a typical section size. In [the introduction to GLMs](glm-intro.qmd#sec-glm-intro) the day-0 mean was about 500 cells, over sections of about 14 mm², so around 35 cells/mm². I'll use `Normal(4, 1.5)`, which puts 95% of its mass between roughly 3 and 1,100 cells/mm², a range that comfortably includes what we saw and is far from "anything goes". For the day coefficients, `Normal(0, 1.5)` allows fold changes from about 1/20 to 20, wider than anything the biology here would deliver (the largest change we saw last time was under tenfold). I keep `brms`'s default for `shape`, an inverse-gamma(0.4, 0.3), which is weakly informative and keeps the parameter away from zero.
 
 ```{r}
 prior_hist <- c(
@@ -190,11 +486,11 @@ tidy(glm_offset, conf.int = TRUE)
 
 Sampling is healthy. The `Intercept` of `r round(fixef(fit_offset)["Intercept", "Estimate"], 2)` is $\log$(cells per mm²) on day 0, which is about `r round(exp(fixef(fit_offset)["Intercept", "Estimate"]))` cells/mm², close to what I guessed from the raw numbers. And `shape` barely moved: `r round(summary(fit_offset)$spec_pars["shape", "Estimate"], 1)`, the same as before. The offset changed *what* is being modeled, but the animal-to-animal wobble, being a property of the animals, stayed where it was.
 
-What did change is the story about the time course. Here are the fold changes relative to day 0 from the model of @sec-glm-intro (raw counts) and from this one (density), side by side.
+What did change is the story about the time course. Here are the fold changes relative to day 0 from the negative binomial model on the raw counts (earlier in the chapter) and from this one (density), side by side.
 
 ```{r}
 #| label: fig-count_fold_offset
-#| fig-cap: Fold change relative to day 0 in PDGFR-$\beta$+ cells, as a raw count (model of @sec-glm-intro) and as a density per mm² (offset model). Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
+#| fig-cap: Fold change relative to day 0 in PDGFR-$\beta$+ cells, as a raw count (the negative binomial model above) and as a density per mm² (offset model). Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
 #| fig-width: 6.5
 #| fig-height: 4
 #| warning: false
@@ -280,7 +576,7 @@ Now to the second promise. Take the histology hat off and put on the electrophys
 ::: callout-note
 ### These data are simulated, on purpose
 
-As in @sec-logistic-regression, I don't have a dataset with the structure I need, so I generated one, in `functions/simulate_ephys.R`, with a fixed seed. The recording window of each unit differs in length (20 to 120 seconds, because a recording is cut when the unit stops being stable), which is the exposure of this chapter; and, as in real recordings, the file has one row per unit. In real experiments the units come from a handful of animals, so they are not independent of each other; I treat them as independent here to keep the chapter about counts, and @sec-multilevel-glmm is where that shortcut gets repaired.
+I don't have a real electrophysiology dataset with the structure I need yet, so for now I generated one, in `functions/simulate_ephys.R`, with a fixed seed. The recording window of each unit differs in length (20 to 120 seconds, because a recording is cut when the unit stops being stable), which is the exposure of this chapter; and, as in real recordings, the file has one row per unit. In real experiments the units come from a handful of animals, so they are not independent of each other; I treat them as independent here to keep the chapter about counts, and @sec-multilevel-glmm is where that shortcut gets repaired.
 :::
 
 Let me look at all the units first. A spike count against the length of the recording is the honest view, because it shows the exposure and the outcome together.
@@ -625,14 +921,14 @@ The rate effect is nearly indifferent to my choice: the narrow prior shrinks it 
 ::: callout-tip
 ### Frequentist equivalent
 
-`MASS::glm.nb()` and `glmmTMB` fit the same models by maximum likelihood, and for the mean parts they land close to `brms`: the offset model gives a day-14 log fold change of `r round(coef(glm_offset)["DPI_f14"], 2)` in `glm.nb` and `r round(fixef(fit_offset)["DPI_f14", "Estimate"], 2)` in `brms`, and the treatment rate ratio among active units is `r round(exp(fixef(glmm_zinb)$cond["grouptreated"]), 2)` in `glmmTMB` against `r round(median(effects$rate_ratio), 2)` in `brms`. The small gap in the fold change is the weakly informative prior pulling a little toward zero. This is the usual story of this book: with a weak prior and a decent sample, the likelihood does the work.
+`MASS::glm.nb()` and `glmmTMB` fit the same models by maximum likelihood, and for the mean parts they land close to `brms`: the offset model gives a day-14 log fold change of `r round(coef(glm_offset)["DPI_f14"], 2)` in `glm.nb` and `r round(fixef(fit_offset)["DPI_f14", "Estimate"], 2)` in `brms`, and the treatment rate ratio among active units is `r round(exp(fixef(glmm_zinb)$cond["grouptreated"]), 2)` in `glmmTMB` against `r round(median(effects$rate_ratio), 2)` in `brms`. The small gap in the fold change is the weakly informative prior pulling a little toward zero. This is the usual story of this book: with a weak prior and a decent sample, the likelihood does the work. The raw-count negative binomial from the start of the chapter says the same: its day-7 log-scale coefficient is `r round(coef(glm_nb)["DPI_f7"], 2)` in `glm.nb` and `r round(fixef(fit_nb)["DPI_f7", "Estimate"], 2)` in `brms`.
 
 Two differences are worth knowing. `shape` is where they drift: `glm.nb` reports `theta` = `r round(glm_offset$theta, 1)` for the histology offset model where `brms` reports a posterior median of `r round(summary(fit_offset)$spec_pars["shape", "Estimate"], 1)`. The posterior of a dispersion parameter with 49 animals is skewed, and a maximum-likelihood point estimate and a posterior summary are two different summaries of a skewed thing, which is also why a frequentist fit of a dispersion parameter from a few animals per group can be unstable. The second difference is more consequential: zero-inflated likelihoods can be flat or multimodal in the parameters of the zero part, especially with few silent units, and a frequentist fit may then return a silence probability at the boundary (exactly 0 or 1) or fail to converge. In our data, `glmmTMB` gives a silence coefficient of `r round(fixef(glmm_zinb)$zi["grouptreated"], 2)` and a Wald interval for it of `r paste0("[", paste(round(confint(glmm_zinb)["zi.grouptreated", c("2.5 %", "97.5 %")], 2), collapse = ", "), "]")`, close to the Bayesian one; with fewer units, the weakly informative prior on the silence coefficient would be doing something practical, keeping the estimate away from the edge, and not just something philosophical.
 :::
 
 ## Can we trust the sampling?
 
-This chapter has fitted seven `brms` models, and I said "sampling is healthy" about a few of them and warned you about one chain that wandered off in another. A vague reassurance is cheap. A table isn't, so here are the same three checks as in @sec-mcmc-model-checking for every fit in the chapter: Rhat below 1.01, both effective sample sizes above 400, and no divergent transitions. It also confirms that the `init = 0` fix of the spike-count model did its job.
+This chapter has fitted ten `brms` models, and I said "sampling is healthy" about a few of them and warned you about one chain that wandered off in another. A vague reassurance is cheap. A table isn't, so here are the same three checks as in @sec-mcmc-model-checking for every fit in the chapter: Rhat below 1.01, both effective sample sizes above 400, and no divergent transitions. It also confirms that the `init = 0` fix of the spike-count model did its job.
 
 ```{r}
 #| label: tbl-count_mcmc
@@ -641,6 +937,9 @@ This chapter has fitted seven `brms` models, and I said "sampling is healthy" ab
 source("functions/mcmc_check.R")
 
 count_checks <- mcmc_check(list(
+  "Gaussian (histology)" = fit_gauss,
+  "Poisson (histology)" = fit_pois,
+  "Negative binomial (histology)" = fit_nb,
   "Offset (histology)" = fit_offset,
   "Free log-area coefficient" = fit_free,
   "Negative binomial (spikes)" = fit_nb_spk,
@@ -656,10 +955,10 @@ gt(count_checks) |>
   fmt_number(columns = c(min_ess_bulk, min_ess_tail), decimals = 0)
 ```
 
-All seven pass: the worst Rhat is `r sprintf("%.3f", max(count_checks$max_rhat))`, the smallest effective sample size is `r round(min(count_checks$min_ess_bulk, count_checks$min_ess_tail))`, and there are `r sum(count_checks$divergences)` divergent transitions in total. The spike-count model that misbehaved with default starting values is now among the cleanest, which is the whole argument for fixing the start instead of running the chains longer.
+All ten pass: the worst Rhat is `r sprintf("%.3f", max(count_checks$max_rhat))`, the smallest effective sample size is `r round(min(count_checks$min_ess_bulk, count_checks$min_ess_tail))`, and there are `r sum(count_checks$divergences)` divergent transitions in total. The spike-count model that misbehaved with default starting values is now among the cleanest, which is the whole argument for fixing the start instead of running the chains longer.
 
 ## Where this leaves us
 
-We started with two loose ends from the previous chapters and they turned out to be the same kind of lesson. The `shape` of a negative binomial is a statement about how different the *units* are from each other before you count anything, and it sets a floor on the noise that counting more cannot lower, which is a statement about your experimental design. An **offset** gives a count its denominator: it fixes the coefficient of $\log(\text{exposure})$ to 1, turns the model into one for a rate, and, in the histology data, changed the size of the time course because the tissue shrank while the cells piled up. It's an assumption of the design, and the data could not tell us whether it was right, so I used it for the reason that we counted over a known window. And when a count has more zeros than any negative binomial can honestly explain, the honest model separates two kinds of silence, the neurons that can't fire from the ones that didn't, and lets you ask two questions of a drug instead of one.
+We started with a promise and two loose ends from the introduction to this part, and they turned out to be the same kind of lesson. The promise was to watch a Gaussian fail on counts and to fix it by changing the family, which the Poisson did only halfway and the negative binomial did. The `shape` of a negative binomial is a statement about how different the *units* are from each other before you count anything, and it sets a floor on the noise that counting more cannot lower, which is a statement about your experimental design. An **offset** gives a count its denominator: it fixes the coefficient of $\log(\text{exposure})$ to 1, turns the model into one for a rate, and, in the histology data, changed the size of the time course because the tissue shrank while the cells piled up. It's an assumption of the design, and the data could not tell us whether it was right, so I used it for the reason that we counted over a known window. And when a count has more zeros than any negative binomial can honestly explain, the honest model separates two kinds of silence, the neurons that can't fire from the ones that didn't, and lets you ask two questions of a drug instead of one.
 
 One shortcut runs through the whole chapter, and I've flagged it twice: every unit and every animal was treated as independent of the others. Real units come from a few animals, and the count of an animal's units is not the same as the number of independent pieces of evidence. @sec-multilevel-glmm is the chapter that repairs it. Before that, @sec-beta-robust-regression turns to outcomes that are continuous but bounded (proportions of time in a zone) or heavy-tailed (reaction times), the last two families of this part.
