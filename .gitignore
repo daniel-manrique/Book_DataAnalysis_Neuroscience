@@ -32,3 +32,6 @@ _book/
 
 # Intermediate file Quarto/knitr leaves when a render fails
 /*.knit.md
+
+# knitr intermediate left in the project root by a direct knit or a failed render
+/*.rmarkdown
