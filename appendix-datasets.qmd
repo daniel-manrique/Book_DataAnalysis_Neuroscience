@@ -1,0 +1,22 @@
+---
+bibliography: references.bib
+subtitle: A data dictionary for every file used in the book
+---
+
+# Finding your way around the datasets {#sec-appendix-datasets}
+
+<!-- STUB -->
+## How to read this guide
+
+## The histology data: Cells_Gfap-Pdgfrb
+
+## The hanging wire test: Wire_TrainingSum
+
+## The open field: OpenField_Summary
+
+## Human single neurons: WorkingMemory_Hippocampus_Encoding
+
+## Files in the folder that no chapter analyzes
+
+## Which chapter uses which dataset
+

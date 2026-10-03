@@ -69,6 +69,7 @@
 - **indicator variable**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-indicator-variable-1)
 - **interaction**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-interaction-1)
 - **intercept**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-intercept-1)
+- **intraclass correlation**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1)
 
 ## L {.unnumbered .unlisted}
 
@@ -133,6 +134,10 @@
 - **slope**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
 - **smooth density plot**: [EDA using graphics](eda-ggplot.qmd#ix-smooth-density-plot-1)
 - **student-t distribution**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-student-t-distribution-1)
+
+## T {.unnumbered .unlisted}
+
+- **term**: [Setting up your analysis toolchain](appendix-toolchain.qmd#ix-term-1); [Finding your way around the datasets](appendix-datasets.qmd#ix-term-1); [Designing and reading figures for papers](appendix-figures.qmd#ix-term-1); [Writing up results](appendix-reporting.qmd#ix-term-1); [Deciding how many animals to use](appendix-sample-size.qmd#ix-term-1); [Where to go next](appendix-next.qmd#ix-term-1)
 
 ## V {.unnumbered .unlisted}
 

@@ -1,6 +1,6 @@
-# quarto-tdg
+# Data Analysis for Neuroscientists
 
-Quarto: The Definitive Guide
+A Quarto book on data analysis and statistical modeling for neuroscientists, with `brms` (Bayesian) and a frequentist counterpart side by side. The workflow notes below come from the Quarto template this project started from.
 
 ## Workflow
 

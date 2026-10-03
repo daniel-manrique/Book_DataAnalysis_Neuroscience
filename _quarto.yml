@@ -76,9 +76,15 @@ book:
 
   appendices:
     - appendix-open-science.qmd
+    - appendix-toolchain.qmd
+    - appendix-datasets.qmd
+    - appendix-figures.qmd
+    - appendix-reporting.qmd
+    - appendix-sample-size.qmd
     - appendix-p-values.qmd
     - appendix-assumption-tests.qmd
     - appendix-ai-assisted-modeling.qmd
+    - appendix-next.qmd
     - glossary.qmd
     - index-of-terms.qmd
 
@@ -86,7 +92,7 @@ format:
   html:
     theme:
       - cosmo
-      - quarto-tdg.scss
+      - book-theme.scss
     author-meta: "Daniel Manrique-Castano"
     callout-appearance: simple
     highlight-style: a11y

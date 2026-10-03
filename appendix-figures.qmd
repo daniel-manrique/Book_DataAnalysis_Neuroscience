@@ -1,0 +1,24 @@
+---
+bibliography: references.bib
+subtitle: Beyond bars and asterisks
+---
+
+# Designing and reading figures for papers {#sec-appendix-figures}
+
+<!-- STUB -->
+## Why the default bar plot with asterisks fails
+
+## Choosing a chart by the shape of your data
+
+## Showing every animal and the summary together
+
+## Showing uncertainty honestly
+
+## Reading a half-eye, a predictive check and a rootogram
+
+## Legends, colour and direct labels
+
+## The book's plot theme and legend helpers
+
+## From figure to journal: size, resolution, fonts and captions
+

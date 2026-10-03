@@ -1,0 +1,22 @@
+---
+bibliography: references.bib
+subtitle: A sentence bank and reporting checklists
+---
+
+# Writing up results {#sec-appendix-reporting}
+
+<!-- STUB -->
+## Principles: effect, unit, interval, model
+
+## Sentence bank: Gaussian and linear models
+
+## Sentence bank: binary, count and proportion outcomes
+
+## Sentence bank: robust, multilevel and other models
+
+## Methods sentences: priors, sampler and checks
+
+## Checklists: ARRIVE 2.0 and a Bayesian reporting list
+
+## What not to write
+

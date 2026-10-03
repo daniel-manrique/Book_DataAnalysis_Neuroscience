@@ -163,47 +163,64 @@ Picture a mouse run three times on a rotarod, with the time to fall recorded eac
 
 ![Three flames, one candle. Three runs of the same mouse are one learning curve seen three times, not three independent observations.](images/linear-regression-assumptions_one-candle-three-flames.png){#fig-assumptions-candle fig-align="center" width="85%" fig-alt="Watercolor sketch of a single lit candle on a wooden bench between two small standing mirrors, each showing a paler flame, so three flames are visible. A small wooden tally stick carved with three strokes leans against the bench in front."}
 
-Dependence comes in two flavors worth keeping apart. The rotarod is a case of clustering: rows that share an animal resemble each other more than rows from different animals. The other flavor is serial: values taken close together in time resemble each other, as with a reading logged every minute. Clustering is the one you will meet most often at the bench. Serial dependence is easier to see on a page, so that's the one @fig-assumptions_independence below draws.
+Dependence comes in two flavors worth keeping apart. The rotarod is a case of clustering: rows that share an animal resemble each other more than rows from different animals. The other flavor is serial: values taken close together in time resemble each other, as with a reading logged every minute. Clustering is the one you will meet most often at the bench. @fig-assumptions_independence below shows it with real data.
 
 Is `cell_data` at risk? Not here, and by design: it has `r nrow(cell_data)` rows and `r length(unique(cell_data$MouseID))` different `MouseID`s, one row per animal, so no two rows share a mouse. That is what lets this whole part treat every row as an independent observation. The moment you go below the animal level, with several sections per animal or several cells per section, rows start sharing an animal and the rotarod problem is back. Fixing that is the job of @sec-multilevel-varying-intercepts, once you have the machinery it needs. For now, a small simulation makes the failure visible without it.
 
-<!-- TODO(real data): replace this simulated series, and the paragraph after the figure, with real clustered data (section-level rows with several rows per MouseID, or repeated rotarod sessions), once Daniel provides the dataset. Review of 2026-10-02. -->
-
 ```{r}
 #| label: fig-assumptions_independence
-#| fig-cap: Independent vs. autocorrelated observations over time
+#| fig-cap: "Completed crossing times of the hanging wire test (log scale), one column per mouse, ordered by the mouse's own average. The black bar is that average. Points of one mouse sit together, so they are not independent draws."
+#| fig-alt: "Strip chart with 63 mice along the horizontal axis, ordered from fastest to slowest on average. Each mouse has up to nine grey points and a short black bar at its mean. The columns of points rise from left to right, and within each column the points are much closer to each other than to the points of distant mice."
+#| fig-width: 9
+#| fig-height: 3.8
 #| warning: false
 #| message: false
 
-# Fixed seed so the simulated series is identical on every render
-set.seed(8807)
-time_steps <- seq(1, 100, by = 1)
+library(glmmTMB)
 
-# Independent noise around a rising trend
-response_independent <- 5 + 0.3 * time_steps + rnorm(100, mean = 0, sd = 5)
+# The hanging wire test (introduced properly in the logistic regression chapter):
+# up to nine attempts per mouse (3 days x 3 attempts); keep completed attempts only
+wire_raw <- read.csv(here("project/AnalysisData/Wire_TrainingSum.csv"))
+wire_raw <- wire_raw[wire_raw$Genotype %in% c("Klf4-KO", "WildType-Control"), ]
 
-# Same recipe, but each value also inherits 80% of the previous one
-response_dependent <- numeric(100)
-response_dependent[1] <- 5 + rnorm(1, mean = 0, sd = 5)
-for (i in 2:100) {
-  response_dependent[i] <- 5 + 0.3 * time_steps[i] +
-    0.8 * response_dependent[i - 1] + rnorm(1, mean = 0, sd = 5)
-}
+# One row per attempt, with the crossing time in seconds
+wire_long <- do.call(rbind, lapply(1:3, function(k) {
+  data.frame(mouse = wire_raw$ReCode,
+             wire = wire_raw[[paste0("Trial", k, "_Wire")]],
+             success = wire_raw[[paste0("Trial", k, "_Success")]])
+}))
+wire_long <- wire_long[wire_long$success == 1 & wire_long$wire > 0, ]
+wire_long$log_wire <- log(wire_long$wire)
 
-# Stack the two series, one panel each
-data_independence <- rbind(
-  data.frame(time = time_steps, response = response_independent, type = "Independent"),
-  data.frame(time = time_steps, response = response_dependent, type = "Dependent (autocorrelated)")
-)
+# Order the mice by their own average, so the clustering shows as a staircase
+mouse_means <- tapply(wire_long$log_wire, wire_long$mouse, mean)
+wire_long$mouse_ord <- factor(wire_long$mouse, levels = names(sort(mouse_means)))
+means_df <- data.frame(mouse_ord = factor(names(sort(mouse_means)), levels = names(sort(mouse_means))),
+                       m = sort(mouse_means))
 
-ggplot(data_independence, aes(x = time, y = response)) +
-  geom_line(color = "#0072B2") +
-  facet_wrap(~type) +
-  labs(x = "Time", y = "Response") +
-  Plot_theme
+# Every attempt as a grey point; each mouse's average as a black bar
+ggplot(wire_long, aes(x = mouse_ord, y = exp(log_wire))) +
+  geom_point(color = "grey55", alpha = 0.7, size = 1.4) +
+  geom_crossbar(data = means_df, aes(y = exp(m), ymin = exp(m), ymax = exp(m)),
+                width = 0.8, linewidth = 0.3) +
+  scale_y_log10() +
+  labs(x = "Mice (ordered by their own average)", y = "Crossing time (s, log scale)") +
+  Plot_theme +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 ```
 
-Both panels use the same recipe for the noise, but in the second each value also inherits 80% of the one before it, which makes it drift upward much more steeply than the first. Ignore the slope and look at the texture. The independent panel is jagged. The dependent one wanders like a trajectory, because each point mostly repeats its neighbor. A model that treats those 100 points as 100 independent pieces of evidence is counting the same information many times over, and its intervals will be narrower than the evidence deserves. This is not a rare mistake: repeated measures from the same animal, subject, or preparation get treated as independent observations often enough that it's worth naming as its own failure mode, separate from "wrong shape" or "wrong variance." The appendix turns this idea into an experiment with a known truth, and shows how little a test of the residuals can tell you about it: @sec-appendix-assumption-tests.
+```{r}
+# Share of the variance of the log crossing time that lies between mice (intraclass correlation)
+m_icc <- glmmTMB(log_wire ~ 1 + (1 | mouse), data = wire_long)
+var_mouse <- as.numeric(VarCorr(m_icc)$cond$mouse[1, 1])
+icc_wire <- var_mouse / (var_mouse + sigma(m_icc)^2)
+
+# Design effect: how many times too optimistic is the apparent sample size
+rows_per_mouse <- nrow(wire_long) / length(unique(wire_long$mouse))
+design_effect <- 1 + (rows_per_mouse - 1) * icc_wire
+```
+
+Look at @fig-assumptions_independence. The staircase of black bars is by construction, because I ordered the mice by their own average. What is not by construction is how tight each column is compared with the whole range: if the `r nrow(wire_long)` attempts were independent draws from one common distribution, every column would be as spread out as the whole picture. Instead each mouse's points huddle around its own bar, because some mice are simply fast and others slow. About `r round(100 * icc_wire)`% of the variance of the log crossing time lies between mice, which is called the [intraclass correlation]{style="color:green; font-weight:bold;"}. With about `r round(rows_per_mouse, 1)` completed attempts per mouse, that inflates the variance of an average by a factor of roughly `r round(design_effect, 1)` (the design effect, $1 + (m - 1)\,\rho$, with $m$ the rows per mouse and $\rho$ the intraclass correlation), so these `r nrow(wire_long)` rows carry about as much information about a difference between mice as `r round(nrow(wire_long) / design_effect)` independent ones. A model that treats them as `r nrow(wire_long)` independent pieces of evidence counts the same information several times over, and its intervals will be narrower than the evidence deserves. This is not a rare mistake: repeated measures from the same animal, subject or preparation get treated as independent observations often enough that it is worth naming as its own failure mode, separate from "wrong shape" or "wrong variance". The serial flavor, where each value inherits part of the previous one, has the same consequence and is the subject of @sec-longitudinal-timeseries. The appendix turns this idea into an experiment with a known truth, and shows how little a test of the residuals can tell you about it: @sec-appendix-assumption-tests.
 
 ## Homoscedasticity
 

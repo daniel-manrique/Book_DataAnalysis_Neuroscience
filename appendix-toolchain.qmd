@@ -1,0 +1,22 @@
+---
+bibliography: references.bib
+subtitle: R, Quarto, Stan, brms and renv
+---
+
+# Setting up your analysis toolchain {#sec-appendix-toolchain}
+
+<!-- STUB -->
+## What you need installed and why
+
+## Installing R, an editor and Quarto
+
+## Getting Stan to compile: Rtools or Xcode, rstan or cmdstanr
+
+## Installing brms and the book's packages
+
+## Freezing your environment with renv
+
+## Rendering a document, caching model fits and rerunning years later
+
+## When something breaks: a short troubleshooting list
+

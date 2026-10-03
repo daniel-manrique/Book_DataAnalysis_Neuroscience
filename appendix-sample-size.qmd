@@ -1,0 +1,20 @@
+---
+bibliography: references.bib
+subtitle: Planning by simulation
+---
+
+# Deciding how many animals to use {#sec-appendix-sample-size}
+
+<!-- STUB -->
+## Why a power calculation is not enough
+
+## The recipe: simulate, fit, summarize, repeat
+
+## Planning for precision: how narrow will the interval be?
+
+## Planning for a difference: the probability of a useful answer
+
+## Clustered designs: animals, sections and sessions
+
+## The three Rs and ARRIVE 2.0: stating how you chose n
+

@@ -1,0 +1,20 @@
+---
+bibliography: references.bib
+subtitle: What this book leaves out, and where to learn it
+---
+
+# Where to go next {#sec-appendix-next}
+
+<!-- STUB -->
+## What you can do now
+
+## Questions this book does not answer
+
+## Decoding and machine learning for neural data
+
+## Mass-univariate analysis of imaging and electrophysiology
+
+## Time-to-event and survival
+
+## A reading and tool list, by question
+
