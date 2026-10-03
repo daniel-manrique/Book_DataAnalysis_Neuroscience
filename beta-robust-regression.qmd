@@ -137,6 +137,8 @@ That is overdispersion again, and this time it is a few-fold, not the factor of 
 
 Here is an analogy I find helpful. Imagine a shooting range, with nine arrows per archer. If all the archers had the same skill, the number of hits would follow a binomial. But the archers differ. The *number of hits* of a randomly chosen archer is then noisy twice: once because each shot is a coin flip with that archer's own hit probability, and again because the hit probability itself differs between archers. Averaging over the second source of noise gives a wider distribution than a binomial can produce with any single probability. Swap archers for mice and arrows for attempts on the wire, and you have our data.
 
+![Nine arrows each, three very different targets. A binomial assumes every archer is equally good; a beta-binomial lets the skill change from one to the next.](images/beta-robust-regression_three-targets-nine-arrows.png){#fig-beta-targets fig-align="center" width="90%" fig-alt="Watercolor sketch of three archery targets on wooden stands in a meadow. The left target has two arrows in its rings and seven lying in the grass, the middle one has about five in the rings, and the right one has a tight cluster of arrows at the center."}
+
 To describe the second source of noise we need a distribution for probabilities, one that lives on the interval from 0 to 1. The natural candidate is the [beta distribution]{style="color:green; font-weight:bold;"}, which we'll spend the next section getting to know properly. Suppose each mouse's own chance of completing an attempt, $p_i$, is drawn from a beta distribution with mean $\mu_i$ and a precision $\phi$ (larger means the mice are more alike), and given $p_i$, the number of completed attempts is binomial. Integrating $p_i$ out leaves the [beta-binomial]{style="color:green; font-weight:bold;"} [@mcelreath2020]:
 
 $$
@@ -444,6 +446,8 @@ $$ {#eq-student}
 
 What makes this a [robust regression]{style="color:green; font-weight:bold;"} is what happens to the outliers: a Gaussian penalizes a far point quadratically, so a single wild value can drag the fitted line toward itself; the Student-*t*'s heavy tail gives the same point a lot of probability density, and so the model has no need to bend the coefficients to accommodate it [@kruschke2015]. And $\nu$ is estimated from the data, which means the model decides for itself how heavy-tailed it needs to be. The prior for $\nu$ needs some thought, because a handful of extreme points can't say much about tails. `brms` defaults to `Gamma(2, 0.1)`, which has a mean of 20 and allows small values if the data ask for them, and that's what I'll use, with a sensitivity check afterward.
 
+![One far-out peg drags a taut string toward it, and a loose one just makes room. The Gaussian is the first and the Student-t is the second.](images/beta-robust-regression_two-strings-one-peg.png){#fig-beta-pegs fig-align="center" width="90%" fig-alt="Watercolor sketch of two wooden boards each with a row of seven pegs and one peg raised near the right end. On the left board a taut ochre string curves up toward the raised peg, on the right board a loose teal string stays nearly level and rises only at the very end."}
+
 ```{r}
 prior_rt_t <- c(prior_rt, prior(gamma(2, 0.1), class = "nu"))
 
@@ -646,6 +650,8 @@ KO mice take `r summ(rt_ratio)` times as long to cross as wild-type mice on the 
 ## When the proportion is the measurement: the beta distribution
 
 Back to proportions, now of the other kind. The beta-binomial was a rescue for a proportion built from a known number of trials; the other kind is the one that, by the nature of the experiment, is *itself* the measurement. For it I'm going to leave the wire for a different bench: the open field. A mouse is placed in an arena and a tracking system records where it spends five minutes. The software splits the arena into zones and reports the seconds spent in each, and the one I care about is the center. Mice are cautious animals: they hug the walls and cross the middle only when they feel safe enough, so the share of the session spent in the center is a classic readout of exploratory drive against anxiety, and exactly the kind of thing a brain injury could change. **Does the first day after an ischemic stroke change how much of the session a mouse spends in the center, and does it do so differently in mice that lack Klf4?**
+
+![A mouse's five minutes in the open field, seen from above. It hugs the walls and ventures into the center now and then, so the share of time in the middle is squeezed between 0 and 1.](images/beta-robust-regression_open-field-from-above.png){#fig-beta-openfield fig-align="center" width="55%" fig-alt="Watercolor view from above of a square wooden open-field arena with a pale teal center square. A small white mouse sits near the top right wall, and a dashed trail with arrows follows the walls all the way around, with one short loop into the center square."}
 
 ### What one row is, and a column that wasn't what it said
 
