@@ -7,6 +7,7 @@ bibliography: references.bib
 ```{r}
 #| include: false
 
+# Plotting package and the book's shared plot theme
 library(ggplot2)
 
 Plot_theme <- source("functions/plot_theme.R")
@@ -22,7 +23,7 @@ Statistical models are how we make that moment rigorous instead of just vibes-ba
 You'll notice this book barely mentions p-values, and rarely kindly when it does. That's not a stylistic tic. A p-value doesn't actually answer either question a scientist has: "how big is this effect?" and "how sure am I?" It only tells you how surprising your data would be if the effect were exactly zero, which is rarely the question anyone is asking. Worse, treating "p < 0.05" as a lexicographic gate, significant first and everything else (prior evidence, plausibility, study quality) a distant second, is precisely the practice a task force of the American Statistical Association singled out as corrosive to the field [@wasserstein2019], and that a follow-up paper argued should be abandoned outright rather than patched with a stricter threshold [@mcshane2019]. @sec-appendix-p-values unpacks exactly why; for now, just notice that every model in this book reports an effect size and an interval instead.
 :::
 
-Let me push on that a little harder, because it's easy to nod along and then go run a t-test anyway. When we measure cell counts in a proliferation assay or assess marker intensity to understand protein expression, we are observing outcomes that emerge from a biological mechanism we are trying to describe using a statistical model. Newton let us know that the force of gravity decreases as the square of the distance. Thank goodness he didn't just tell us that the Sun exerts a "significantly greater" force on the Earth than on Mars. That would certainly not have helped us to explore the red planet. The mathematical model he built did.
+Let me push on that a little harder, because it's easy to nod along and then go run a t-test anyway. When we measure cell counts in a proliferation assay or assess marker intensity to understand protein expression, we are observing outcomes that emerge from a biological mechanism we are trying to describe using a statistical model. Newton let us know that the force of gravity decreases as the square of the distance. Thank goodness he didn't just tell us that the Sun exerts a "significantly greater" force on the Earth than on Mars. That would certainly not have helped us to explore the red planet. The mathematical model he built did (@fig-intro-orbits).
 
 ![Newton didn't call the Sun's pull "significantly greater." He gave us a model, and a model gets you to Mars.](images/intro-applied-modeling_orbits-to-mars.png){#fig-intro-orbits fig-align="center" width="85%" fig-alt="Watercolor sketch of a notebook page with an ink diagram of the Sun, Earth and Mars on elliptical orbits, a dashed arc with a small paper rocket leading from Earth to Mars, and a small apple resting in the lower corner of the page."}
 
@@ -34,7 +35,7 @@ The process of building these theoretically motivated models in neuroscience inv
 
 ![A spreadsheet is a tangle. A model is the thread you can pull out of it: the process that made the numbers.](images/intro-applied-modeling_tangle-to-thread.png){#fig-intro-tangle fig-align="center" width="90%" fig-alt="Watercolor sketch of a tangled ball of ochre and teal thread on a wooden bench, with one thread pulled free and laid across a sheet of dotted paper as a smooth curve through the dots, surrounded by a soft teal band. A wooden spool and scissors rest nearby."}
 
-You know this feeling already: you've got a spreadsheet full of cell counts, fluorescence intensities, area measurements, morphological scores (a small mountain of numbers that took months of bench work to produce), and it just sits there, refusing to tell you anything on its own. That's not a failure of your data. Basic neuroscience research produces exactly this kind of complex, noisy, hard-won data, and it has enormous potential to reveal how the nervous system actually works. But it won't do that unassisted: it's shaped by the biological process you're trying to understand, by the experimental conditions you imposed, and by an overlay of noise and variability that's genuinely difficult to see through by eye alone. Turning that pile of numbers into an answer is your job, not the spreadsheet's.
+You know this feeling already: you've got a spreadsheet full of cell counts, fluorescence intensities, area measurements, morphological scores (a small mountain of numbers that took months of bench work to produce), and it just sits there, refusing to tell you anything on its own. That's not a failure of your data. Basic neuroscience research produces exactly this kind of complex, noisy, hard-won data, and it has enormous potential to reveal how the nervous system actually works. But it won't do that unassisted: it's shaped by the biological process you're trying to understand, by the experimental conditions you imposed, and by an overlay of noise and variability that's genuinely difficult to see through by eye alone. Turning that pile of numbers into an answer is your job, not the spreadsheet's, and @fig-intro-tangle is the picture of that job: the model is the thread you pull out of the tangle.
 
 The most powerful tool we have for that job is statistical modeling. Remember Newton's model of gravity from a few paragraphs ago? Same idea, much smaller scale: a statistical model is a simplified mathematical stand-in for reality, good enough to be useful even though it isn't the thing itself. Take a study of cerebral ischemia's effect on astrocyte activation: the data might include marker intensities from sham-operated and ischemic animals, with all the inherent messiness of an in-vivo experiment. By modeling it, we can quantify how the injury changes astrocyte activation while keeping the uncertainty in that estimate honest, rather than collapsing it into a single yes/no verdict. We're not chasing asterisks on a graph; we're trying to recover the parameters of whatever process actually generated the numbers in front of us.
 
@@ -50,7 +51,7 @@ Beyond quantifying a marker, then, statistical modeling embodies a theoretical p
 
 Here's a scene you'll recognize: you finally know what model you want to fit. You know what you're comparing, what you're controlling for, and now you have to actually get R to do it. This is where I introduce the two tools that will do that work for the rest of the book, plus a small mental model of what's happening underneath, so the output feels earned rather than magic.
 
-Think of fitting a Bayesian model the way you'd think of asking a genuinely thorough colleague for their opinion on your hypothesis. You tell them what you already believed walking in (that's the *prior*), and you show them the data. Instead of handing you back a single number, they hand you back a whole spread of plausible answers, weighted by how well each one actually fits everything you showed them: the values that fit well are heavily represented, the ones that don't are barely there at all. That spread is the *posterior distribution*, and keeping the whole shape of it, instead of collapsing it into one estimate, is the entire point of doing this the Bayesian way. The machinery that actually produces that spread (drawing thousands of plausible parameter values and letting them accumulate into that shape) is called Markov Chain Monte Carlo, or MCMC, and we'll get comfortable with what's happening inside it over the next couple of chapters. For now, what matters is the tool: `brms` [@brms] lets us hand R a familiar model formula and have it write and run the underlying [Stan](https://mc-stan.org/) code for us, so we get that full posterior without hand-coding any of the sampling ourselves.
+Think of fitting a Bayesian model the way you'd think of asking a genuinely thorough colleague for their opinion on your hypothesis. You tell them what you already believed walking in (that's the [prior]{style="color:green; font-weight:bold;"}), and you show them the data. Instead of handing you back a single number, they hand you back a whole spread of plausible answers, weighted by how well each one actually fits everything you showed them: the values that fit well are heavily represented, the ones that don't are barely there at all. That spread is the [posterior distribution]{style="color:green; font-weight:bold;"}, and keeping the whole shape of it, instead of collapsing it into one estimate, is the entire point of doing this the Bayesian way. The machinery that actually produces that spread (drawing thousands of plausible parameter values and letting them accumulate into that shape) is called [Markov Chain Monte Carlo]{style="color:green; font-weight:bold;"}, or MCMC, and we'll get comfortable with what's happening inside it over the next couple of chapters. For now, what matters is the tool: `brms` [@brms] lets us hand R a familiar model formula and have it write and run the underlying [Stan](https://mc-stan.org/) code for us, so we get that full posterior without hand-coding any of the sampling ourselves. @fig-intro-sand-posterior is the picture to keep of a posterior.
 
 ![A posterior isn't a single number. It's what's left once thousands of plausible values have fallen into place: a shape, with the most credible values piled high.](images/intro-applied-modeling_sand-bell-posterior.png){#fig-intro-sand-posterior fig-align="center" width="85%" fig-alt="Watercolor sketch of two cupped hands pouring ochre sand onto a table, where it forms a bell-shaped pile with teal-tinted edges and a dashed vertical line at its center. A single small pebble sits alone to one side."}
 
@@ -67,14 +68,18 @@ This book leans on `brms` as its primary line: that full posterior, and the abil
 
 Let's put this into practice with a real question and real data. After a cerebral ischemic injury, astrocytes become reactive, a process called astrogliosis, commonly tracked by staining for GFAP (glial fibrillary acidic protein). A natural first question is about as simple as questions get: **does the injury actually increase GFAP intensity, compared to an animal that underwent the same surgical procedure without the arterial occlusion (a sham surgery)?**
 
-We'll use the `cell_data` table (the same dataset we will return to throughout the linear-models part of this book), restricted to two groups measured close in time: sham-operated animals (`SHAM`) at day 0, and ischemic animals (`MCAO`) at day 3 post-injury, the earliest post-ischemic timepoint in the dataset.
+We'll use the `cell_data` table (the same dataset we will return to throughout the linear-models part of this book), restricted to two groups measured close in time: sham-operated animals (`SHAM`) at day 0, and ischemic animals (`MCAO`) at day 3 post-injury, the earliest post-ischemic timepoint in the dataset. @tbl-intro_cell_data_tbl lists every animal.
 
 ```{r}
 library(here)
 
+# Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 
+# Keep sham animals at day 0 and ischemic (MCAO) animals at day 3
 cell_data_sub <- subset(cell_data, DPI %in% c(0, 3))
+
+# Put SHAM first, so it is the reference level of the comparison
 cell_data_sub$Condition <- factor(cell_data_sub$Condition, levels = c("SHAM", "MCAO"))
 ```
 
@@ -83,10 +88,12 @@ cell_data_sub$Condition <- factor(cell_data_sub$Condition, levels = c("SHAM", "M
 #| tbl-cap: Sham vs. ischemic animals, GFAP intensity
 
 library(gt)
+
+# Show the raw values: one row per animal
 gt(cell_data_sub[, c("MouseID", "DPI", "Condition", "Gfap_Intensity")])
 ```
 
-A quick visualization already tells us most of the story. With only seven sham and eight ischemic animals, a boxplot would be lying to you a little: quartiles and whiskers imply a stability that seven points just don't have. So we plot the animals themselves and nothing else, and let the model do the summarizing:
+A quick visualization already tells us most of the story (@fig-intro_gfap_points). With only seven sham and eight ischemic animals, a boxplot would be lying to you a little: quartiles and whiskers imply a stability that seven points just don't have. So we plot the animals themselves and nothing else, and let the model do the summarizing. `geom_jitter()` from `ggplot2` nudges the points sideways just enough that none hides behind another; the vertical position, the only thing that carries information, is not touched. A bar with an asterisk would erase exactly what we need to see here: how few animals there are, and how little the groups overlap. The same habit will carry through the whole book: when the number of animals is small, show every one of them.
 
 ```{r}
 #| label: fig-intro_gfap_points
@@ -94,15 +101,17 @@ A quick visualization already tells us most of the story. With only seven sham a
 #| fig-width: 5
 #| fig-height: 5
 
+# One point per animal, nudged sideways so none hides behind another
 ggplot(
   data = cell_data_sub,
   aes(x = Condition, y = Gfap_Intensity, color = Condition)
 ) +
   geom_jitter(width = 0.08, size = 2.5) +
+  # Colour-blind-safe pair; the x axis already names the groups, so no legend
   scale_color_manual(values = c("SHAM" = "#0072B2", "MCAO" = "#D55E00")) +
   labs(x = "", y = "GFAP intensity") +
   Plot_theme +
-  theme(legend.position = "none")
+  legend_none()
 ```
 
 The two groups barely overlap. Now let's put a number, and an uncertainty, on that difference. Statistically, comparing two groups is nothing more than a linear regression with a single categorical predictor. If we code $\text{Condition}_i$ as an indicator that is $0$ for `SHAM` and $1$ for `MCAO`, the model is:
@@ -123,6 +132,8 @@ A plain `lm()` would give us a single number for $\beta_1$ and a confidence inte
 ```{r}
 library(brms)
 
+# Fit the Gaussian linear model with brms's default priors; the fit is cached
+# in models/, so rendering the book does not rerun the sampler
 brms_model <- brm(
   Gfap_Intensity ~ Condition,
   data = cell_data_sub,
@@ -131,10 +142,41 @@ brms_model <- brm(
   file_refit = "never"
 )
 
+# Posterior summaries: estimates, intervals, Rhat and effective sample sizes
 summary(brms_model)
 ```
 
-Before trusting any of these numbers, it's worth a glance at whether the sampler actually did its job: Rhat sits at 1.00 for every parameter (comfortably under the 1.01 threshold that indicates the chains agree with each other), both bulk and tail effective sample sizes are well past 2,000 (far above the 400 we'd want as a minimum), and there's no divergent-transition warning anywhere in the output. That's what a trustworthy fit looks like: cheap to check, and worth checking every single time, not just when something looks off.
+```{r}
+#| include: false
+
+# Numbers quoted in the text, computed from the two fits so they cannot drift
+fe <- fixef(brms_model)
+b0 <- fe["Intercept", "Estimate"]
+b1 <- fe["ConditionMCAO", "Estimate"]
+b1_lo <- fe["ConditionMCAO", "Q2.5"]
+b1_hi <- fe["ConditionMCAO", "Q97.5"]
+
+lm_fit <- lm(Gfap_Intensity ~ Condition, data = cell_data_sub)
+lm_b0 <- coef(lm_fit)[[1]]
+lm_b1 <- coef(lm_fit)[[2]]
+lm_ci <- confint(lm_fit)["ConditionMCAO", ]
+
+# Sampler checks for the three model parameters
+diag1 <- posterior::summarise_draws(
+  posterior::subset_draws(posterior::as_draws_df(brms_model),
+                          variable = c("b_Intercept", "b_ConditionMCAO", "sigma")),
+  "rhat", "ess_bulk", "ess_tail")
+np <- nuts_params(brms_model)
+n_div <- sum(np$Value[np$Parameter == "divergent__"])
+stopifnot(max(diag1$rhat) < 1.01, min(diag1$ess_bulk) > 400,
+          min(diag1$ess_tail) > 400, n_div == 0)
+n_draws <- nrow(posterior::as_draws_df(brms_model))
+
+# One-decimal formatter
+f1 <- function(x) sprintf("%.1f", x)
+```
+
+Before trusting any of these numbers, it's worth a glance at whether the sampler actually did its job: the largest Rhat is `r sprintf("%.2f", max(diag1$rhat))` (comfortably under the 1.01 threshold that indicates the chains agree with each other), the smallest bulk and tail effective sample sizes are `r round(min(c(diag1$ess_bulk, diag1$ess_tail)))` (far above the 400 we'd want as a minimum), and there are `r n_div` divergent transitions. That's what a trustworthy fit looks like: cheap to check, and worth checking every single time, not just when something looks off.
 
 ### parsnip
 
@@ -142,27 +184,35 @@ Before trusting any of these numbers, it's worth a glance at whether the sampler
 library(parsnip)
 library(broom)
 
+# The same model specified through parsnip, fitted by ordinary least squares
 parsnip_model <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Gfap_Intensity ~ Condition, data = cell_data_sub)
 
+# Coefficients with 95% confidence intervals
 tidy(parsnip_model, conf.int = TRUE)
 ```
 :::
 
-Both approaches point to the same story, and it's worth reading the actual numbers rather than skimming past them to the stars in a table. The intercept ($\beta_0$) recovers the average GFAP intensity in sham animals at essentially the same value in both fits (30.03 for `brms`, 30.0 for `lm`), and the `ConditionMCAO` coefficient ($\beta_1$) puts the increase three days after ischemia at 107.50 (`brms`) and 107 (`lm`): a sham animal sits around 30 units of GFAP intensity, and an ischemic one sits around 137. The 95% intervals agree just as closely: $[84.31, 131.80]$ for the credible interval, $[84.5, 130]$ for the confidence interval, comfortably clear of zero either way.
+Both approaches point to the same story, and it's worth reading the actual numbers rather than skimming past them to the stars in a table. The intercept ($\beta_0$) recovers the average GFAP intensity in sham animals at essentially the same value in both fits (`r f1(b0)` for `brms`, `r f1(lm_b0)` for `lm`), and the `ConditionMCAO` coefficient ($\beta_1$) puts the increase three days after ischemia at `r f1(b1)` (`brms`) and `r f1(lm_b1)` (`lm`): a sham animal sits around `r round(b0)` units of GFAP intensity, and an ischemic one sits around `r round(b0 + b1)`. The 95% intervals agree just as closely: [`r f1(b1_lo)`, `r f1(b1_hi)`] for the credible interval, [`r f1(lm_ci[[1]])`, `r f1(lm_ci[[2]])`] for the confidence interval, comfortably clear of zero either way.
 
-So let's actually answer the question we opened this chapter with, using exactly those numbers and nothing else: three days after ischemia, GFAP intensity rises to roughly four times its sham baseline, and the credible interval above tells us that's a real, well-pinned-down increase, not a shrug dressed up in decimal places. Notice what that sentence didn't need. It didn't say "ischemia had a significant effect on GFAP intensity." That sentence would have told you nothing at all: not how big the effect is, not how sure we are of it, not whether it's biologically trivial or dramatic. The coefficient and its interval *are* the answer. "Significant" is just noise standing where an answer belongs.
+So let's actually answer the question we opened this chapter with, using exactly those numbers and nothing else: three days after ischemia, GFAP intensity rises to roughly `r round((b0 + b1) / b0, 1)` times its sham baseline, and the credible interval above tells us that's a real, well-pinned-down increase, not a shrug dressed up in decimal places. Notice what that sentence didn't need. It didn't say "ischemia had a significant effect on GFAP intensity." That sentence would have told you nothing at all: not how big the effect is, not how sure we are of it, not whether it's biologically trivial or dramatic. The coefficient and its interval *are* the answer. "Significant" is just noise standing where an answer belongs.
+
+::: {.callout-note title="How to report it"}
+**Results.** Three days after ischemia, GFAP intensity was `r f1(b1)` units higher in MCAO mice than in sham-operated mice (posterior mean difference, 95% credible interval `r f1(b1_lo)` to `r f1(b1_hi)`; sham mean `r f1(b0)`; 7 sham and 8 MCAO animals). Every one of the `r n_draws` posterior draws for the difference was positive.
+
+**Methods.** We compared GFAP intensity between groups with a Gaussian linear model fitted in `brms` with its default priors (flat on the group effect), four chains of 2,000 iterations each, and confirmed convergence (Rhat below 1.01, effective sample sizes above 400, no divergent transitions).
+:::
 
 But notice what I just did in that same paragraph: I quoted the credible interval and could just as easily have quoted the confidence interval instead, as if the two meant the same thing because they land on nearly the same numbers. That's usually where people stop looking, treating "the effect and its 95% interval" as one interchangeable idea. It isn't, and it's worth slowing down here, on the very first model in the book, rather than letting that habit start early.
 
-Picture a carnival ring-toss game where the stake is fixed in the ground and hidden from you. The game is designed so that, over a long run of players, 95% of the tossed rings land around the stake. You throw one ring. Did *yours* land around the stake? You genuinely can't tell: all you know is the long-run batting average of the game itself, not this particular throw. That's a **confidence interval**. In frequentist statistics, $\beta_1$ is a fixed, unknown constant (the stake), and probability describes the long-run behavior of the procedure across many hypothetical repeats of the experiment, not this one throw of it [@gelman2020]. Once we've calculated one specific interval, like `parsnip`'s `conf.low`/`conf.high` above, the true effect either sits inside it or it doesn't: the probability at that point is 0 or 1, not 95% [@kruschke2015]. Reading it as "there's a 95% probability the true effect is in $[84.3, 131.8]$" is a well-known misstep, sometimes called the frequentist fallacy, and one that shows up constantly in the neuroscience literature, usually from people who never had a reason to doubt it.
+Picture a carnival ring-toss game where the stake is fixed in the ground and hidden from you. The game is designed so that, over a long run of players, 95% of the tossed rings land around the stake. You throw one ring. Did *yours* land around the stake? You genuinely can't tell: all you know is the long-run batting average of the game itself, not this particular throw. That's a [confidence interval]{style="color:green; font-weight:bold;"} (@fig-intro-ring-toss). In frequentist statistics, $\beta_1$ is a fixed, unknown constant (the stake), and probability describes the long-run behavior of the procedure across many hypothetical repeats of the experiment, not this one throw of it [@gelman2020]. Once we've calculated one specific interval, like `parsnip`'s `conf.low`/`conf.high` above, the true effect either sits inside it or it doesn't: the probability at that point is 0 or 1, not 95% [@kruschke2015]. Reading it as "there's a 95% probability the true effect is in [`r f1(lm_ci[[1]])`, `r f1(lm_ci[[2]])`]" is a well-known misstep, sometimes called the frequentist fallacy, and one that shows up constantly in the neuroscience literature, usually from people who never had a reason to doubt it.
 
 ![The stake is fixed but hidden. Over many throws, 95% of rings land around it, but you can't tell whether yours did. That's what a confidence interval promises.](images/intro-applied-modeling_ring-toss-stake.png){#fig-intro-ring-toss fig-align="center" width="90%" fig-alt="Watercolor sketch of a researcher in a white lab coat and green sweater tossing a ring at a carnival game. The stake is hidden under a translucent teal veil, with many earlier rings lying clustered around it, and a striped ochre and teal awning frames the top corner."}
 
-The Bayesian version is a genuinely different game. Go back to the thorough colleague from the last section: you showed them this exact dataset, and they handed you back a whole distribution of plausible effect sizes, weighted by how well each one fits what you showed them. When they draw a boundary capturing 95% of that distribution, they *are* making a direct probability statement about the effect itself: given this data and these priors, there's a 95% probability the true effect sits in that range [@mcelreath2020]. That's `brms`'s `l-95% CI`/`u-95% CI`, and it's called a **credible interval** precisely because it earns the interpretation people instinctively (and wrongly) give to the frequentist one. One more precision worth having early: `brms` reports this particular flavor of credible interval, an **equal-tailed interval** that trims 2.5% off each tail of the posterior, rather than the narrower **highest-density interval (HDI)** you'll see reported elsewhere. The two agree when the posterior is roughly symmetric, as it is here, but can disagree for skewed posteriors, where the HDI is the more honest summary [@kruschke2015].
+The Bayesian version is a genuinely different game. Go back to the thorough colleague from the last section: you showed them this exact dataset, and they handed you back a whole distribution of plausible effect sizes, weighted by how well each one fits what you showed them. When they draw a boundary capturing 95% of that distribution, they *are* making a direct probability statement about the effect itself: given this data and these priors, there's a 95% probability the true effect sits in that range [@mcelreath2020]. That's `brms`'s `l-95% CI`/`u-95% CI`, and it's called a [credible interval]{style="color:green; font-weight:bold;"} precisely because it earns the interpretation people instinctively (and wrongly) give to the frequentist one. One more precision worth having early: `brms` reports this particular flavor of credible interval, an [equal-tailed interval]{style="color:green; font-weight:bold;"} that trims 2.5% off each tail of the posterior, rather than the narrower [highest-density interval (HDI)]{style="color:green; font-weight:bold;"} you'll see reported elsewhere. The two agree when the posterior is roughly symmetric, as it is here, but can disagree for skewed posteriors, where the HDI is the more honest summary [@kruschke2015].
 
-A table of quantiles makes that distribution easy to describe but easy to misread as another hard-edged bound, exactly the interpretation we just spent two paragraphs arguing against. So let's actually look at the posterior instead of just quoting two numbers from it: the full shape is the point, not just where it happens to cross 95%.
+A table of quantiles makes that distribution easy to describe but easy to misread as another hard-edged bound, exactly the interpretation we just spent two paragraphs arguing against. So let's actually look at the posterior instead of just quoting two numbers from it: the full shape is the point, not just where it happens to cross 95%. @fig-intro_posterior_halfeye uses `stat_halfeye()` from the `ggdist` package, which draws the whole posterior as a density, with the median as a dot and the 50% and 95% credible intervals as thick and thin bars. A bare error bar would keep the two end points and throw the shape away; and shape is what tells you whether the interval is a hard wall or just the place where a smooth fade crosses 95%.
 
 ```{r}
 #| label: fig-intro_posterior_halfeye
@@ -173,10 +223,13 @@ A table of quantiles makes that distribution easy to describe but easy to misrea
 library(ggdist)
 library(posterior)
 
+# Every posterior draw of every parameter, one row per draw
 draws <- as_draws_df(brms_model)
 
+# Half-eye: the full density of the effect, with its median and 50% / 95% intervals
 ggplot(draws, aes(x = b_ConditionMCAO, y = 0)) +
   stat_halfeye(.width = c(0.5, 0.95), fill = "#D55E00", point_interval = "median_qi") +
+  # Dashed line at zero: no effect
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
   labs(x = "Posterior for the MCAO effect on GFAP intensity", y = NULL) +
   Plot_theme +
@@ -191,5 +244,4 @@ Every value on that curve is a plausible size for the ischemia effect, weighted 
 `brms` and `lm` land on almost identical numbers here, and now we can say exactly why: with a flat prior on $\beta_1$, the posterior is shaped by the likelihood alone, and the likelihood is precisely what `lm` maximizes to get its own estimate. Diffuse-to-flat priors letting the data do essentially all the work is the general reason Bayesian and frequentist point estimates tend to agree in large, well-behaved samples. That won't always hold. Later in the book, once we work with smaller samples, rarer outcomes, or hierarchical structure, you'll see the two approaches diverge more visibly, and the reason will be an actual, informative prior doing regularizing work that the frequentist fit has no mechanism to do.
 :::
 
-That's the whole workflow in miniature: ask a real question, look at the data, write down a model that encodes the question, fit it, and interpret the parameters, not a p-value. Notice what we deliberately skipped: we never asked whether this model's predictions actually resemble the data we started with, we just trusted the coefficients. That's not an oversight, it's next chapter's job: a **posterior predictive check** is exactly the tool for that question, and it deserves its own careful treatment rather than a rushed paragraph here. Everything in the rest of Part 1 is about doing each of these steps more carefully: what a Bayesian model actually represents (@sec-bayesian-core-workflow), how to choose priors deliberately instead of by default (@sec-priors-regularization), and how to check whether a fitted model actually describes the data well (@sec-mcmc-model-checking).
-
+That's the whole workflow in miniature: ask a real question, look at the data, write down a model that encodes the question, fit it, and interpret the parameters, not a p-value. Notice what we deliberately skipped: we never asked whether this model's predictions actually resemble the data we started with, we just trusted the coefficients. That's not an oversight, it's next chapter's job: a [posterior predictive check]{style="color:green; font-weight:bold;"} is exactly the tool for that question, and it deserves its own careful treatment rather than a rushed paragraph here. Everything in the rest of Part 1 is about doing each of these steps more carefully: what a Bayesian model actually represents (@sec-bayesian-core-workflow), how to choose priors deliberately instead of by default (@sec-priors-regularization), and how to check whether a fitted model actually describes the data well (@sec-mcmc-model-checking).
