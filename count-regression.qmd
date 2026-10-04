@@ -841,7 +841,7 @@ There is a close cousin, the [hurdle]{style="color:green; font-weight:bold;"} mo
 
 ## Where do the zeros come from, then?
 
-If the pile of zeros doesn't need a process of its own, something else has to produce it, and I have a suspect. We have been pooling 190 neurons as if they were one neuron measured 24,462 times. Neurons are not interchangeable. If some of them fire once every ten seconds and others thirty times a second, then a pooled count has plenty of zeros without anything being silent: the slow neurons are simply unlucky most of the time. A zero-inflated model on pooled data would then be mistaking *who is in the sample* for *how a neuron behaves*. The data let us check this directly, because the neuron's identity is in the table. For each neuron, I compute its overall firing rate and the share of its trials with no spikes, and compare the share with what a plain Poisson at that neuron's own rate would give (@fig-count_neuron_zeros).
+If the pile of zeros doesn't need a process of its own, something else has to produce it, and I have a suspect. We have been pooling 59 neurons as if they were one neuron measured 7,803 times. Neurons are not interchangeable. If some of them fire once every ten seconds and others thirty times a second, then a pooled count has plenty of zeros without anything being silent: the slow neurons are simply unlucky most of the time. A zero-inflated model on pooled data would then be mistaking *who is in the sample* for *how a neuron behaves*. The data let us check this directly, because the neuron's identity is in the table. For each neuron, I compute its overall firing rate and the share of its trials with no spikes, and compare the share with what a plain Poisson at that neuron's own rate would give (@fig-count_neuron_zeros).
 
 ```{r}
 # For each neuron: firing rate, observed share of empty trials and the share a Poisson at that rate would give
@@ -857,7 +857,7 @@ slow <- neuron_tab$rate < 0.5
 
 ```{r}
 #| label: fig-count_neuron_zeros
-#| fig-cap: For each of the 190 neurons, the share of its trials with no spikes against its overall firing rate (points). The curve is what a Poisson at that rate would give for a typical 2.2 s window. No neuron is silent in all its trials, and the zeros pile up exactly where the firing rate is low.
+#| fig-cap: For each of the 59 neurons, the share of its trials with no spikes against its overall firing rate (points). The curve is what a Poisson at that rate would give for a typical 2.2 s window. No neuron is silent in all its trials, and the zeros pile up exactly where the firing rate is low.
 #| fig-width: 6.5
 #| fig-height: 4
 #| warning: false
