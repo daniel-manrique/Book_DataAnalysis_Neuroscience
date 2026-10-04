@@ -200,3 +200,176 @@
     Eight copies of the same photograph weigh as much as eight photographs but
     show one scene.
   see_also: [intraclass correlation]
+
+- term: pseudoreplication
+  status: draft
+  definition: >
+    Analyzing repeated measurements of the same experimental unit (cells,
+    sections or regions of one animal) as if each were an independent
+    replicate. The apparent sample size is then larger than the number of
+    units that were actually randomized, and the intervals are too narrow for
+    comparisons between units.
+  analogy: >
+    Interviewing every member of twelve families and reporting the answers as
+    if you had asked forty-odd unrelated people.
+  see_also: [design effect, intraclass correlation, multilevel model]
+
+- term: nested grouping
+  status: draft
+  definition: >
+    A structure in which every level of a lower factor belongs to one and only
+    one level of a higher factor, such as sections inside mice. In formula
+    syntax, `(1 | mouse/section)`, which expands to
+    `(1 | mouse) + (1 | mouse:section)`.
+  analogy: >
+    Nested boxes: a slide exists only inside one box, and the slide called
+    "Scene 1" in one mouse has nothing to do with "Scene 1" in another.
+  see_also: [crossed grouping, grouping factor, varying intercept]
+
+- term: crossed grouping
+  status: draft
+  definition: >
+    A structure in which the levels of one grouping factor appear across several
+    levels of another, such as animals each tested in every experimental block.
+    In formula syntax, `(1 | animal) + (1 | block)`.
+  analogy: >
+    The rows and columns of a grid: every animal sits in every block, so
+    neither factor lives inside the other.
+  see_also: [nested grouping, grouping factor]
+
+- term: caterpillar plot
+  status: draft
+  definition: >
+    A plot of the estimated intercept of every group, with its credible
+    interval, ordered from lowest to highest. It shows how much the groups
+    differ and how sure the model is about each one.
+  analogy: >
+    A line of animals sorted by height, each with a measuring-error stick: you
+    see the spread of the whole line, and which differences are bigger than
+    the error.
+  see_also: [varying intercept, shrinkage]
+
+- term: non-centered parameterization
+  status: draft
+  definition: >
+    A way of writing a varying effect so that the sampler draws a standardized
+    deviation and multiplies it by the group-level standard deviation, instead
+    of drawing the group's intercept directly. It removes the funnel in the
+    posterior that causes divergent transitions when the standard deviation is
+    small, and it is the default of `brms`.
+  analogy: >
+    Measuring each group in units of the group spread instead of in absolute
+    units, so the shape the sampler walks on no longer narrows to a neck when
+    the spread is small.
+  see_also: [varying intercept, multilevel model]
+
+- term: correlated varying effects
+  status: draft
+  definition: >
+    Two or more varying effects of the same group (for example the intercept
+    and the slope of each mouse) modeled together as a draw from a multivariate
+    normal distribution, with a correlation between them. In formula syntax,
+    `(1 + x | group)`; the double bar `(1 + x || group)` sets the correlation
+    to zero.
+  analogy: >
+    Two items on a restaurant bill: a table that orders expensive starters
+    tends to order expensive mains, and a model that ignores it misjudges the
+    tables that do both.
+  see_also: [varying slope, LKJ prior]
+
+- term: LKJ prior
+  status: draft
+  definition: >
+    A prior distribution for a correlation matrix, with one parameter, eta. For
+    a single correlation its density is proportional to (1 - rho^2)^(eta - 1):
+    eta = 1 gives every correlation the same prior weight, and larger values
+    favor correlations near zero.
+  analogy: >
+    How much you believe, before seeing the data, that a baseline and a response
+    are tied together: eta = 1 is no opinion, and a larger eta is a growing
+    skepticism of extreme links.
+  see_also: [correlated varying effects, varying slope]
+
+- term: new-group prediction
+  status: draft
+  definition: >
+    A prediction for a group that is not in the data (a mouse not yet tested),
+    which adds the spread between groups to the uncertainty about the
+    population-level line. It is wider than the interval for the average group.
+  analogy: >
+    The average October temperature of a city is known to a fraction of a
+    degree, but tomorrow's temperature still varies around it by several.
+  see_also: [varying slope, partial pooling]
+
+- term: singular fit
+  status: draft
+  definition: >
+    A maximum-likelihood fit of a multilevel model in which a group-level
+    variance is estimated at zero, or a correlation at plus or minus 1: the
+    estimate sits on the boundary of the allowed values because the data cannot
+    support the covariance structure that was asked for.
+  analogy: >
+    Asking a survey of eight households to tell you how each household's taste
+    in music depends on its taste in food: the answer comes out as an exact
+    rule, which the data cannot justify.
+  see_also: [correlated varying effects, varying slope]
+
+- term: conditional effect
+  status: draft
+  definition: >
+    The effect of a predictor in a multilevel model for a group at a given value
+    of its varying effect, usually zero. With a log or a logit link it is the
+    effect for the typical neuron or mouse, which is what a coefficient of a
+    generalized multilevel model means.
+  analogy: >
+    The height of the median child in a class: a real child, but not the
+    average height of the class when a few students are very tall.
+  see_also: [marginal effect, varying intercept]
+
+- term: marginal effect
+  status: draft
+  definition: >
+    The effect of a predictor averaged over the whole population of groups
+    (neurons, mice), instead of for one group at its typical value. With an
+    identity link it equals the conditional effect; with a log or a logit link
+    it does not, and it is the number a reader usually has in mind.
+  analogy: >
+    The average height of the class, which the tall students pull above the
+    height of the median child.
+  see_also: [conditional effect, new-group prediction]
+
+- term: latent scale
+  status: draft
+  definition: >
+    The scale of the linear predictor (the log of the rate, the log-odds),
+    before the outcome is counted or flipped. Variances and intraclass
+    correlations "on the latent scale" describe how alike the underlying rates
+    or probabilities are, not how alike the observed counts or successes are.
+  analogy: >
+    How busy a bakery is on a given morning, before the luck of who happens to
+    walk in decides how many loaves it sells.
+  see_also: [intraclass correlation, offset]
+
+- term: grouped cross-validation
+  status: draft
+  definition: >
+    Cross-validation whose folds hold whole groups (all the trials of a neuron,
+    all the attempts of a mouse) out of the fit, so that the held-out data
+    belong to groups the model has never seen. It answers "how well do I predict
+    a new group", which ordinary leave-one-out does not.
+  analogy: >
+    Testing a student on a chapter they have not opened, instead of on another
+    question from a chapter they studied with the answer key.
+  see_also: [new-group prediction, multilevel model]
+
+- term: observation-level random effect
+  status: draft
+  definition: >
+    A varying intercept with one level per row of the data, added to a Poisson
+    model so that each observation has its own rate. It is the lognormal-Poisson
+    alternative to the negative binomial (a gamma-Poisson) for overdispersed
+    counts.
+  analogy: >
+    Letting every single morning at the bakery have its own busyness, instead
+    of assuming that busyness is the same all day.
+  see_also: [overdispersion, varying intercept]

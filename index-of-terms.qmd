@@ -19,16 +19,20 @@
 
 ## C {.unnumbered .unlisted}
 
+- **caterpillar plot** ([glossary](glossary.qmd#gl-caterpillar-plot)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-caterpillar-plot-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-caterpillar-plot-1)
 - **centering**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-centering-1)
 - **chains**: [MCMC and model checking](mcmc-model-checking.qmd#ix-chains-1)
 - **collinear**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-collinear-1)
 - **complete pooling** ([glossary](glossary.qmd#gl-complete-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-complete-pooling-1)
 - **complete separation**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-complete-separation-1)
+- **conditional effect** ([glossary](glossary.qmd#gl-conditional-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-conditional-effect-1)
 - **confidence interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-confidence-interval-1)
 - **confounder**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-confounder-1)
+- **correlated varying effects** ([glossary](glossary.qmd#gl-correlated-varying-effects)): [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-correlated-varying-effects-1)
 - **correlation matrix**: [EDA using ggpairs](eda-ggpairs.qmd#ix-correlation-matrix-1)
 - **coverage**: [Why testing your assumptions doesn't protect you](appendix-assumption-tests.qmd#ix-coverage-1)
 - **credible interval** ([glossary](glossary.qmd#gl-credible-interval)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-credible-interval-1)
+- **crossed grouping** ([glossary](glossary.qmd#gl-crossed-grouping)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-crossed-grouping-1)
 - **custom family**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-custom-family-1)
 
 ## D {.unnumbered .unlisted}
@@ -73,20 +77,23 @@
 - **indicator variable**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-indicator-variable-1)
 - **interaction**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-interaction-1)
 - **intercept**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-intercept-1)
-- **intraclass correlation** ([glossary](glossary.qmd#gl-intraclass-correlation)): [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1); [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-intraclass-correlation-1) ([2](multilevel-intro.qmd#ix-intraclass-correlation-2))
+- **intraclass correlation** ([glossary](glossary.qmd#gl-intraclass-correlation)): [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1); [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-intraclass-correlation-1) ([2](multilevel-intro.qmd#ix-intraclass-correlation-2)); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-intraclass-correlation-1); [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-intraclass-correlation-1)
 
 ## L {.unnumbered .unlisted}
 
+- **latent scale** ([glossary](glossary.qmd#gl-latent-scale)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-latent-scale-1)
 - **level** ([glossary](glossary.qmd#gl-level)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-level-1)
 - **likelihood** ([glossary](glossary.qmd#gl-likelihood)): [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-likelihood-1)
 - **linear predictor**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-linear-predictor-1)
 - **linear probability model**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-linear-probability-model-1)
 - **linearity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-linearity-1)
 - **link function**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-link-function-1)
+- **lkj prior** ([glossary](glossary.qmd#gl-lkj-prior)): [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-lkj-prior-1)
 - **log-odds**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-log-odds-1)
 
 ## M {.unnumbered .unlisted}
 
+- **marginal effect** ([glossary](glossary.qmd#gl-marginal-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-marginal-effect-1)
 - **markov chain monte carlo**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-markov-chain-monte-carlo-1)
 - **missing at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-at-random-1)
 - **missing completely at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-completely-at-random-1)
@@ -98,7 +105,9 @@
 ## N {.unnumbered .unlisted}
 
 - **negative binomial**: [Counting cells and spikes](count-regression.qmd#ix-negative-binomial-1)
+- **nested grouping** ([glossary](glossary.qmd#gl-nested-grouping)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-nested-grouping-1)
 - **no pooling** ([glossary](glossary.qmd#gl-no-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-no-pooling-1)
+- **non-centered parameterization** ([glossary](glossary.qmd#gl-non-centered-parameterization)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-non-centered-parameterization-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-non-centered-parameterization-1)
 - **normality**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-normality-1)
 
 ## O {.unnumbered .unlisted}
@@ -118,6 +127,7 @@
 - **prior** ([glossary](glossary.qmd#gl-prior)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-prior-1)
 - **prior distribution**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-prior-distribution-1)
 - **prior predictive check**: [Specifying priors and regularization](priors-regularization.qmd#ix-prior-predictive-check-1)
+- **pseudoreplication** ([glossary](glossary.qmd#gl-pseudoreplication)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-pseudoreplication-1)
 
 ## R {.unnumbered .unlisted}
 
@@ -154,8 +164,8 @@
 - **variability**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-variability-1)
 - **variance inflation factor**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-variance-inflation-factor-1)
 - **varying**: [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-1)
-- **varying intercept** ([glossary](glossary.qmd#gl-varying-intercept)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-intercept-1)
-- **varying slope** ([glossary](glossary.qmd#gl-varying-slope)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-slope-1)
+- **varying intercept** ([glossary](glossary.qmd#gl-varying-intercept)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-intercept-1); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-varying-intercept-1) ([2](multilevel-varying-intercepts.qmd#ix-varying-intercept-2))
+- **varying slope** ([glossary](glossary.qmd#gl-varying-slope)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-slope-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-varying-slope-1)
 - **visualization**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-visualization-1)
 
 ## W {.unnumbered .unlisted}
