@@ -5,4 +5,1515 @@ subtitle: Multilevel generalized linear models
 
 # Modeling trials within neurons and mice {#sec-multilevel-glmm}
 
-<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->
+```{r}
+#| label: setup
+#| include: false
+
+library(ggplot2)
+library(here)
+library(brms)
+library(glmmTMB)
+library(ggdist)
+library(patchwork)
+library(gt)
+
+# The book's shared plot theme (this also loads the legend helpers)
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
+
+# One color per genotype (as in the earlier wire chapters)
+col_geno <- c(WT = "#D55E00", KO = "#0072B2")
+
+# Sampler settings for the multilevel fits (as in the previous chapters)
+ml_control <- list(adapt_delta = 0.95)
+
+# Median and 95% credible interval of a vector of draws, as text for the prose
+summ <- function(x, digits = 2) {
+  sprintf(paste0("%.", digits, "f [%.", digits, "f, %.", digits, "f]"),
+          median(x), quantile(x, 0.025), quantile(x, 0.975))
+}
+
+# Width of the 95% interval of a vector of draws
+wid <- function(x) diff(quantile(x, c(0.025, 0.975)))
+
+# Wall-clock minutes a cached fit took (slowest chain, warmup plus sampling)
+fit_minutes <- function(fit) max(rowSums(rstan::get_elapsed_time(fit$fit))) / 60
+```
+
+```{r}
+#| label: prep-spk
+#| include: false
+
+# Hippocampal neurons in the Sternberg task (Kyzar et al. 2024): all 190 neurons of 16 patients
+spk <- read.csv(here("project/AnalysisData/WorkingMemory_Hippocampus_Encoding.csv"))
+spk$patient <- factor(spk$patient)
+spk$neuron <- factor(paste(spk$patient, spk$unit, sep = "_"))
+spk$load_f <- factor(spk$load)
+# Pictures beyond the first: 0, 1, 2, so the intercept is a neuron with one picture on screen
+spk$pics <- spk$load - 1
+
+# The three patients that the chapter on counts used (one per protocol version)
+spk3 <- droplevels(spk[spk$patient %in% c(9, 11, 18), ])
+```
+
+```{r}
+#| label: prep-wire
+#| include: false
+
+# The hanging wire test: one row per mouse and day, three attempts per row
+wire_raw <- read.csv(here("project/AnalysisData/Wire_TrainingSum.csv"))
+wire_raw <- wire_raw[wire_raw$Genotype %in% c("Klf4-KO", "WildType-Control"), ]
+
+# One row per attempt: nine per mouse (3 days x 3 attempts)
+attempts <- do.call(rbind, lapply(1:3, function(k) {
+  data.frame(
+    mouse = wire_raw$ReCode,
+    genotype = factor(ifelse(wire_raw$Genotype == "Klf4-KO", "KO", "WT"), levels = c("WT", "KO")),
+    day = wire_raw$Day,
+    attempt = k,
+    position = wire_raw[[paste0("Trial", k, "_Position")]],
+    wire = wire_raw[[paste0("Trial", k, "_Wire")]],
+    success = wire_raw[[paste0("Trial", k, "_Success")]]
+  )
+}))
+attempts$mouse <- factor(attempts$mouse)
+attempts$day_c <- attempts$day - 2
+
+# Crossing times of the attempts a mouse completed, on the log scale (as in the chapter on behavior)
+crossings <- attempts[attempts$success == 1 & attempts$wire > 0, ]
+crossings$log_wire <- log(crossings$wire)
+crossings$attempt_c <- crossings$attempt - 2
+# The one record whose total time is shorter than its time to get into position
+crossings_clean <- crossings[crossings$position <= crossings$wire, ]
+
+# One row per mouse: completed attempts out of nine
+wire_counts <- aggregate(success ~ mouse + genotype, data = attempts, FUN = sum)
+names(wire_counts)[3] <- "n_ok"
+```
+
+```{r}
+#| label: prep-neun
+#| include: false
+
+# The NeuN cortex regions of the first multilevel chapter, rebuilt from the raw file
+neun_raw <- read.csv(here("project/AnalysisData/5x_NeuN_AnnotationsSummary.csv"), check.names = FALSE)
+area_col <- grep("^Area", names(neun_raw), value = TRUE)
+neun <- data.frame(image = neun_raw$Image, structure = neun_raw$Name, class = neun_raw$Class,
+                   positive = neun_raw[["Num Positive"]], area_um2 = neun_raw[[area_col]])
+parts <- strsplit(sub("\\.tif$", "", neun$image), "_")
+neun$mouse <- sapply(parts, `[`, 3)
+neun$dpi_days <- as.integer(sub("D$", "", sapply(parts, `[`, 4)))
+neun$hemi <- sub(":.*$", "", neun$class)
+neun$section <- paste(neun$mouse, sapply(parts, `[`, 5), sep = ":")
+
+# Cortex only, with the factors in the order of the first multilevel chapter
+cortex <- neun[neun$structure == "CTX", ]
+cortex$dpi <- factor(paste0(cortex$dpi_days, "D"), levels = c("0D", "5D", "15D", "30D"))
+cortex$hemi <- factor(cortex$hemi, levels = c("Right", "Left"))
+cortex$area_mm2 <- cortex$area_um2 / 1e6
+cortex$mouse <- factor(cortex$mouse)
+cortex$section <- factor(cortex$section)
+```
+
+```{r}
+#| label: prep-priors
+#| include: false
+
+# Spike counts: log firing rate (spikes per second); two group-level spreads (patients, neurons)
+prior_spk <- c(
+  prior(normal(0.5, 1.5), class = "Intercept"),
+  prior(normal(0, 0.5), class = "b"),
+  prior(inv_gamma(0.4, 0.3), class = "shape"),
+  prior(exponential(2), class = "sd")
+)
+# Varying slope of load per neuron: the spread of responses is expected to be much smaller than that
+# of baselines, plus an LKJ prior for the correlation between baseline and response
+prior_spk_slope <- c(
+  prior_spk,
+  prior(exponential(4), class = "sd", coef = "pics", group = "neuron"),
+  prior(lkj(2), class = "cor")
+)
+# Narrow and wide priors for the group-level spreads (sensitivity)
+prior_spk_narrow <- c(prior_spk[prior_spk$class != "sd", ], prior(exponential(5), class = "sd"))
+prior_spk_wide <- c(prior_spk[prior_spk$class != "sd", ], prior(exponential(0.5), class = "sd"))
+
+# Wire, successes: log-odds of completing an attempt; mice differ a lot on this scale
+prior_wire_logit <- c(
+  prior(normal(2, 1.5), class = "Intercept"),
+  prior(normal(0, 1.5), class = "b"),
+  prior(exponential(0.5), class = "sd")
+)
+prior_wire_logit_narrow <- c(prior_wire_logit[prior_wire_logit$class != "sd", ], prior(exponential(2), class = "sd"))
+prior_wire_logit_wide <- c(prior_wire_logit[prior_wire_logit$class != "sd", ], prior(exponential(0.2), class = "sd"))
+
+# Wire, crossing times: the priors of the chapter on behavior, plus a spread between mice
+prior_wire_t <- c(
+  prior(normal(3, 0.7), class = "Intercept"),
+  prior(normal(0, 0.5), class = "b"),
+  prior(exponential(2), class = "sigma"),
+  prior(gamma(2, 0.1), class = "nu")
+)
+prior_wire_t_ml <- c(prior_wire_t, prior(exponential(3), class = "sd"))
+
+# NeuN counts: log density per mm2 as in the first multilevel chapter
+prior_neun_nb <- c(
+  prior(normal(6.7, 0.5), class = "Intercept"),
+  prior(normal(0, 0.5), class = "b"),
+  prior(inv_gamma(0.4, 0.3), class = "shape"),
+  prior(exponential(3), class = "sd")
+)
+```
+
+Two chapters ago I closed a result with a sentence I liked more than I should have: per second, hippocampal neurons fire at about the same rate whether a patient holds one, two or three pictures in mind (@sec-count-regression). The model behind it had a count with a denominator (an offset for the length of the window), a negative binomial for the noise, and a random intercept per neuron that I called a preview. Every lab has a colleague who hears a sentence like that and puts a hand up. *Flat on average, fine. But neurons are not interchangeable. How do you know there is no group that speeds up and a group that slows down, with the average being the two of them cancelling?* That is the first question of this chapter, and it is a fair one: an average is a statement about a population, and a population can hide anything.
+
+The second question is a debt. In the chapter on behavior I fitted a Student-*t* to the log crossing times of the hanging wire and then admitted that I had counted 516 attempts as 516 independent observations when they came from 63 mice, and that the interval for the genotype effect was therefore too narrow (@sec-beta-robust-regression). I told you the repair would come later. Later is now.
+
+The last two chapters taught you to add levels to a Gaussian model: a varying intercept for each mouse, a varying slope for each response, a correlation between them ([the introduction to this part](multilevel-intro.qmd#sec-multilevel-intro) has the vocabulary, and I will not repeat it). This chapter does the same for the families of the part on generalized linear models: counts, successes and robust times. The plan is to answer the two questions with data we already know, and on the way to pick up four ideas that matter more than any single model. The multilevel structure and the family are two independent choices (@sec-glmm-dials). In a model with a log or a logit link, the coefficient describes a typical neuron or mouse, which is not the average one, and mixing the two up is the easiest way to misreport a GLMM (@sec-glmm-marginal). A varying intercept in a logistic model and the beta-binomial of the last part are two descriptions of one overdispersion (@sec-glmm-wire-logit). And what you want to predict (a new trial, a new neuron, a new patient) decides which cross-validation is honest (@sec-glmm-cv).
+
+## Flat on average, flat for everyone? {#sec-glmm-hook}
+
+A word on the data first, because I changed my mind about something. In @sec-count-regression I used three of the 16 patients, one per version of the protocol, because the models were refitted every time the book was built and a fit on all 24,462 neuron-trials was too slow to ask of a laptop. Here the fits are cached, and I run them with threads (four chains, each spread over four processor cores), which makes each gradient evaluation about three times faster and changes nothing in the model. I use all `r nlevels(spk$neuron)` hippocampal neurons of the `r nlevels(spk$patient)` patients of @kyzar2024, with `r format(nrow(spk), big.mark = ",")` neuron-trials, which gives a true three-level structure (trials in neurons in patients) and lets me ask whether the conclusion about neurons survives the fact that neurons come from people. The protocol differences of @sec-count-regression (the pictures stayed on screen for about 1, 1.5 or 2.5 seconds depending on the patient) are still handled by the offset and, for everything else that differs between patients, by the patient level of the model. I will go back to the three patients near the end, because with few groups something instructive happens.
+
+Before any model, here is every neuron (@fig-glmm_neuron_lines). For each neuron and each load I compute its firing rate as all its spikes over all its seconds, and I draw one line per neuron across the three loads, with the geometric mean of the neurons on top.
+
+```{r}
+#| label: fig-glmm_neuron_lines
+#| fig-cap: Firing rate of each of the 190 hippocampal neurons at one, two and three pictures (thin grey lines, log scale). The thick blue line is the geometric mean over neurons. Neurons differ about a hundredfold in baseline rate, and most lines run nearly flat.
+#| fig-alt: Many thin grey lines spread vertically between about 0.1 and 25 spikes per second across three loads on a logarithmic axis. Most lines are almost horizontal; a few tilt up or down a little. A thick blue line near 1.5 spikes per second is almost horizontal.
+#| fig-width: 6.5
+#| fig-height: 4.2
+#| warning: false
+
+# Firing rate of every neuron at each load: all its spikes over all its seconds
+rate_tab <- aggregate(cbind(spikes, window_s) ~ neuron + load, data = spk, FUN = sum)
+rate_tab$rate <- rate_tab$spikes / rate_tab$window_s
+
+# A neuron with no spike at some load cannot be drawn on a log axis (count how many)
+n_zero_rate <- length(unique(rate_tab$neuron[rate_tab$rate == 0]))
+rate_pos <- rate_tab[rate_tab$rate > 0, ]
+
+# Geometric mean over neurons at each load (the thick line)
+gm <- aggregate(rate ~ load, data = rate_pos, FUN = function(x) exp(mean(log(x))))
+
+# One thin line per neuron, the geometric mean on top
+ggplot(rate_pos, aes(x = load, y = rate, group = neuron)) +
+  geom_line(color = "grey55", alpha = 0.35, linewidth = 0.4) +
+  geom_line(data = gm, aes(group = 1), color = "#0072B2", linewidth = 1.6) +
+  geom_point(data = gm, aes(group = 1), color = "#0072B2", size = 3) +
+  scale_y_log10(breaks = c(0.1, 1, 10)) +
+  scale_x_continuous(breaks = 1:3) +
+  labs(x = "Pictures held in mind (load)", y = "Firing rate (spikes per second, log scale)") +
+  Plot_theme +
+  legend_none()
+```
+
+I drew @fig-glmm_neuron_lines as a line per neuron, not as a bar of the mean with asterisks, because the question is about *individual* neurons and a bar would show exactly one number and hide the other 190. This is the figure I wish I had shown in the last chapter. The design tip is general: when the claim is "on average", draw the units that the average is made of, and let the reader see how much room there is for disagreement.
+
+::: {.callout-tip title="How to read this figure"}
+Each thin line is one neuron followed across the three loads. Read the vertical position first: neurons sit anywhere from about one spike every ten seconds to more than twenty per second, so the lines are spread over two orders of magnitude, and that spread is the neurons' *baselines*. Then read the slope of each line: a line that is flat is a neuron whose rate does not depend on load, a line that rises is a neuron that speeds up, one that falls slows down. Finally compare the thick line with the thin ones. The question of the chapter lives in the difference between the two: if the thin lines fan out in both directions, the flat thick line is hiding something; if they stay close to it, the average is a fair summary. The mistake to avoid is to read a tilted line as a response: a neuron that fires once every ten seconds has a handful of spikes per load, and its line tilts by chance alone.
+:::
+
+Look at the lines before you read the next paragraph. They are far apart, they are mostly parallel, and a few tilt. The trouble is that I cannot tell, by eye, how many of those tilts are neurons responding and how many are the luck of counting. That is what a multilevel model is for: it separates the spread that is *real* from the spread that is sampling noise, and tells me the size of the real part. A neuron with few spikes gets a tilt that is mostly noise, and the model will treat it that way.
+
+## Two dials, not one {#sec-glmm-dials}
+
+Here is the picture I want you to keep for the whole chapter. Think of a mixing desk with two sliders. One chooses the *family*: how the outcome is distributed around its expected value (a count, a success, a time) and the link that connects that expected value to the linear predictor. The other chooses the *structure*: whether the observations are treated as strangers or as members of groups, and how many layers of groups there are. In the part on generalized linear models we moved the first slider and left the second alone. In the last two chapters we moved the second and left the first on Gaussian. Nothing prevents you from moving both, and nothing about one slider changes what the other one does. @tbl-glmm_map says it with the models of this book.
+
+```{r}
+#| label: tbl-glmm_map
+#| tbl-cap: Each model of the part on generalized linear models and the multilevel version that this chapter gives it. The family is the one that was already chosen; only the groups are new.
+
+# One row per model: the question, the earlier model and its multilevel version
+map_tab <- data.frame(
+  Question = c("Spikes per second under three loads", "Completed attempts on the wire",
+               "How long a crossing takes", "NeuN-positive neurons in cortex"),
+  `Single-level model` = c("Negative binomial with an offset", "Beta-binomial", "Student-t on the log time",
+                           "Gaussian on the log density"),
+  `Model with levels` = c("Negative binomial, offset, patients and neurons", "Logistic, one varying intercept per mouse",
+                          "Student-t, one varying intercept per mouse", "Negative binomial, offset, mice and sections"),
+  Formula = c("spikes ~ load + offset(log(window_s)) + (1 | patient) + (1 | neuron)",
+              "success ~ genotype + (1 | mouse)",
+              "log_wire ~ genotype + day + attempt + (1 | mouse)",
+              "positive ~ dpi * hemi + offset(log(area_mm2)) + (1 | mouse) + (1 | section)"),
+  check.names = FALSE
+)
+gt(map_tab) |>
+  tab_style(style = cell_text(font = "monospace", size = "small"), locations = cells_body(columns = Formula))
+```
+
+Read @tbl-glmm_map by columns. The first two say what we did before, the third says what we do now, and the fourth is the formula, in which everything left of the bars is what you already knew and the terms in parentheses are what the last two chapters taught. This is why I do not give a separate section to "the theory of generalized linear mixed models": the likelihood is the one you chose, the linear predictor has more terms, and the groups' deviations live on the *link scale*, which is the one place where something new happens. Keep an eye on that, because it is the source of the conditional and marginal business below.
+
+<!-- Illustration expected from Daniel (not yet in images/): multilevel-glmm_orchestra-baselines-and-responses.png
+![Neurons as musicians in an orchestra. Each plays at its own baseline volume (varying intercept) and answers the conductor in its own way (varying slope); the average volume of the orchestra can hide a louder and a quieter section.](images/multilevel-glmm_orchestra-baselines-and-responses.png){#fig-glmm-orchestra fig-align="center" width="90%" fig-alt="Watercolor sketch of an orchestra seen from above, with faceless musicians in teal and ochre at music stands of different heights and a conductor at the front; some musicians lean toward the conductor and some lean away."}
+-->
+
+## Trials in neurons in patients {#sec-glmm-spikes}
+
+The model of @sec-count-regression, with its two new terms, reads as follows. The number of spikes of neuron $k$ of patient $j$ on trial $i$ is negative binomial, with a mean equal to the window length times a firing rate, and the log of the rate is a typical log rate, plus an effect of load, plus a deviation for the patient, plus a deviation for the neuron:
+
+$$
+\begin{aligned}
+y_{ijk} &\sim \text{NegBinomial}(\mu_{ijk},\, \phi), \qquad \log \mu_{ijk} = \log(\text{window}_{ijk}) + \alpha + \beta_{\text{load}[i]} + p_j + u_{k}, \\
+p_j &\sim \text{Normal}(0,\, \tau_{\text{patient}}), \qquad u_k \sim \text{Normal}(0,\, \tau_{\text{neuron}}).
+\end{aligned}
+$$ {#eq-glmm-spk}
+
+The first line is @sec-count-regression. The second is @sec-multilevel-varying-intercepts, with neurons nested in patients in the way that sections were nested in mice (every neuron belongs to one patient, and I built an identifier that is unique across patients, so `(1 | patient) + (1 | neuron)` is the nested model, as before). The new thing to hold on to is where the deviations live: on the log scale, which is where the rate is multiplied, not added. A neuron with $u_k = 0.7$ fires twice as fast as the typical neuron, whatever the typical neuron's rate is.
+
+### Priors on the firing-rate scale
+
+I keep the priors of @sec-count-regression for the intercept, the load coefficients and the shape, and add one for each spread. The two standard deviations get an exponential distribution, as in @sec-multilevel-varying-intercepts, and the way to choose its rate is the book's way: draw from the priors and look at the outcomes, not at the parameters. @fig-glmm_prior_rates does that for the firing rate of a neuron at one picture. I draw a typical log rate from its prior, add a patient deviation and a neuron deviation drawn from their priors, exponentiate, and put the observed rates of the `r nlevels(spk$neuron)` neurons along the bottom as a rug.
+
+```{r}
+#| label: fig-glmm_prior_rates
+#| fig-cap: Firing rate of a neuron at one picture implied by the priors alone (density, log scale), with the observed rate of each of the 190 neurons as ticks along the bottom. The priors allow rates from a few hundredths to a few tens of spikes per second and rule out the absurd.
+#| fig-alt: A smooth bell-shaped density over a logarithmic axis from 0.01 to 1000 spikes per second, centered near 1.6, with a long tail on both sides. Short ticks along the bottom, one per neuron, lie between 0.08 and 27 spikes per second, inside the bulk of the density.
+#| fig-width: 6.5
+#| fig-height: 3.4
+#| warning: false
+
+# The priors alone: a typical log rate plus a patient deviation plus a neuron deviation
+set.seed(1)
+n_sim <- 20000
+prior_lograte <- rnorm(n_sim, 0.5, 1.5) + rnorm(n_sim, 0, rexp(n_sim, 2)) + rnorm(n_sim, 0, rexp(n_sim, 2))
+prior_df <- data.frame(log10_rate = prior_lograte / log(10))
+share_ok <- mean(exp(prior_lograte) > 0.05 & exp(prior_lograte) < 50)
+
+# The same simulation with an Exponential(1) for both spreads, to see why I did not keep it
+prior_lograte1 <- rnorm(n_sim, 0.5, 1.5) + rnorm(n_sim, 0, rexp(n_sim, 1)) + rnorm(n_sim, 0, rexp(n_sim, 1))
+share_ok1 <- mean(exp(prior_lograte1) > 0.05 & exp(prior_lograte1) < 50)
+share_hi1 <- mean(exp(prior_lograte1) > 100)
+
+# Observed rate of each neuron: all its spikes over all its seconds
+obs_rate <- aggregate(cbind(spikes, window_s) ~ neuron, data = spk, FUN = sum)
+obs_rate$log10_rate <- log10(obs_rate$spikes / obs_rate$window_s)
+
+# Prior density with the observed neurons as a rug
+ggplot(prior_df, aes(x = log10_rate)) +
+  geom_density(fill = "grey85", color = "grey40") +
+  geom_rug(data = obs_rate, color = "#0072B2", alpha = 0.6, length = grid::unit(0.06, "npc")) +
+  scale_x_continuous(breaks = -2:3, labels = c("0.01", "0.1", "1", "10", "100", "1000"), limits = c(-3, 3.5)) +
+  labs(x = "Firing rate (spikes per second, log scale)", y = "Prior density") +
+  Plot_theme
+```
+
+@fig-glmm_prior_rates is a prior predictive check in the sense of @sec-priors-regularization, drawn with a density and a rug because what I need to see is whether the observed neurons fall where the prior puts its mass: they do, in the middle of it, and `r round(100 * share_ok)`% of the simulated neurons fall between 0.05 and 50 spikes per second, the range the original paper reports. With an Exponential(1) for both spreads, the choice of @sec-count-regression for the neurons alone, that share drops to `r round(100 * share_ok1)`% and `r round(100 * share_hi1, 1)`% of the simulated neurons fire above 100 spikes per second, which with three levels of uncertainty stacked on top of each other I judged too generous. An Exponential(2) has a mean of 0.5 on the log scale, which is a factor of about 1.6 per standard deviation, and the data are free to say much more than that (they will). I check this choice at the end of the chapter, with a narrow and a wide prior.
+
+### The fit, and what it costs
+
+I fit two models, the one that ignores the levels (the model of @sec-count-regression, now with all 16 patients) and the one with a varying intercept for each patient and for each neuron.
+
+```{r}
+#| label: fit-spk-pooled
+
+# Negative binomial that ignores neurons and patients, all 16 patients (the model of the chapter on counts)
+fit_spk_pooled <- brm(
+  spikes ~ load_f + offset(log(window_s)),
+  data = spk, family = negbinomial(), prior = prior_spk[prior_spk$class != "sd", ],
+  chains = 4, cores = 4, seed = 123, init = 0,
+  file = "models/multilevel-glmm_fit1.rds", file_refit = "never"
+)
+```
+
+```{r}
+#| label: fit-spk-ml
+
+# Trials in neurons in patients: a varying intercept for each patient and for each neuron
+fit_spk_ml <- brm(
+  spikes ~ load_f + offset(log(window_s)) + (1 | patient) + (1 | neuron),
+  data = spk, family = negbinomial(), prior = prior_spk,
+  chains = 4, cores = 4, threads = threading(4), seed = 123, init = 0,
+  iter = 4000, control = list(metric = "dense_e", adapt_delta = 0.99),
+  file = "models/multilevel-glmm_fit2.rds", file_refit = "never"
+)
+```
+
+A plain `glm.nb()` is all the frequentist side needed for the pooled model, and for the model with levels it is `glmmTMB` [@brooks2017], which handles the offset, the negative binomial and the nesting at once (`lme4::glmer.nb()` [@bates2015] fits the same model but is slower and less stable on data like these). `brms` gives me the full posterior of every spread, which is what I need to say how many neurons *could* respond, and it carries the uncertainty of those spreads into every coefficient.
+
+::: panel-tabset
+### brms
+
+```{r}
+# Population-level effects, group-level spreads and shape of the model with levels
+summary(fit_spk_ml)
+```
+
+### glmmTMB
+
+```{r}
+# The same model by maximum likelihood (the shape is called dispersion here)
+glmm_spk_ml <- glmmTMB(spikes ~ load_f + offset(log(window_s)) + (1 | patient) + (1 | neuron),
+                       family = nbinom2, data = spk)
+summary(glmm_spk_ml)
+```
+:::
+
+```{r}
+# Posterior draws of both models, for the comparison
+dr_pool <- as_draws_df(fit_spk_pooled)
+dr_ml <- as_draws_df(fit_spk_ml)
+```
+
+Look at three numbers. The shape of the negative binomial is `r round(median(dr_pool$shape), 2)` when the neurons are ignored and `r round(median(dr_ml$shape), 1)` when they are not, the same movement that @sec-count-regression found with three patients: once the model knows which neuron it is looking at, the trial-to-trial wobble left to explain is a modest fraction of what it looked like, because the pooled model was using one parameter to describe a population of neurons that differ a hundredfold. The spread between neurons is `r summ(dr_ml$sd_neuron__Intercept)` on the log scale, a factor of about `r round(exp(median(dr_ml$sd_neuron__Intercept)), 1)` per standard deviation, and the spread between patients is `r summ(dr_ml$sd_patient__Intercept)`, a factor of about `r round(exp(median(dr_ml$sd_patient__Intercept)), 1)`. People differ from one another almost as much as neurons within a person do, which I did not expect before I fitted it, and which is the reason I would not have trusted a conclusion drawn from three patients. The `brms` fit took about `r round(fit_minutes(fit_spk_ml))` minutes, against `r round(fit_minutes(fit_spk_pooled), 1)` for the pooled one, and `glmmTMB` took seconds; for this model that is the price of the full posterior, and it is worth saying that the price grows with the number of rows and with every group-level term you add.
+
+What did the levels do to the answer about load? @fig-glmm_rr puts the two fits side by side, as @fig-count_rate_ratios did.
+
+```{r}
+#| label: fig-glmm_rr
+#| fig-cap: Firing-rate ratio (per second) for two and three pictures against one, from the model that pools all neuron-trials and from the model with varying intercepts for patients and neurons. Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
+#| fig-alt: Two pairs of horizontal intervals on a logarithmic axis between 0.8 and 1.25, around a dashed line at 1. The pooled model has wider intervals than the model with levels; in both, three pictures has a ratio slightly below one.
+#| fig-width: 6.5
+#| fig-height: 3.4
+#| warning: false
+
+# Rate ratios (exponentiated load coefficients) from one set of draws
+rr_df <- function(d, label) {
+  data.frame(model = label,
+             contrast = rep(c("2 pictures vs 1", "3 pictures vs 1"), each = nrow(d)),
+             ratio = c(exp(d$b_load_f2), exp(d$b_load_f3)))
+}
+rr_all <- rbind(rr_df(dr_pool, "Pooled (neurons ignored)"), rr_df(dr_ml, "Patients and neurons as levels"))
+rr_all$contrast <- factor(rr_all$contrast, levels = c("3 pictures vs 1", "2 pictures vs 1"))
+
+# Point and interval for each contrast under both models; dashed line at 1 = no change
+ggplot(rr_all, aes(x = ratio, y = contrast, color = model, shape = model)) +
+  stat_pointinterval(.width = c(0.5, 0.95), position = position_dodge(width = 0.5), point_size = 2.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  scale_color_manual(values = c("Pooled (neurons ignored)" = "#D55E00", "Patients and neurons as levels" = "#0072B2")) +
+  scale_x_log10(breaks = c(0.8, 0.9, 1, 1.1, 1.25)) +
+  labs(x = "Rate ratio (log scale)", y = NULL) +
+  Plot_theme +
+  legend_top() +
+  theme(legend.title = element_blank())
+
+# Pieces quoted in the text
+rr_ml3 <- rr_all$ratio[rr_all$model == "Patients and neurons as levels" & rr_all$contrast == "3 pictures vs 1"]
+rr_ml2 <- rr_all$ratio[rr_all$model == "Patients and neurons as levels" & rr_all$contrast == "2 pictures vs 1"]
+rr_po3 <- rr_all$ratio[rr_all$model == "Pooled (neurons ignored)" & rr_all$contrast == "3 pictures vs 1"]
+```
+
+With the levels in the model, the firing rate with two pictures is `r summ(rr_ml2)` times the rate with one, and with three pictures `r summ(rr_ml3)` times, so the answer of the last chapter stands, with all the patients and with the patients as a level: if anything a small decline at the highest load. The interval for three pictures is `r round(wid(rr_ml3) / wid(rr_po3), 2)` times as wide as the pooled one, which means narrower: load changes *within* every neuron, so the model that knows about neurons compares each neuron with itself, as in @sec-multilevel-varying-intercepts. That is the within-group half of the story. The between-group half would be a predictor that varies only between neurons or patients, and there the intervals would widen; I show that with the wire.
+
+### Where the variation lives {#sec-glmm-variance}
+
+A multilevel model is also a way of asking where the variation is, and for a count with a log link the answer needs one new idea, because the model has two kinds of scale. The counts live on the *observed* scale: a number of spikes in a window. The linear predictor lives on the [latent scale]{style="color:green; font-weight:bold;"}: the log of the rate, before any counting happens. Think of a bakery. The number of loaves sold on a given morning depends on how busy the bakery is and on the luck of who happens to walk in. How busy it is, on a log scale, is the latent quantity, and the luck of the walk-ins is what the counting adds on top. When I ask how much of the variation is between patients, between neurons and between trials, I ask it about the *busyness*, and I leave the luck of the counting out. On that scale the variance has three parts: the variance of the patients' deviations, $\tau_{\text{patient}}^2$; the variance of the neurons' deviations within a patient, $\tau_{\text{neuron}}^2$; and the wobble of the rate from one trial of a neuron to the next, which the negative binomial writes with its shape. If the rate of a trial is the neuron's rate times a gamma-distributed multiplier with shape $\phi$, the log of that multiplier has variance $\psi_1(\phi)$, the trigamma function, which shrinks as $\phi$ grows [@nakagawa2017]. <!-- NLM-pending, query 3: confirm the latent-scale variance used for the negative binomial and the logistic (pi^2/3) against the textbooks; Nakagawa et al. 2017 is added to references.bib and needs to be verified. -->
+
+<!-- Illustration expected from Daniel (not yet in images/): multilevel-glmm_bakery-busyness-and-walk-ins.png
+![The busyness of a bakery is the latent quantity; the luck of who walks in is what the counting adds on top.](images/multilevel-glmm_bakery-busyness-and-walk-ins.png){#fig-glmm-bakery fig-align="center" width="80%" fig-alt="Watercolor sketch of a small bakery counter seen from the street, with a dial on the wall in teal and ochre showing how busy the shop is and a few faceless customers at the door; a tray of loaves on the counter."}
+-->
+
+```{r}
+# Variances on the log-rate scale, from every posterior draw, and their shares of the total
+v_pat <- dr_ml$sd_patient__Intercept^2
+v_neu <- dr_ml$sd_neuron__Intercept^2
+v_trial <- trigamma(dr_ml$shape)
+v_tot <- v_pat + v_neu + v_trial
+
+share_spk <- data.frame(
+  level = rep(c("Between patients", "Between neurons\n(same patient)", "Between trials\n(same neuron)"), each = length(v_tot)),
+  share = c(v_pat, v_neu, v_trial) / rep(v_tot, 3)
+)
+share_spk$level <- factor(share_spk$level, levels = rev(unique(share_spk$level)))
+
+# Two intraclass correlations on the latent scale
+icc_patient <- v_pat / v_tot
+icc_neuron <- (v_pat + v_neu) / v_tot
+share_neuron <- v_neu / v_tot
+share_trial <- v_trial / v_tot
+```
+
+I draw the three shares as half-eyes (@fig-glmm_variance), the same form as in @sec-multilevel-varying-intercepts, because each share is a belief with a shape and the middle one is not going to be pinned down to the decimal.
+
+```{r}
+#| label: fig-glmm_variance
+#| fig-cap: Share of the variance of the log firing rate that lies at each level, from the model with patients and neurons as levels. Each half-eye is the posterior of the share; the point is the median and the thick and thin bars are the 66% and 95% credible intervals.
+#| fig-alt: Three half-eye densities on an axis from 0 to 1. The share between neurons of the same patient is centered near 0.6, the share between patients near 0.3, and the share between trials of one neuron near 0.1.
+#| fig-width: 7
+#| fig-height: 3.4
+#| warning: false
+
+# Half-eye of each share
+ggplot(share_spk, aes(x = share, y = level)) +
+  stat_halfeye(point_interval = median_qi, .width = c(0.66, 0.95), fill = "grey75") +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
+  labs(x = "Share of the variance of the log firing rate", y = NULL) +
+  Plot_theme +
+  legend_none()
+```
+
+Of the variation in log firing rate, `r round(100 * median(share_neuron))`% lies between neurons of the same patient, `r round(100 * median(icc_patient))`% between patients and `r round(100 * median(share_trial))`% between trials of one neuron. Two neurons of the same patient share `r round(100 * median(icc_patient))`% of their variance, and two trials of the same neuron share `r round(100 * median(icc_neuron))`%: these are the two [intraclass correlations]{.ix ix="intraclass correlation"} of this model, and they are on the latent scale (the scale of the log rate), so they say how alike two *rates* are, not two counts. Both are high, which is why intervals that treat trials as independent cannot be trusted, and the first has a consequence for how to read the whole recording: a third of what makes a neuron fire fast or slow is *which person it lives in*, so a study that adds neurons from the same three people is adding rows, not evidence about people.
+
+## Does every neuron respond to load in its own way? {#sec-glmm-slopes}
+
+
+To answer my colleague I let each neuron have its own response to load, and I let the data say how different those responses are. Two decisions come first, and I owe you the reasons.
+
+The first is how to code load. In @sec-count-regression load was a factor, so that two pictures and three pictures each had their own coefficient. A varying effect for a factor would give every neuron *two* responses and a $3 \times 3$ covariance matrix among its baseline and its two responses, with about 45 trials behind each cell of each neuron. That is a lot of parameters for the data to support, and it asks a more complicated question than the colleague asked. The question was "does this neuron go up or down as the load grows", and that is one number per neuron: a slope. So I code the load as the number of pictures *beyond the first* (0, 1, 2), which makes the intercept the log rate of a neuron with one picture on screen, exactly as before, and the slope the log rate ratio *per extra picture*. Is it fair to assume a straight line on the log scale? At the population level I can check, because the model above has a coefficient for each load: a straight line says that the coefficient for three pictures is twice the one for two, and the difference between the two, $\beta_3 - 2\beta_2$, has a posterior of `r summ(dr_ml$b_load_f3 - 2 * dr_ml$b_load_f2, 3)`, which does not exclude zero. Whatever curvature there is, it is smaller than I can see.
+
+The second is the prior. The standard deviation of the slopes is a number I expect to be much smaller than that of the baselines, since baselines differ a hundredfold and a response of that size would be extraordinary, so I give it an Exponential(4) (a mean of 0.25 on the log scale, a change of about 28% in the rate per picture) against the Exponential(2) of the baselines. The correlation gets the LKJ(2) prior of @sec-multilevel-varying-slopes. The model, written for one neuron $k$ of patient $j$, adds two things to @eq-glmm-spk, a slope $s_k$ times the number of extra pictures, correlated with the neuron's baseline:
+
+$$
+\log \mu_{ijk} = \log(\text{window}_{ijk}) + \alpha + \beta\, x_i + p_j + u_k + s_k\, x_i, \qquad
+\begin{pmatrix} u_k \\ s_k \end{pmatrix} \sim \text{MVNormal}\!\left(\begin{pmatrix} 0 \\ 0 \end{pmatrix},\, \boldsymbol{\Sigma}\right),
+$$ {#eq-glmm-slope}
+
+with $x_i$ the number of pictures beyond the first and the patient deviation $p_j$ as before. In `brms` the only change is one term: `(1 + pics | neuron)`.
+
+```{r}
+#| label: fit-spk-slope
+
+# Add a varying slope of load (pictures beyond the first) for each neuron, correlated with its baseline
+fit_spk_slope <- brm(
+  spikes ~ pics + offset(log(window_s)) + (1 | patient) + (1 + pics | neuron),
+  data = spk, family = negbinomial(), prior = prior_spk_slope,
+  chains = 4, cores = 4, threads = threading(4), seed = 123, init = 0,
+  iter = 4000, control = list(metric = "dense_e", adapt_delta = 0.99),
+  file = "models/multilevel-glmm_fit3.rds", file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+# Population effects, spreads, the correlation and the shape
+summary(fit_spk_slope)
+```
+
+### glmmTMB
+
+```{r}
+# The same model by maximum likelihood (the correlation is estimated with little information)
+glmm_spk_slope <- glmmTMB(spikes ~ pics + offset(log(window_s)) + (1 | patient) + (1 + pics | neuron),
+                          family = nbinom2, data = spk)
+summary(glmm_spk_slope)
+```
+:::
+
+```{r}
+# Posterior draws of the slope model
+dr_sl <- as_draws_df(fit_spk_slope)
+b_pics <- dr_sl$b_pics
+tau_s <- dr_sl$sd_neuron__pics
+```
+
+The answer to the colleague is in one number, the standard deviation of the neurons' slopes: `r summ(tau_s, 3)` on the log scale, per extra picture. Translate it: a neuron one standard deviation above the average has a rate that is about `r round(100 * (exp(median(tau_s)) - 1), 0)`% higher per extra picture than the average neuron, and `r round(100 * mean(abs(rnorm(length(tau_s), 0, tau_s)) > log(1.1)), 0)`% of neurons would change their rate by more than 10% per picture. The population slope is `r summ(exp(b_pics), 3)` as a rate ratio per picture. So the neurons *do* differ in how they respond, there is room for a group that speeds up and a group that slows down, and the room is small: a typical spread of a few percent per picture, against baselines that differ a hundredfold. The correlation between a neuron's baseline and its response is `r summ(dr_sl$cor_neuron__Intercept__pics)`, wide and centered near zero, which is what one would expect from a spread of slopes this small: there is little response to correlate with anything.
+
+Here is the picture that makes the answer credible (@fig-glmm_slopes). On the left, for every neuron, its own slope estimated from its own trials alone (a quasi-Poisson fit to that neuron, no pooling) against the slope the multilevel model gives it. On the right, the posterior of the spread of slopes against its prior and against the spread that a spreadsheet would show.
+
+```{r}
+# Raw slope of every neuron: its own quasi-Poisson fit with the window as offset, no pooling
+raw_sl <- do.call(rbind, lapply(split(spk, spk$neuron), function(d) {
+  s <- summary(glm(spikes ~ pics + offset(log(window_s)), family = quasipoisson, data = d))$coefficients
+  data.frame(neuron = as.character(d$neuron[1]), raw = s["pics", 1], se = s["pics", 2], n_spikes = sum(d$spikes))
+}))
+
+# Partially pooled slope of every neuron: population slope plus its own deviation, from every draw
+pooled_draws <- sapply(raw_sl$neuron, function(id) b_pics + dr_sl[[paste0("r_neuron[", id, ",pics]")]])
+raw_sl$pooled <- apply(pooled_draws, 2, median)
+raw_sl$p_lo <- apply(pooled_draws, 2, quantile, probs = 0.025)
+raw_sl$p_hi <- apply(pooled_draws, 2, quantile, probs = 0.975)
+
+# Neurons whose partially pooled 95% interval excludes zero, and the spread of the raw slopes
+n_excl <- sum(raw_sl$p_lo > 0 | raw_sl$p_hi < 0)
+sd_raw <- sd(raw_sl$raw)
+se_raw <- median(raw_sl$se)
+```
+
+```{r}
+#| label: fig-glmm_slopes
+#| fig-cap: Left, the slope of each neuron (log rate ratio per extra picture) estimated from its own trials alone against the partially pooled estimate of the multilevel model; the dashed diagonal is no change and the horizontal line is the population slope. Right, posterior of the spread of slopes between neurons (solid) against its prior (dashed) and the spread of the raw slopes (dotted line).
+#| fig-alt: Left, a scatter of 190 points with raw slopes between about -0.5 and 0.5 on the horizontal axis and pooled slopes squeezed between about -0.05 and 0.03 on the vertical axis, nearly flat around the population slope. Right, a narrow density of the spread of slopes near 0.04, an exponential prior curve falling from 4 at zero, and a dotted vertical line at about 0.12 far to the right of the density.
+#| fig-width: 9
+#| fig-height: 4
+#| warning: false
+
+# Left: raw against pooled slope of each neuron
+p_left <- ggplot(raw_sl, aes(x = raw, y = pooled)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey40") +
+  geom_hline(yintercept = median(b_pics), color = "#0072B2") +
+  geom_point(alpha = 0.5, size = 1.6, color = "grey25") +
+  coord_equal(xlim = c(-0.5, 0.5), ylim = c(-0.5, 0.5)) +
+  labs(x = "Slope from the neuron's own trials", y = "Slope after partial pooling") +
+  Plot_theme
+
+# Right: posterior of the spread of slopes, its prior and the raw spread
+p_right <- ggplot(data.frame(tau_s = tau_s), aes(x = tau_s)) +
+  geom_density(fill = "#0072B2", alpha = 0.4, color = "#0072B2") +
+  stat_function(fun = dexp, args = list(rate = 4), linetype = "dashed", color = "grey40") +
+  geom_vline(xintercept = sd_raw, linetype = "dotted") +
+  annotate("text", x = sd_raw, y = 18, label = "spread of\nraw slopes", hjust = -0.1, size = 4) +
+  annotate("text", x = 0.3, y = 3.2, label = "prior", color = "grey40", size = 4) +
+  coord_cartesian(xlim = c(0, 0.5)) +
+  labs(x = "Spread of slopes between neurons (log scale)", y = "Density") +
+  Plot_theme
+
+p_left + p_right
+```
+
+I used a scatter of raw against pooled estimates, with the diagonal and the population slope drawn in, because it is the simplest way to *see* shrinkage on 190 units at once: a point on the diagonal was left as it was, a point on the horizontal line was replaced by the population value. It is the arrows of @fig-neun_shrinkage drawn for too many units to need arrows. A bar chart of the neurons whose slope is "significant" is what a spreadsheet would give you, and it would be mostly noise.
+
+::: {.callout-tip title="How to read this figure"}
+On the left, the horizontal axis is what each neuron says about itself and the vertical axis is what the model believes about it after hearing from all the others. If the points hugged the diagonal, the model would be taking each neuron at its word. They do not: they form a nearly flat band, which says that the spread of raw slopes is mostly sampling noise, and that the model lends each neuron the information of the rest. On the right, read the position and the width of the shaded density against the dotted line: the real spread is a fraction of the spread the neurons *appear* to have. The mistake to avoid is to read the extreme points of the left panel as responders: the most tilted raw slopes belong to neurons with few spikes.
+:::
+
+The raw slopes of the neurons have a standard deviation of `r round(sd_raw, 2)`, and the typical standard error of one neuron's slope is `r round(se_raw, 2)`: a spreadsheet would conclude that neurons differ in their response by about `r round(100 * (exp(sd_raw) - 1), 0)`% per picture, when nearly all of that is the counting noise of each neuron (an error of `r round(se_raw, 2)` per neuron accounts for most of a spread of `r round(sd_raw, 2)`). The model's estimate of the real spread is `r round(median(tau_s), 2)`. After partial pooling, `r n_excl` of the `r nrow(raw_sl)` neurons have a 95% interval for their slope that excludes zero. I want to be careful about what I do and do not conclude from that. I do not conclude that no hippocampal neuron responds to load: the model says that, in these recordings, the *spread* of responses across neurons is small, which constrains how many neurons can be responders and how strong their responses can be, within a straight-line response over the encoding window. A neuron with a rate that rises with the second picture and falls with the third would have a flat slope, and a response confined to a few neurons would not move a standard deviation much. The same caution as in @sec-multilevel-varying-slopes applies to every shrunken estimate here: the partially pooled slope of one neuron is the model's best guess for that neuron, not a measurement of it.
+
+
+```{r}
+# Maximum-likelihood fit with a varying slope for each patient too
+glmm_spk_slope_pat <- glmmTMB(spikes ~ pics + offset(log(window_s)) + (1 + pics | patient) + (1 + pics | neuron),
+                              family = nbinom2, data = spk)
+```
+
+Does the answer survive the patients? The slope model above lets the baseline vary between patients but forces the same response for every patient. The question of whether the *population* effect of load is the same for everyone is a varying slope at the patient level, and with 16 patients and a spread of slopes this small a Bayesian fit of it would take hours for an answer I can get in seconds from `glmmTMB`, so I use that for this check and say so (the fit of the neuron slopes above is the one that matters for the question of the chapter). Adding `(1 + pics | patient)` to the maximum-likelihood model gives a spread of the load slope between patients of `r round(attr(VarCorr(glmm_spk_slope_pat)$cond$patient, "stddev")["pics"], 3)`, against `r round(attr(VarCorr(glmm_spk_slope_pat)$cond$neuron, "stddev")["pics"], 3)` between neurons within a patient, and a population slope of `r round(fixef(glmm_spk_slope_pat)$cond["pics"], 3)` per picture on the log scale, against `r round(fixef(glmm_spk_slope)$cond["pics"], 3)` without the patient slopes. Patients differ in their response about as little as neurons do, and the population conclusion does not move; the standard error of the population slope grows from `r round(summary(glmm_spk_slope)$coefficients$cond["pics", "Std. Error"], 4)` to `r round(summary(glmm_spk_slope_pat)$coefficients$cond["pics", "Std. Error"], 4)`, which is what a population effect should do when it is allowed to differ between the people it is measured on.
+
+::: {.callout-tip title="Frequentist equivalent"}
+`glmmTMB` fits the slope model in seconds and agrees with `brms` on what matters: a population slope of `r round(fixef(glmm_spk_slope)$cond["pics"], 3)` per picture on the log scale against `r round(median(b_pics), 3)`, and a spread of slopes between neurons of `r round(attr(VarCorr(glmm_spk_slope)$cond$neuron, "stddev")["pics"], 3)` against `r round(median(tau_s), 3)`. Both are doing partial pooling by the same mechanism, which the opener drew. The difference is in what each says about the quantities with little information. The correlation between baseline and slope is estimated by maximum likelihood as `r round(attr(VarCorr(glmm_spk_slope)$cond$neuron, "correlation")[1, 2], 2)`, a point with no interval attached, while the Bayesian fit gives a whole posterior that is, correctly, almost as wide as the prior; and with a spread of slopes this close to zero a maximum-likelihood fit can land on the boundary and warn of a singular fit (here it did not). The standard errors that `glmmTMB` reports for the population slope treat the spreads as known, and in the model with patient-level slopes, where the spread between patients is estimated from 16 patients, that is the optimistic part.
+:::
+
+## The coefficient is not the average {#sec-glmm-marginal}
+
+There is one more thing to settle before trusting any number in this chapter, and it is the most common way a multilevel GLM gets misreported. I said above that the intercept is the log rate of "a typical neuron". Look at the word. A varying intercept is a deviation from the intercept, and the intercept is where the deviations are zero, which is the neuron that sits exactly at the middle of the log-rate scale. Think of a classroom where a teacher asks for "the typical height". The median child is a real child with a real height, but the *average* height of the class is not the height of that child, if the class has a few very tall students: averaging a quantity that is skewed gives something bigger than the middle one. Firing rates are exactly that: neurons differ by multiplication, so the rates are skewed, and the neuron at the middle of the log scale fires more slowly than the average neuron.
+
+<!-- Illustration expected from Daniel (not yet in images/): multilevel-glmm_median-child-and-class-average.png
+![The median child is a real child; the average height of the class sits above her because of a few tall students. A conditional effect speaks about the first, a marginal effect about the second.](images/multilevel-glmm_median-child-and-class-average.png){#fig-glmm-class fig-align="center" width="85%" fig-alt="Watercolor sketch of a row of schoolchildren of different heights seen from the front, one in the middle highlighted with a teal outline, and a dotted ochre line across the row at the average height, which lies above the highlighted child's head."}
+-->
+
+The statistics has two names for the two readings. A [conditional effect]{style="color:green; font-weight:bold;"} (also called subject-specific) is the effect for a neuron or mouse at a given value of its deviation, usually zero: it is what the coefficient of a GLMM means. A [marginal effect]{style="color:green; font-weight:bold;"} (population-averaged) is the effect averaged over the whole population of neurons or mice: it is what a paper's reader usually has in mind. With an identity link and Gaussian noise they coincide, which is why you did not meet the distinction in the previous two chapters. With a log or a logit link they do not, because averaging a curved function over a spread of groups is not the same as evaluating it at the average group (the point of @sec-multilevel-varying-slopes about the average mouse and a new mouse). McElreath makes the same distinction when he predicts for an actor with an average intercept and, separately, for the marginal of actors [@mcelreath2020]. <!-- NLM-pending, query 1: conditional versus marginal effects in GLMMs with log and logit links; check the wording and add the textbook statement and, if useful, a citation for how a coefficient should be reported. -->
+
+For the spike model the algebra is friendly, because a Gaussian deviation on the log scale gives a lognormal rate, and the mean of a lognormal is its median times $\exp(\sigma^2/2)$. With the draws of the slope model I can write all the versions down. Let $x$ be the number of pictures beyond the first; the typical neuron has rate $\exp(\alpha + \beta x)$, and the average over neurons and patients has rate $\exp\!\big(\alpha + \beta x + \tfrac{1}{2}(\tau_p^2 + \tau_u^2 + 2\rho\tau_u\tau_s x + \tau_s^2 x^2)\big)$. I also compute the average over the neurons we studied, in the way of the average predictive comparisons of @sec-logistic-regression, by asking the fitted model for the expected rate of every trial with the number of pictures set to one and then to three, with each neuron's own estimated baseline, and averaging over trials.
+
+```{r}
+# Draws of the pieces of the slope model
+a <- dr_sl$b_Intercept
+tau_p <- dr_sl$sd_patient__Intercept
+tau_u <- dr_sl$sd_neuron__Intercept
+rho <- dr_sl$cor_neuron__Intercept__pics
+
+# Rate (spikes per second) with x extra pictures: for the typical neuron and averaged over neurons and patients
+rate_typical <- function(x) exp(a + b_pics * x)
+rate_average <- function(x) exp(a + b_pics * x + (tau_p^2 + tau_u^2 + 2 * rho * tau_u * tau_s * x + tau_s^2 * x^2) / 2)
+
+# Average over the neurons we studied: expected rate of every trial under one and three pictures
+draw_ids <- round(seq(1, ndraws(fit_spk_slope), length.out = 500))
+rate_studied <- function(x) {
+  e <- posterior_epred(fit_spk_slope, newdata = transform(spk, pics = x), draw_ids = draw_ids)
+  rowMeans(sweep(e, 2, spk$window_s, "/"))
+}
+r1_studied <- rate_studied(0)
+r3_studied <- rate_studied(2)
+
+# One table of draws for the figure: rate with one picture, and the change from one to three pictures
+marg_df <- rbind(
+  data.frame(panel = "Rate with one picture (spikes per second)", who = "Typical neuron", value = rate_typical(0)),
+  data.frame(panel = "Rate with one picture (spikes per second)", who = "Neurons studied", value = r1_studied),
+  data.frame(panel = "Rate with one picture (spikes per second)", who = "Average over all neurons", value = rate_average(0)),
+  data.frame(panel = "Change from one to three pictures (spikes per second)", who = "Typical neuron",
+             value = rate_typical(2) - rate_typical(0)),
+  data.frame(panel = "Change from one to three pictures (spikes per second)", who = "Neurons studied",
+             value = r3_studied - r1_studied),
+  data.frame(panel = "Change from one to three pictures (spikes per second)", who = "Average over all neurons",
+             value = rate_average(2) - rate_average(0))
+)
+marg_df$who <- factor(marg_df$who, levels = rev(c("Typical neuron", "Neurons studied", "Average over all neurons")))
+```
+
+```{r}
+#| label: fig-glmm_spk_marginal
+#| fig-cap: The same model read three ways. Left, firing rate with one picture on screen for the typical neuron (the intercept), for the neurons we studied and for the average over the whole population of neurons and patients. Right, change in the rate from one to three pictures, in spikes per second. Points are posterior medians; bars are 50% and 95% credible intervals.
+#| fig-alt: Two panels with three horizontal intervals each. On the left, the typical neuron has a rate near 1.5 spikes per second and the other two near 2.9 and 3.4. On the right, the change from one to three pictures is a small negative number near minus 0.05 for the typical neuron and about twice as large for the other two.
+#| fig-width: 9
+#| fig-height: 3.4
+#| warning: false
+
+# Point and interval for each reading, one panel per quantity
+ggplot(marg_df, aes(x = value, y = who)) +
+  stat_pointinterval(.width = c(0.5, 0.95), point_size = 2.5) +
+  facet_wrap(~ panel, scales = "free_x") +
+  labs(x = NULL, y = NULL) +
+  Plot_theme +
+  theme(strip.text = element_text(size = 11, face = "bold"))
+```
+
+```{r}
+# Numbers quoted in the text: ratios per picture, three ways
+ratio_typical <- exp(b_pics)
+ratio_means <- rate_average(1) / rate_average(0)
+ratio_mean_of_ratios <- exp(b_pics + tau_s^2 / 2)
+```
+
+I drew @fig-glmm_spk_marginal as intervals on the *natural* scale (spikes per second), because the whole point is to compare numbers a reader can picture, and the log scale would hide a factor of two. Read each panel as three answers to three questions. On the left, the typical neuron fires `r summ(rate_typical(0), 1)` spikes per second with one picture on screen, and the average neuron of the population `r summ(rate_average(0), 1)`: about twice as fast, because a few fast neurons pull the average up (the neurons we studied sit near the second, `r summ(r1_studied, 1)`). On the right, the change in the rate from one picture to three is `r summ(rate_typical(2) - rate_typical(0), 2)` spikes per second for the typical neuron and `r summ(rate_average(2) - rate_average(0), 2)` for the average one: the same effect, in absolute terms, differs by a factor of about `r round(median(rate_average(2) - rate_average(0)) / median(rate_typical(2) - rate_typical(0)), 1)` depending on whom you ask. A ratio is much steadier: the ratio of rates per picture is `r summ(ratio_typical, 3)` for the typical neuron and `r summ(ratio_means, 3)` for the ratio of the average rates, because with a log link and a small spread of slopes a factor that multiplies every neuron's rate multiplies the average too. That is the reassuring half of the lesson, and a good reason to report rate ratios for counts. The unreassuring half comes with the wire.
+
+::: {.callout-tip title="How to read this figure"}
+Each row is one *reading* of the same fitted model, not a different model. Compare the rows within a panel: if they agree, the choice of reading does not matter for this quantity; if they disagree, the sentence you write must say which one you mean. In the left panel they disagree by a factor of about two, so "the neurons fired at about X spikes per second" is a sentence with two possible values. In the right panel they disagree in the same proportion. The mistake to avoid is to report the intercept of a model with levels as "the mean rate".
+:::
+
+So there are two sentences a paper can write, and they are not interchangeable. If the claim is about *a neuron* ("a typical neuron fires 2% less per extra picture") the conditional effect is the right one. If the claim is about *the population* ("the average firing rate of hippocampal neurons changes by this much in spikes per second") the marginal one is, and for a log link the two agree on ratios and disagree on differences and on levels. I will write them both down at the end of the chapter.
+
+
+## A predictor that varies between neurons {#sec-glmm-hemisphere}
+
+@sec-count-regression left one prediction on the table. Load changes *within* every neuron, and there the pooled model was too cautious, because comparing a neuron with itself removes the differences between neurons. For a predictor that differs *between* neurons I said I expected the opposite, that pooling would be overconfident, and I promised to check. The hippocampus recordings have the right predictor for the check: each neuron was recorded in the left or in the right hemisphere (`hemisphere`), and a neuron cannot be in both. So the hemisphere is an attribute of the neuron, and the question *do hippocampal neurons of the left and right hemisphere fire at different rates?* is a comparison between neurons, with a design twist: most patients contributed neurons from one hemisphere only, so it is partly a comparison between patients too.
+
+```{r}
+#| label: fit-spk-hemi
+
+# Pooled model and model with levels for the hemisphere of the neuron
+spk$hemi <- factor(spk$hemisphere, levels = c("right", "left"))
+fit_hemi_pooled <- brm(
+  spikes ~ hemi + offset(log(window_s)),
+  data = spk, family = negbinomial(), prior = prior_spk[prior_spk$class != "sd", ],
+  chains = 4, cores = 4, seed = 123, init = 0,
+  file = "models/multilevel-glmm_fit20.rds", file_refit = "never"
+)
+fit_hemi_ml <- brm(
+  spikes ~ hemi + offset(log(window_s)) + (1 | patient) + (1 | neuron),
+  data = spk, family = negbinomial(), prior = prior_spk,
+  chains = 4, cores = 4, threads = threading(4), seed = 123, init = 0,
+  iter = 4000, control = list(metric = "dense_e", adapt_delta = 0.99),
+  file = "models/multilevel-glmm_fit21.rds", file_refit = "never"
+)
+```
+
+```{r}
+# Rate ratio (left against right) from each model
+dr_hp <- as_draws_df(fit_hemi_pooled)
+dr_hm <- as_draws_df(fit_hemi_ml)
+hemi_df <- rbind(data.frame(model = "Pooled (neurons ignored)", ratio = exp(dr_hp$b_hemileft)),
+                 data.frame(model = "Patients and neurons as levels", ratio = exp(dr_hm$b_hemileft)))
+hemi_df$model <- factor(hemi_df$model, levels = rev(unique(hemi_df$model)))
+```
+
+```{r}
+#| label: fig-glmm_hemi
+#| fig-cap: Firing-rate ratio of neurons recorded in the left hemisphere against the right, from the model that pools all neuron-trials and from the model with patients and neurons as levels. Half-eyes with the median and 66% and 95% credible intervals; the dashed line is no difference.
+#| fig-alt: Two half-eye densities on a logarithmic axis around a dashed line at 1. The pooled model gives a narrow density just below 1 that excludes it; the model with levels gives a very wide density spanning roughly 0.6 to 1.4 that includes it.
+#| fig-width: 7
+#| fig-height: 2.8
+#| warning: false
+
+# Half-eye of the hemisphere effect under each model
+ggplot(hemi_df, aes(x = ratio, y = model)) +
+  stat_halfeye(point_interval = median_qi, .width = c(0.66, 0.95), fill = "grey75") +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  scale_x_log10(breaks = c(0.5, 0.7, 1, 1.4, 2)) +
+  labs(x = "Rate ratio, left against right (log scale)", y = NULL) +
+  Plot_theme +
+  legend_none()
+```
+
+@fig-glmm_hemi is the check, and it is as stark as I hoped. The pooled model, which treats the `r format(nrow(spk), big.mark = ",")` trials as independent, puts the hemisphere effect at `r summ(exp(dr_hp$b_hemileft), 2)`, an interval that excludes 1 with room to spare, and a reader of a spreadsheet would write that left-hemisphere neurons fire about `r round(100 * (1 - median(exp(dr_hp$b_hemileft))))`% slower. The model that knows that trials come from neurons and neurons from patients says `r summ(exp(dr_hm$b_hemileft), 2)`: the interval is `r round(wid(exp(dr_hm$b_hemileft)) / wid(exp(dr_hp$b_hemileft)), 0)` times as wide and includes 1. The number of independent pieces of evidence for a hemisphere effect is not 24,462, and it is not even 190: it is closer to the number of patients, and they differ among themselves by a factor of about `r round(exp(median(dr_ml$sd_patient__Intercept)), 1)` per standard deviation. This is the pseudoreplication of @sec-multilevel-varying-intercepts again, in a count model, and it is the direction I predicted: for a predictor that varies between groups, ignoring the groups makes the interval too narrow, and with a log link nothing about this is subtle.
+
+
+## Can we trust the model? {#sec-glmm-checks}
+
+The checks are the ones of @sec-mcmc-model-checking and @sec-count-regression, in the same order: whether the model reproduces the data it saw, at each level; whether it predicts what you want to predict; and whether the sampler can be believed.
+
+### Predictive checks, at three levels
+
+At the level of trials I use the rootogram and the share of zeros of @sec-count-regression (read them there if you need a refresher: bars hang from the expected counts, and a bar that stops short of the line means the model expected more of that count than we saw), now for the model with levels.
+
+```{r}
+# Statistic for the zero check: the share of trials with no spikes
+zeros <- function(x) mean(x == 0)
+
+# Two checks side by side: rootogram of the counts and the share of zeros
+ppc_pair <- function(fit) {
+  p1 <- pp_check(fit, type = "rootogram", style = "hanging", prob = 0.95, ndraws = 500) +
+    coord_cartesian(xlim = c(0, 40)) +
+    labs(title = "Rootogram", x = "Spikes in the window")
+  p2 <- pp_check(fit, type = "stat", stat = "zeros", ndraws = 500) +
+    labs(title = "Share of zeros", x = "Proportion of trials with 0 spikes")
+  p1 + p2 + plot_layout(widths = c(1.4, 1))
+}
+```
+
+```{r}
+#| label: fig-glmm_ppc_trials
+#| fig-cap: Posterior predictive checks of the slope model at the level of trials. Left, rootogram of the spike counts (the horizontal axis is cut at 40 spikes). Right, share of zeros in replicated data (histogram) against the observed share (line).
+#| fig-alt: Left, a hanging rootogram whose bars stay close to the zero line across counts from 0 to 40, with the expected curve inside a thin band. Right, a histogram of replicated zero shares around 0.22 with a vertical line at the observed share near 0.22.
+#| fig-width: 8
+#| fig-height: 3.8
+#| warning: false
+#| message: false
+
+# Run both checks on the slope model
+ppc_pair(fit_spk_slope)
+```
+
+@fig-glmm_ppc_trials is the check of the family. The model with levels reproduces the counts, the zeros included (the observed share of zeros is `r round(100 * mean(spk$spikes == 0))`%), with no zero-inflation part: the slow neurons are what makes the zeros, which is the conclusion of @sec-count-regression, now with 190 neurons and the right structure. The same check by patient (@fig-glmm_ppc_zeros) asks whether it is true for each person, since a model can get the pooled share right while being wrong in half of the patients.
+
+```{r}
+#| label: fig-glmm_ppc_zeros
+#| fig-cap: Share of trials with no spikes in each of the 16 patients, in replicated data (histograms) against the observed share (line), from the slope model. Patient labels are on the panels.
+#| fig-alt: Sixteen small panels, one per patient, each with a histogram of replicated zero shares and a vertical line for the observed share. The line falls inside or near the histogram in most panels.
+#| fig-width: 9
+#| fig-height: 6.5
+#| warning: false
+#| message: false
+
+# The same zero check, patient by patient
+pp_check(fit_spk_slope, type = "stat_grouped", stat = "zeros", group = "patient", ndraws = 500) +
+  theme(axis.text.x = element_text(size = 8), strip.text = element_text(size = 10))
+```
+
+At the level of *neurons* the question is different, because the varying intercepts of the observed neurons can reproduce the observed neurons by construction. What the model does assume is that the baselines of *new* neurons come from a lognormal distribution, and I can check that by asking the fitted model to generate a fresh set of 190 neurons in the same patients and comparing the distribution of their firing rates with the observed one (@fig-glmm_ppc_neurons).
+
+```{r}
+# New neurons in the same patients: rename every neuron so that the model has never seen it
+new_spk <- spk
+new_spk$neuron <- factor(paste0("new_", spk$neuron))
+set.seed(2)
+yrep_new <- posterior_predict(fit_spk_slope, newdata = new_spk, allow_new_levels = TRUE,
+                              sample_new_levels = "gaussian", ndraws = 200)
+
+# Firing rate of each neuron in each replicated dataset: its spikes over its seconds
+neuron_rows <- split(seq_len(nrow(spk)), spk$neuron)
+rep_rate <- sapply(neuron_rows, function(i) rowSums(yrep_new[, i, drop = FALSE]) / sum(spk$window_s[i]))
+rep_log10 <- log10(pmax(rep_rate, 0.01))
+obs_log10 <- log10(pmax(sapply(neuron_rows, function(i) sum(spk$spikes[i]) / sum(spk$window_s[i])), 0.01))
+```
+
+```{r}
+#| label: fig-glmm_ppc_neurons
+#| fig-cap: Firing rate of the 190 neurons (log scale), as observed (dark curve) and in 100 replicated sets of new neurons in the same patients (faint curves). Rates below 0.01 spikes per second are set to 0.01.
+#| fig-alt: A dark observed density over log10 firing rate, with a peak near 0.2 and a long right tail, inside a bundle of faint replicated densities of similar shape and spread.
+#| fig-width: 6
+#| fig-height: 3.8
+#| warning: false
+#| message: false
+
+# Observed distribution of neuron rates against replicated ones
+bayesplot::ppc_dens_overlay(y = obs_log10, yrep = rep_log10[1:100, ]) +
+  labs(x = "log10 firing rate (spikes per second)", y = "Density") +
+  Plot_theme +
+  legend_none()
+```
+
+The replicated neurons spread over the same range as the observed ones and the shape is close, which is the assumption of normal baselines on the log scale doing its job. Where the faint curves and the dark one disagree is where I would look next, and I would look at the neurons themselves: a lognormal population is a model of *most* neurons, and a few very fast ones are the natural place for it to strain. I did not find enough of a disagreement to change the model.
+
+### Cross-validation that matches the question {#sec-glmm-cv}
+
+@sec-multilevel-varying-slopes warned that leave-one-out cross-validation on rows answers the question "how well do I predict a held-out row of a group I have already seen", and that this is not the only question. For the neurons it is worth spelling out, because three different questions are hiding in the data, and each wants a different held-out piece. @tbl-glmm_questions lists them.
+
+```{r}
+#| label: tbl-glmm_questions
+#| tbl-cap: Three questions a model with levels can be asked about a neuron, what the prediction is conditional on, and the cross-validation that matches each.
+#| tbl-colwidths: [30, 35, 35]
+
+# The three questions, the draws they need and the matching cross-validation
+q_tab <- data.frame(
+  `The question` = c("A new trial of a neuron already recorded", "A new neuron of a patient already recorded",
+                     "A neuron of a patient never recorded"),
+  `What the prediction uses` = c("The neuron's own estimated baseline (the default)",
+                                 "The patient's baseline and the spread of neurons (new levels for the neuron)",
+                                 "Only the population baseline and both spreads (new levels for both)"),
+  `Cross-validation that matches` = c("Leave one trial out (ordinary leave-one-out)",
+                                      "Leave one neuron out (grouped folds that hold every neuron whole)",
+                                      "Leave one patient out (folds that hold every patient whole)"),
+  check.names = FALSE
+)
+gt(q_tab)
+```
+
+Think of an exam. Ordinary leave-one-out is like grading a student on a question from a chapter that student already studied with the answer key: the model has seen the neuron's other trials and its prediction for the held-out one is easy. Leave-one-neuron-out is like a question about a chapter the student has not opened: the model must predict a neuron from what it learned about neurons in general. The two can rank the same models differently, and which ranking matters depends on whether your next experiment records the same neurons again (it almost never does) or new ones. The ladder of @fig-glmm_ladder shows the same three questions as three predictions of the firing rate of one neuron, so that you can see the price of each in the width of the interval.
+
+```{r}
+# Draws for patient 18, and for the neuron of that patient closest to its median rate
+dr2 <- dr_ml
+ex_neurons <- levels(spk$neuron)[grepl("^18_", levels(spk$neuron))]
+ex_rate <- sapply(ex_neurons, function(k) sum(spk$spikes[spk$neuron == k]) / sum(spk$window_s[spk$neuron == k]))
+ex_neuron <- ex_neurons[which.min(abs(ex_rate - median(ex_rate)))]
+
+# Rate with one picture for: that neuron, a new neuron of patient 18 and a neuron of a new patient
+lp_known <- dr2$b_Intercept + dr2[["r_patient[18,Intercept]"]] + dr2[[paste0("r_neuron[", ex_neuron, ",Intercept]")]]
+set.seed(3)
+lp_new_neuron <- dr2$b_Intercept + dr2[["r_patient[18,Intercept]"]] + rnorm(nrow(dr2), 0, dr2$sd_neuron__Intercept)
+lp_new_patient <- dr2$b_Intercept + rnorm(nrow(dr2), 0, dr2$sd_patient__Intercept) + rnorm(nrow(dr2), 0, dr2$sd_neuron__Intercept)
+ladder <- rbind(
+  data.frame(who = "A neuron already recorded", rate = exp(lp_known)),
+  data.frame(who = "A new neuron of the same patient", rate = exp(lp_new_neuron)),
+  data.frame(who = "A neuron of a new patient", rate = exp(lp_new_patient))
+)
+ladder$who <- factor(ladder$who, levels = rev(unique(ladder$who)))
+```
+
+```{r}
+#| label: fig-glmm_ladder
+#| fig-cap: Posterior of the firing rate (one picture on screen) for a neuron already recorded, for a new neuron of the same patient and for a neuron of a new patient, from the model with levels. The intervals are the 66% and 95% credible intervals and the axis is logarithmic.
+#| fig-alt: Three half-eye densities on a logarithmic axis. The first is narrow around 1.5 spikes per second, the second is wide from 0.4 to 10, and the third is the widest from 0.2 to 20.
+#| fig-width: 7
+#| fig-height: 3.2
+#| warning: false
+
+# Half-eye of the rate for each of the three questions
+ggplot(ladder, aes(x = rate, y = who)) +
+  stat_halfeye(point_interval = median_qi, .width = c(0.66, 0.95), fill = "grey75") +
+  scale_x_log10(breaks = c(0.1, 1, 10, 100)) +
+  labs(x = "Firing rate (spikes per second, log scale)", y = NULL) +
+  Plot_theme +
+  legend_none()
+```
+
+@fig-glmm_ladder is the cost of each question made visible. A neuron already recorded has a rate known to within a few percent. A new neuron of the same patient is a draw from the patient's distribution of neurons, and its rate could plausibly be anything from `r round(quantile(exp(lp_new_neuron), 0.025), 1)` to `r round(quantile(exp(lp_new_neuron), 0.975), 1)` spikes per second. A neuron of a new patient is wider still, by the spread between patients. The same neuron, the same model, three different intervals, and all three are correct for their question. (The weather in your city again: the average temperature in October, the temperature tomorrow, and the temperature in a city you have not visited.) <!-- NLM-pending, query 4: leave-one-observation-out versus leave-one-group-out cross-validation for multilevel models; add the textbook statement and recommendation. -->
+
+I run both kinds of cross-validation on the models of the chapter. Ordinary leave-one-out is cheap and I compute it for all four. The grouped version, which holds neurons whole, needs a refit for every fold, so it is the expensive one, and I run it for the model that ignores the levels and the one that has them (the folds are built by hand with `loo::kfold_split_grouped()`, because `brms` checks the grouping factor against every model and the pooled one has no neuron term). Each of the ten folds is a neuron-wise tenth of the data; the refits are cached.
+
+```{r}
+#| label: fit-spk-kfold
+
+# Ten folds of neurons: every neuron is in exactly one fold, so a held-out fold holds neurons the model has never seen
+set.seed(10)
+folds_neuron <- loo::kfold_split_grouped(K = 10, x = spk$neuron)
+
+# The refits are expensive, so the result is cached by hand
+kfold_file <- "models/multilevel-glmm_kfold.rds"
+if (file.exists(kfold_file)) {
+  kf_neuron <- readRDS(kfold_file)
+} else {
+  kf_neuron <- kfold(fit_spk_pooled, fit_spk_ml, folds = folds_neuron,
+                     model_names = c("Neurons ignored", "Patients and neurons"))
+  saveRDS(kf_neuron, kfold_file)
+}
+```
+
+```{r}
+#| label: tbl-glmm_loo
+#| tbl-cap: Predictive comparison of the models for the spike counts. Left block, ordinary leave-one-out (predicting a held-out trial of a neuron already seen). Right block, ten-fold cross-validation with folds that hold whole neurons out (predicting trials of neurons the model has never seen). Differences are in elpd units relative to the best model of each block; blank cells were not computed.
+
+# Ordinary leave-one-out for the four models of the chapter (1,000 draws each, to keep memory small)
+loo_models <- list("Neurons ignored" = fit_spk_pooled, "Patients and neurons" = fit_spk_ml,
+                   "Varying slope of load" = fit_spk_slope)
+loos <- lapply(loo_models, loo, ndraws = 1000)
+cmp_ord <- loo_compare(loos)
+k_bad <- vapply(loos, function(l) sum(loo::pareto_k_values(l) > 0.7), numeric(1))
+
+# Left block: ordinary leave-one-out
+tab_ord <- data.frame(Model = rownames(cmp_ord),
+                      `elpd difference` = round(cmp_ord[, "elpd_diff"]),
+                      `SE of difference` = round(cmp_ord[, "se_diff"]),
+                      `Pareto k above 0.7` = unname(k_bad[rownames(cmp_ord)]), check.names = FALSE)
+
+# Right block: ten-fold cross-validation by neuron
+tab_kf <- data.frame(Model = rownames(kf_neuron$diffs),
+                     `elpd difference ` = round(kf_neuron$diffs[, "elpd_diff"]),
+                     `SE of difference ` = round(kf_neuron$diffs[, "se_diff"]), check.names = FALSE)
+tab_loo <- merge(tab_ord, tab_kf, by = "Model", all.x = TRUE, sort = FALSE)
+
+gt(tab_loo) |>
+  tab_spanner(label = "Leave one trial out", columns = 2:4) |>
+  tab_spanner(label = "Leave neurons out (10 folds)", columns = 5:6) |>
+  sub_missing(missing_text = "")
+```
+
+
+## Counting neurons in tissue, with the mouse as a level {#sec-glmm-neun}
+
+The first multilevel chapter modeled the density of NeuN-positive neurons with a Gaussian on the log scale and said, twice, that the family that respects that these are counts with an area was left for this chapter (@sec-multilevel-varying-intercepts, @sec-multilevel-varying-slopes). Here it is. It is the same cortex data (`r nrow(cortex)` regions, `r nlevels(cortex$section)` sections, `r nlevels(cortex$mouse)` mice), the same predictors (day, hemisphere and their interaction) and the same structure (a varying intercept for the mouse and one for the section), with the family of @sec-count-regression: a negative binomial with the log of the area, in mm², as the offset, so that the coefficients are log density ratios as before. There was no reason to expect a large change: the counts are in the hundreds or thousands, far from zero.
+
+```{r}
+#| label: fit-neun
+
+# The NeuN counts of the first multilevel chapter, as counts with the section area as an exposure
+fit_neun_nb <- brm(
+  positive ~ dpi * hemi + offset(log(area_mm2)) + (1 | mouse) + (1 | section),
+  data = cortex, family = negbinomial(), prior = prior_neun_nb,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = list(adapt_delta = 0.99),
+  file = "models/multilevel-glmm_fit10.rds", file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+# Population effects, spreads and shape of the negative binomial model
+summary(fit_neun_nb)
+```
+
+### glmmTMB
+
+```{r}
+# The same model by maximum likelihood
+glmm_neun <- glmmTMB(positive ~ dpi * hemi + offset(log(area_mm2)) + (1 | mouse) + (1 | section),
+                     family = nbinom2, data = cortex)
+summary(glmm_neun)
+```
+:::
+
+```{r}
+# Injury effect (left against right, relative to 0 D) as a density ratio, from the Gaussian fit of the
+# first multilevel chapter and from the negative binomial fit
+dr_nb <- as_draws_df(fit_neun_nb)
+dr_gs <- as_draws_df(readRDS("models/multilevel-varying-intercepts_fit5.rds"))
+inj_df <- do.call(rbind, lapply(c("5D", "15D", "30D"), function(day) {
+  rbind(data.frame(model = "Gaussian on the log density", day = day, ratio = exp(dr_gs[[paste0("b_dpi", day, ":hemiLeft")]])),
+        data.frame(model = "Negative binomial with an offset", day = day, ratio = exp(dr_nb[[paste0("b_dpi", day, ":hemiLeft")]])))
+}))
+inj_df$day <- factor(inj_df$day, levels = c("30D", "15D", "5D"))
+```
+
+```{r}
+#| label: fig-glmm_neun
+#| fig-cap: Density ratio of the injured (left) to the uninjured (right) cortex, relative to the same ratio at 0 D, at each day after ischemia, from the Gaussian model of the first multilevel chapter and from the negative binomial model with an area offset. Points are posterior medians; bars are 50% and 95% credible intervals.
+#| fig-alt: Three rows for 30, 15 and 5 days, each with two intervals around 0.65 to 0.7 on a logarithmic axis for the two models, which nearly overlap.
+#| fig-width: 6.5
+#| fig-height: 3.4
+#| warning: false
+
+# Point and interval for each day under the two families; dashed line at 1 = no injury effect
+ggplot(inj_df, aes(x = ratio, y = day, color = model, shape = model)) +
+  stat_pointinterval(.width = c(0.5, 0.95), position = position_dodge(width = 0.5), point_size = 2.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  scale_color_manual(values = c("Gaussian on the log density" = "#D55E00", "Negative binomial with an offset" = "#0072B2")) +
+  scale_x_log10(breaks = c(0.4, 0.5, 0.7, 1)) +
+  labs(x = "Density ratio, left against right, relative to 0 D (log scale)", y = "Days after ischemia") +
+  Plot_theme +
+  legend_top() +
+  theme(legend.title = element_blank())
+```
+
+@fig-glmm_neun says that the two families agree: the injury effect at 15 D is `r summ(inj_df$ratio[inj_df$model == "Negative binomial with an offset" & inj_df$day == "15D"])` as a density ratio under the negative binomial, against `r summ(inj_df$ratio[inj_df$model == "Gaussian on the log density" & inj_df$day == "15D"])` under the Gaussian. The shape of the negative binomial is `r summ(dr_nb$shape, 0)`, which by @eq-cv-nb is a wobble of about `r round(100 / sqrt(median(dr_nb$shape)))`% between regions of the same section once the mouse and the section are in the model: modest, and nothing like the shape below one of the pooled spike counts. That is the reassurance the choice of the first multilevel chapter deserved. The two ways of modeling the same tissue give the same biology, and the one with the counts has the advantage of respecting what the numbers are (counts over an area, with an exposure). Because both agree, the Gaussian remains a fair approximation in the chapter where it was used.
+
+## Nine attempts, one mouse: a logistic model with levels {#sec-glmm-wire-logit}
+
+Back to the wire, and to the promise of @sec-beta-robust-regression that the overdispersion of the nine attempts would stop being a parameter buried in a beta-binomial and become something I could look at. The attempts are the rows. A mouse made nine of them (three on each of three days), each scored as completed or not, and what the beta-binomial said is that the nine are *not* nine independent coin flips of one probability: some mice are simply better at the wire than others. A varying intercept says the same thing in a different way. Each mouse gets its own log-odds of completing an attempt, drawn from a population of mice with a spread, and the attempts of that mouse are coin flips at its own probability:
+
+$$
+y_{ij} \sim \text{Bernoulli}(p_{ij}), \qquad \text{logit}(p_{ij}) = \alpha + \beta\, \text{KO}_j + u_j, \qquad u_j \sim \text{Normal}(0,\, \tau_{\text{mouse}}).
+$$ {#eq-glmm-wire-logit}
+
+The coefficient $\beta$ is the genotype effect on the log-odds for a mouse at the middle of its genotype's distribution, and $\tau_{\text{mouse}}$ is the number I am after. The prior for $\tau_{\text{mouse}}$ needs thought, because on the logit scale a standard deviation of 3 is not absurd: it describes mice whose odds of completing an attempt differ by a factor of $e^3 = 20$ per standard deviation. I give the intercept a `Normal(2, 1.5)` (a typical mouse completes about nine attempts in ten), the genotype effect the `Normal(0, 1.5)` of @sec-beta-robust-regression, and the spread an Exponential(0.5), a mean of 2, wide enough that the data will not be told how different the mice are. The prior predictive check asks whether such priors can produce what the wire experiment looks like, the number of completed attempts out of nine across 63 mice (@fig-glmm_wire_prior).
+
+```{r}
+#| label: fit-wire-logit
+
+# Prior predictive fit for the number of completed attempts (priors only, no likelihood)
+fit_wire_prior <- brm(
+  success ~ genotype + (1 | mouse),
+  data = attempts, family = bernoulli(), prior = prior_wire_logit, sample_prior = "only",
+  chains = 4, cores = 4, seed = 123,
+  file = "models/multilevel-glmm_fit11.rds", file_refit = "never"
+)
+
+# Attempt-level logistic model that ignores which mouse made the attempt
+fit_wire_pooled <- brm(
+  success ~ genotype,
+  data = attempts, family = bernoulli(), prior = prior_wire_logit[prior_wire_logit$class != "sd", ],
+  chains = 4, cores = 4, seed = 123,
+  file = "models/multilevel-glmm_fit12.rds", file_refit = "never"
+)
+
+# The same with a varying intercept for each mouse
+fit_wire_logit <- brm(
+  success ~ genotype + (1 | mouse),
+  data = attempts, family = bernoulli(), prior = prior_wire_logit,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ml_control,
+  file = "models/multilevel-glmm_fit13.rds", file_refit = "never"
+)
+
+# Adding the day of training
+fit_wire_logit_day <- brm(
+  success ~ genotype + day_c + (1 | mouse),
+  data = attempts, family = bernoulli(), prior = prior_wire_logit,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ml_control,
+  file = "models/multilevel-glmm_fit14.rds", file_refit = "never"
+)
+
+# Sensitivity to the prior of the spread between mice
+fit_wire_logit_narrow <- brm(
+  success ~ genotype + (1 | mouse),
+  data = attempts, family = bernoulli(), prior = prior_wire_logit_narrow,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ml_control,
+  file = "models/multilevel-glmm_fit15.rds", file_refit = "never"
+)
+fit_wire_logit_wide <- brm(
+  success ~ genotype + (1 | mouse),
+  data = attempts, family = bernoulli(), prior = prior_wire_logit_wide,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ml_control,
+  file = "models/multilevel-glmm_fit16.rds", file_refit = "never"
+)
+```
+
+```{r}
+# Counts of completed attempts per mouse (0 to 9) in each replicated dataset; band over replicates
+count_band <- function(yrep, mouse, label) {
+  tab <- t(apply(yrep, 1, function(r) tabulate(tapply(r, mouse, sum) + 1, nbins = 10)))
+  data.frame(k = 0:9, lo = apply(tab, 2, quantile, probs = 0.025), mid = apply(tab, 2, median),
+             hi = apply(tab, 2, quantile, probs = 0.975), model = label)
+}
+observed_counts <- data.frame(k = 0:9, n = tabulate(wire_counts$n_ok + 1, nbins = 10))
+
+# Prior predictive band: mice drawn from the priors alone
+set.seed(1)
+band_prior <- count_band(posterior_predict(fit_wire_prior, ndraws = 500, allow_new_levels = TRUE,
+                                           sample_new_levels = "gaussian"), attempts$mouse, "Prior")
+```
+
+```{r}
+#| label: fig-glmm_wire_prior
+#| fig-cap: Number of completed attempts out of nine for the 63 mice (bars) against what the priors alone would generate (points and lines are the median and 95% interval over simulated sets of 63 mice).
+#| fig-alt: Grey bars for the observed number of mice with 0 to 9 completed attempts, with a tall bar at 9 and short bars elsewhere. Blue points with wide vertical lines for the prior expectation cover every count from 0 to 9 and include the observed bars.
+#| fig-width: 6.5
+#| fig-height: 3.6
+#| warning: false
+
+# Observed counts as grey bars; the prior's median and 95% interval as points and lines
+ggplot(band_prior, aes(x = k)) +
+  geom_col(data = observed_counts, aes(y = n), fill = "grey80", width = 0.7) +
+  geom_pointrange(aes(y = mid, ymin = lo, ymax = hi), color = "#0072B2", size = 0.4) +
+  scale_x_continuous(breaks = 0:9) +
+  labs(x = "Completed attempts out of 9", y = "Number of mice") +
+  Plot_theme
+```
+
+The priors of @fig-glmm_wire_prior are not tight and they are not absurd: every count from 0 to 9 is possible, a crowd at 9 is the most likely thing to happen, and the observed bars sit inside the band. I drew the observed counts as bars and the model as points with lines for the reason @sec-beta-robust-regression gave: the bars say what happened and the intervals say what the model believed.
+
+I fit two models, one that ignores the mice (a plain Bernoulli on 567 attempts) and the one in @eq-glmm-wire-logit, side by side with their frequentist counterparts.
+
+::: panel-tabset
+### brms
+
+```{r}
+# The model with a varying intercept for each mouse: the spread of the mice is the number to look at
+summary(fit_wire_logit)
+```
+
+### glmmTMB
+
+```{r}
+# The same model by maximum likelihood (glmer from lme4 gives the same estimates)
+glmm_wire <- glmmTMB(success ~ genotype + (1 | mouse), family = binomial, data = attempts)
+summary(glmm_wire)
+```
+:::
+
+```{r}
+# Posterior draws of the logistic models and of the beta-binomial fit of the chapter on behavior
+dr_w <- as_draws_df(fit_wire_logit)
+dr_wp <- as_draws_df(fit_wire_pooled)
+dr_bb <- as_draws_df(readRDS("models/beta-robust-regression_fit2.rds"))
+sd_m <- dr_w$sd_mouse__Intercept
+```
+
+The spread between mice is `r summ(sd_m, 1)` on the logit scale. That is large, and it is worth saying what it means: a mouse one standard deviation above the typical one of its genotype has odds of completing an attempt about `r round(exp(median(sd_m)))` times higher, and in terms of probabilities it means that most mice are at the ceiling and a few are nowhere near it, which is the shape of @fig-beta_ppc_counts_both. The genotype coefficient is `r summ(dr_w$b_genotypeKO)` for the logistic model with levels and `r summ(dr_wp$b_genotypeKO)` for the pooled one: the interval is `r round(wid(dr_w$b_genotypeKO) / wid(dr_wp$b_genotypeKO), 1)` times as wide when the mice are a level, which is the direction the wire promised (the genotype differs *between* mice, and the pooled model counted each mouse nine times). And it is a different number from the `r summ(dr_bb$b_genotypeKO)` of the beta-binomial, which looks wrong until we see why.
+
+### Two descriptions of one overdispersion {#sec-glmm-rho}
+
+@sec-beta-robust-regression turned the mouse-to-mouse spread into $\phi$ and then into $\rho = 1/(\phi+1)$, the correlation between two attempts of the same mouse. The logistic model with a varying intercept turns the same spread into $\tau_{\text{mouse}}$. They are two descriptions of one fact, and to compare them I need to put them on the same scale. There are two natural ones. The *observed* scale is the one of $\rho$: the correlation between the outcomes of two attempts of the same mouse. For the logistic model it is the variance of the mouse's probability, divided by $\mu(1-\mu)$ with $\mu$ the average probability (the same thing $\rho$ is for a beta distribution), and it can be computed by averaging over the distribution of mice. The *latent* scale is the one of the linear predictor: the share of the variance of the log-odds that lies between mice. The logistic distribution has a variance of $\pi^2/3 \approx 3.3$ on that scale, which plays the role that the trigamma variance played for the negative binomial, so that the latent intraclass correlation is $\tau_{\text{mouse}}^2 / (\tau_{\text{mouse}}^2 + \pi^2/3)$ [@nakagawa2017].
+
+```{r}
+# Correlation between two attempts of one mouse on the observed scale, for a genotype with log-odds eta0,
+# averaging over a fixed set of 2000 quantiles of the mouse distribution
+z <- qnorm(ppoints(2000))
+obs_icc <- function(eta0, tau) {
+  p <- plogis(eta0 + tau * z)
+  mu <- mean(p)
+  var(p) / (mu * (1 - mu))
+}
+idx <- round(seq(1, nrow(dr_w), length.out = 1000))
+icc_wt <- mapply(function(a, t) obs_icc(a, t), dr_w$b_Intercept[idx], sd_m[idx])
+icc_ko <- mapply(function(a, b, t) obs_icc(a + b, t), dr_w$b_Intercept[idx], dr_w$b_genotypeKO[idx], sd_m[idx])
+
+# Latent-scale correlation, and the correlation of the beta-binomial of the chapter on behavior
+icc_latent <- sd_m^2 / (sd_m^2 + pi^2 / 3)
+rho_bb <- 1 / (dr_bb$phi + 1)
+
+rho_df <- rbind(
+  data.frame(what = "Latent scale (logistic)", value = icc_latent),
+  data.frame(what = "Observed, wild type (logistic)", value = icc_wt),
+  data.frame(what = "Observed, KO (logistic)", value = icc_ko),
+  data.frame(what = "Observed (beta-binomial)", value = rho_bb)
+)
+rho_df$what <- factor(rho_df$what, levels = rev(unique(rho_df$what)))
+```
+
+```{r}
+#| label: fig-glmm_rho
+#| fig-cap: The correlation between two attempts of the same mouse, described four ways. Top, on the latent (log-odds) scale of the logistic model with levels. Middle, on the observed scale for the wild-type and the KO mice from the same model. Bottom, the observed-scale correlation of the beta-binomial of the chapter on behavior. Half-eyes with the median and 66% and 95% credible intervals.
+#| fig-alt: Four half-eye densities on an axis from 0 to 1. The latent-scale correlation is higher, near 0.6. The two observed-scale correlations of the logistic model and the beta-binomial correlation are lower and overlap, near 0.3 to 0.4.
+#| fig-width: 7.5
+#| fig-height: 3.6
+#| warning: false
+
+# Half-eye of each description of the same overdispersion
+ggplot(rho_df, aes(x = value, y = what)) +
+  stat_halfeye(point_interval = median_qi, .width = c(0.66, 0.95), fill = "grey75") +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
+  labs(x = "Correlation between two attempts", y = NULL) +
+  Plot_theme +
+  legend_none()
+```
+
+@fig-glmm_rho is the picture I wanted to give you. Read the bottom three rows first, because they are on the same scale: the beta-binomial said that two attempts of a mouse correlate at `r summ(rho_bb)`, and the logistic model with levels says `r summ(icc_wt)` for the wild types and `r summ(icc_ko)` for the KO mice. These are two descriptions of the same fact, reached by two different distributions of the mouse-to-mouse spread, and they overlap: the overdispersion of the wire is real, it does not depend on which family writes it down, and a mouse-level model *did* make explicit what was buried in $\phi$. Now read the top row. On the latent scale the same spread is a correlation of `r summ(icc_latent)`, more than twice as large. Nothing is wrong. The logit scale has a large variance of its own (the $\pi^2/3$ of every coin flip) and the mice are far apart on it, but most of that distance is squeezed away at the ceiling of the probability scale: a mouse at 99% and one at 99.9% differ by a factor of ten in the odds and by nothing in the number of attempts completed. This is why a latent intraclass correlation reported without its scale is a number nobody can check against the data, and why I give the scale each time.
+
+::: {.callout-tip title="How to read this figure"}
+Compare the positions of the half-eyes, not their shapes. Rows on the same scale (the three at the bottom) should agree if the families describe the same fact, and they do. The top row is on a different scale and answers a different question: *how much of the spread of the linear predictor is between mice*, not *how much two attempts of one mouse agree*. The mistake to avoid is to compare the two kinds of numbers.
+:::
+
+Two things are not the same between the two models, and they are worth knowing. The first is the *shape* of the mouse-to-mouse distribution: the beta-binomial writes it as a beta distribution of the probabilities, and the logistic as a normal distribution of the log-odds, which is the same thing near the middle and different at the ends. The second is what the correlation depends on: the beta-binomial has one correlation for both genotypes, and in the logistic model the observed-scale correlation changes with the mean (it differs a little between the wild types and the KO mice in @fig-glmm_rho), because probabilities near the ceiling have less room to differ. Whether the data can tell the two shapes apart with 63 mice I doubt, and I have not tried.
+
+### Conditional or marginal, again {#sec-glmm-wire-marginal}
+
+Now the number I said looked wrong. The beta-binomial of @sec-beta-robust-regression gave a genotype coefficient of `r round(median(dr_bb$b_genotypeKO), 2)` and the logistic model with levels gives `r round(median(dr_w$b_genotypeKO), 2)`. They model the same data and describe the same overdispersion, and the coefficients differ by `r round(100 * (median(dr_w$b_genotypeKO) / median(dr_bb$b_genotypeKO) - 1))`%. The reason is the one of the spike section, and here it bites. In the beta-binomial the logit link is applied to $\mu$, the *mean* of the probabilities of the mice of a genotype, so its coefficient is a log-odds ratio of *average* probabilities: a marginal quantity. In the logistic model with levels the logit link is applied to the probability of a mouse with $u_j = 0$, so its coefficient is the log-odds ratio *for a typical mouse*: a conditional one. With a ceiling and mice that differ this much, the two are far apart, and so are their predictions in the units a reader understands, as @fig-glmm_wire_marginal shows. I compute four numbers in percentage points of the probability of completing an attempt: the difference for a typical mouse (setting $u_j = 0$), the average over the 63 mice we studied (each mouse with its own estimated intercept, genotype switched, as in the average predictive comparisons of @sec-logistic-regression), the average over the population of mice (drawing new mice from the fitted spread), and, for reference, the beta-binomial and the pooled logistic.
+
+```{r}
+# Typical mouse: the intercept of each genotype with the mouse deviation set to zero
+typical_pp <- 100 * (plogis(dr_w$b_Intercept + dr_w$b_genotypeKO) - plogis(dr_w$b_Intercept))
+
+# Mice studied: every mouse with its own estimated intercept, as KO and as WT (fitted draws, 1000 of them)
+ids <- round(seq(1, ndraws(fit_wire_logit), length.out = 1000))
+wire_mice <- unique(attempts[, c("mouse", "genotype")])
+nd_ko <- transform(wire_mice, genotype = factor("KO", levels = c("WT", "KO")))
+nd_wt <- transform(wire_mice, genotype = factor("WT", levels = c("WT", "KO")))
+studied_pp <- 100 * rowMeans(posterior_epred(fit_wire_logit, newdata = nd_ko, draw_ids = ids) -
+                               posterior_epred(fit_wire_logit, newdata = nd_wt, draw_ids = ids))
+
+# Population of mice: average the probability over a fixed set of quantiles of the mouse distribution
+avg_p <- function(eta0, tau) mean(plogis(eta0 + tau * z))
+population_pp <- 100 * mapply(function(a, b, t) avg_p(a + b, t) - avg_p(a, t),
+                              dr_w$b_Intercept[ids], dr_w$b_genotypeKO[ids], sd_m[ids])
+
+# The beta-binomial (mean probabilities) and the pooled logistic have no mouse deviations
+bb_pp <- 100 * (plogis(dr_bb$b_Intercept + dr_bb$b_genotypeKO) - plogis(dr_bb$b_Intercept))
+pooled_pp <- 100 * (plogis(dr_wp$b_Intercept + dr_wp$b_genotypeKO) - plogis(dr_wp$b_Intercept))
+
+marg_wire <- rbind(
+  data.frame(what = "Logistic, typical mouse", value = typical_pp),
+  data.frame(what = "Logistic with levels, the 63 mice studied", value = studied_pp),
+  data.frame(what = "Logistic with levels, population of mice", value = population_pp),
+  data.frame(what = "Beta-binomial", value = bb_pp),
+  data.frame(what = "Logistic, mice ignored", value = pooled_pp)
+)
+marg_wire$what <- factor(marg_wire$what, levels = rev(unique(marg_wire$what)))
+```
+
+```{r}
+#| label: fig-glmm_wire_marginal
+#| fig-cap: Difference between KO and wild-type mice in the probability of completing an attempt, in percentage points, read five ways. The first row is the conditional effect (a typical mouse), the next two average over mice, and the last two are models without a mouse deviation, for reference. Points are posterior medians; bars are 50% and 95% credible intervals.
+#| fig-alt: Five horizontal intervals on an axis of percentage points. The typical-mouse estimate is small, near minus 3. The averages over the mice studied and over the population, the beta-binomial and the pooled logistic are close to each other near minus 8 to minus 10.
+#| fig-width: 7.5
+#| fig-height: 3.4
+#| warning: false
+
+# Point and interval for each reading of the genotype effect
+ggplot(marg_wire, aes(x = value, y = what)) +
+  stat_pointinterval(.width = c(0.5, 0.95), point_size = 2.5) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
+  labs(x = "KO minus wild type (percentage points)", y = NULL) +
+  Plot_theme
+```
+
+@fig-glmm_wire_marginal makes the difference visible. For a typical mouse, the genotype changes the probability of completing an attempt by `r summ(typical_pp, 1)` percentage points, a small number, because a typical wild-type mouse is already at the ceiling (`r round(100 * median(plogis(dr_w$b_Intercept)), 1)`%) and a typical KO mouse is almost there too. Averaged over mice, whether the 63 we studied (`r summ(studied_pp, 1)`) or the population they come from (`r summ(population_pp, 1)`), the difference is about `r round(abs(median(population_pp)) / abs(median(typical_pp)))` times larger. The reason is the ceiling again: the average mouse is not the typical mouse, because a good mouse has nothing to lose and a poorer one has a great deal, and the ones with something to lose are the ones that carry the average. The beta-binomial (`r summ(bb_pp, 1)`) and the pooled logistic (`r summ(pooled_pp, 1)`) agree with the marginal readings, because they model the average probabilities directly. And the intervals: the pooled model is the narrowest, the models with levels are wider (a 95% interval `r round(wid(population_pp), 0)` points wide for the population of mice, against `r round(wid(pooled_pp), 0)` for the pooled one), because the genotype is a property of the mouse and the model with levels knows that the 567 attempts are 63 mice.
+
+::: {.callout-tip title="How to read this figure"}
+All five rows answer *how much does KO change the probability of completing an attempt*, and they answer it for five different kinds of mouse. Check the first row against the rest: if a model with levels gives a conditional effect that is much smaller than the marginal one, the distribution of mice has a ceiling or a floor in it, and the conditional effect is a statement about a mouse that is atypical in the way that matters. The mistake to avoid is to report the odds ratio of a logistic model with levels as "the effect of KO on the probability" without saying *for which mouse*.
+:::
+
+Which of the five should a paper report? I would report the marginal difference, as the headline, because it answers the question a reader is likely to ask (*what fraction of attempts does a KO mouse fail that a wild-type mouse does not?*), and give the odds ratio for the typical mouse as the model coefficient, labelled as conditional. The two sentences are in the reporting box at the end of the chapter.
+
+```{r}
+# The day of training: does the probability of completing change across the three days?
+dr_wd <- as_draws_df(fit_wire_logit_day)
+```
+
+One more question the model with levels can answer, which the beta-binomial could not. The nine attempts are three days of three, and mice practice. The model above treats them as exchangeable. Adding the day as a predictor gives a day coefficient of `r summ(dr_wd$b_day_c)` on the log-odds scale per day, so I see no evidence of a change in the probability of *completing* an attempt across the three days, and the spread between mice is `r summ(dr_wd$sd_mouse__Intercept, 1)`, unchanged. The practice shows in how fast the mice cross, not in whether they do, and that is the subject of the next section.
+
+```{r}
+# Predictive check for new mice: can the fitted population of mice generate the observed spread of counts?
+new_att <- attempts
+new_att$mouse <- factor(paste0("new_", attempts$mouse))
+set.seed(1)
+yrep_wire <- posterior_predict(fit_wire_logit, newdata = new_att, allow_new_levels = TRUE,
+                               sample_new_levels = "gaussian", ndraws = 1000)
+band_new <- count_band(yrep_wire, new_att$mouse, "Logistic with levels")
+```
+
+```{r}
+#| label: fig-glmm_wire_ppc
+#| fig-cap: Number of mice with each number of completed attempts (bars) against the range the logistic model with levels expects for a new sample of 63 mice (points and lines are the median and 95% predictive interval).
+#| fig-alt: Grey bars of the observed counts, with a tall bar at 9, and blue points with vertical lines covering the bars at every count, including the perfect scores.
+#| fig-width: 6.5
+#| fig-height: 3.6
+#| warning: false
+
+# Observed counts against the band for new mice
+ggplot(band_new, aes(x = k)) +
+  geom_col(data = observed_counts, aes(y = n), fill = "grey80", width = 0.7) +
+  geom_pointrange(aes(y = mid, ymin = lo, ymax = hi), color = "#0072B2", size = 0.4) +
+  scale_x_continuous(breaks = 0:9) +
+  labs(x = "Completed attempts out of 9", y = "Number of mice") +
+  Plot_theme
+```
+
+The check of @fig-glmm_wire_ppc is the one of @fig-beta_ppc_counts_both, with a twist that matters. A model with a varying intercept can reproduce the 63 mice we have trivially, because each mouse has its own parameter; the fair question is whether the *distribution* of mice that the model has learned can generate a sample that looks like the real one. So the replicated datasets are for 63 *new* mice, drawn from the fitted spread. The band covers the bars, the perfect scores included, which is what the binomial could not do and what the beta-binomial could. The two families that describe the mouse-to-mouse spread agree here too.
+
+::: {.callout-tip title="Frequentist equivalent"}
+`glmmTMB` agrees with `brms` that the mice differ a lot and that the genotype effect on the typical mouse is negative, but it gets there with less stability. Its estimate of the spread between mice is `r round(attr(VarCorr(glmm_wire)$cond$mouse, "stddev"), 1)` and its intercept is `r round(fixef(glmm_wire)$cond["(Intercept)"], 1)` on the logit scale, where the posterior medians are `r round(median(sd_m), 1)` and `r round(median(dr_w$b_Intercept), 1)`: with most mice at the ceiling, the likelihood is nearly flat in the direction of "a bigger spread and a higher typical probability", and a maximum-likelihood fit drifts along it, with a Wald standard error for the intercept of `r round(summary(glmm_wire)$coefficients$cond["(Intercept)", "Std. Error"], 1)`. The prior on the spread is doing something practical here, not a philosophical one, and the sensitivity table in the section on few groups says how much. The maximum-likelihood coefficient for genotype is `r round(fixef(glmm_wire)$cond["genotypeKO"], 2)` against the posterior median `r round(median(dr_w$b_genotypeKO), 2)`.
+:::
+
+## Repairing the crossing times {#sec-glmm-wire-t}
+
+The second debt. The Student-*t* of @sec-beta-robust-regression, on the log of the crossing time of every completed attempt, gave an interval for genotype that I said was too narrow, because it counted `r nrow(crossings)` attempts as independent and they came from `r nlevels(crossings$mouse)` mice. The repair is a varying intercept for each mouse, and the question that makes the repair informative, as in @sec-multilevel-varying-intercepts, is *which* comparisons it changes and in which direction. Genotype is a property of the mouse: it varies between mice, so I expect the interval to widen. The day of training varies within every mouse (each mouse was tested on all three days), so I expect it to narrow, because each mouse is compared with itself.
+
+```{r}
+#| label: fit-wire-t
+
+# Student-t on log crossing time, ignoring mice (the model of the chapter on behavior)
+fit_wire_t <- brm(
+  log_wire ~ genotype + day_c + attempt_c,
+  data = crossings, family = student(), prior = prior_wire_t,
+  chains = 4, cores = 4, seed = 123,
+  file = "models/multilevel-glmm_fit17.rds", file_refit = "never"
+)
+
+# The same with a varying intercept for each mouse
+fit_wire_t_ml <- brm(
+  log_wire ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = crossings, family = student(), prior = prior_wire_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ml_control,
+  file = "models/multilevel-glmm_fit18.rds", file_refit = "never"
+)
+
+# Without the impossible record
+fit_wire_t_ml_clean <- brm(
+  log_wire ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = crossings_clean, family = student(), prior = prior_wire_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ml_control,
+  file = "models/multilevel-glmm_fit19.rds", file_refit = "never"
+)
+```
+
+I keep the `r nrow(crossings)` attempts of the chapter on behavior, including the one record whose total time is shorter than its time to get into position (mouse KO122, day 3): the Student-*t* absorbs it, as it did there, and a refit without that record is in the table below so that you can see what the decision cost. The priors are those of that chapter, plus an Exponential(3) for the spread between mice (a mean of a third on the log scale, about a 40% difference in crossing time per standard deviation).
+
+::: panel-tabset
+### brms
+
+```{r}
+# Population effects, spread between mice, residual scale and degrees of freedom
+summary(fit_wire_t_ml)
+```
+
+### glmmTMB
+
+```{r}
+# The same model by maximum likelihood (Student-t with a varying intercept for each mouse)
+glmm_wire_t <- glmmTMB(log_wire ~ genotype + day_c + attempt_c + (1 | mouse), family = t_family(), data = crossings)
+summary(glmm_wire_t)
+```
+:::
+
+```{r}
+# Posterior draws, and the intraclass correlation (the variance of a Student-t is sigma^2 * nu / (nu - 2))
+dr_t0 <- as_draws_df(fit_wire_t)
+dr_t1 <- as_draws_df(fit_wire_t_ml)
+dr_t2 <- as_draws_df(fit_wire_t_ml_clean)
+ok_nu <- dr_t1$nu > 2
+icc_t <- with(dr_t1[ok_nu, ], sd_mouse__Intercept^2 / (sd_mouse__Intercept^2 + sigma^2 * nu / (nu - 2)))
+
+# Effects as time ratios (genotype) and as time ratios per day, from the three fits
+t_df <- rbind(
+  data.frame(model = "Attempts independent", effect = "Genotype (KO against wild type), between mice", ratio = exp(dr_t0$b_genotypeKO)),
+  data.frame(model = "Mouse as a level", effect = "Genotype (KO against wild type), between mice", ratio = exp(dr_t1$b_genotypeKO)),
+  data.frame(model = "Mouse as a level, without KO122 day 3", effect = "Genotype (KO against wild type), between mice", ratio = exp(dr_t2$b_genotypeKO)),
+  data.frame(model = "Attempts independent", effect = "One more day of training, within mice", ratio = exp(dr_t0$b_day_c)),
+  data.frame(model = "Mouse as a level", effect = "One more day of training, within mice", ratio = exp(dr_t1$b_day_c)),
+  data.frame(model = "Mouse as a level, without KO122 day 3", effect = "One more day of training, within mice", ratio = exp(dr_t2$b_day_c))
+)
+t_df$model <- factor(t_df$model, levels = rev(c("Attempts independent", "Mouse as a level", "Mouse as a level, without KO122 day 3")))
+```
+
+```{r}
+#| label: fig-glmm_t_compare
+#| fig-cap: Effects on the crossing time as ratios of times, from the Student-t model that treats attempts as independent, the same model with a varying intercept for each mouse, and that model without the impossible record. Top, genotype (varies between mice). Bottom, one more day of training (varies within mice). Points are posterior medians; bars are 50% and 95% credible intervals.
+#| fig-alt: Two panels. In the top one the genotype ratio is about 1.3 in all three fits, but the interval of the independent model is narrow and those with a mouse level are about twice as wide. In the bottom one the ratio per day is about 0.79, and the intervals with a mouse level are narrower than the independent one.
+#| fig-width: 8
+#| fig-height: 4
+#| warning: false
+
+# Point and interval for each effect under the three fits
+ggplot(t_df, aes(x = ratio, y = model)) +
+  stat_pointinterval(.width = c(0.5, 0.95), point_size = 2.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  facet_wrap(~ effect, ncol = 1, scales = "free_x") +
+  labs(x = "Ratio of crossing times (1 = no change)", y = NULL) +
+  Plot_theme +
+  theme(strip.text = element_text(size = 11, face = "bold"))
+```
+
+I drew @fig-glmm_t_compare as intervals on adjacent rows for the same reason as in @sec-multilevel-varying-intercepts: the point estimates barely move, and the *width* is the result. The genotype ratio is `r summ(exp(dr_t0$b_genotypeKO))` when the attempts are treated as independent and `r summ(exp(dr_t1$b_genotypeKO))` with the mouse as a level: the interval is `r round(wid(exp(dr_t1$b_genotypeKO)) / wid(exp(dr_t0$b_genotypeKO)), 1)` times as wide, which is what the chapter on behavior predicted and what the design effect said it should be. The practice effect goes the other way: `r summ(exp(dr_t0$b_day_c))` per day without the mouse and `r summ(exp(dr_t1$b_day_c))` with it, an interval `r round(wid(exp(dr_t1$b_day_c)) / wid(exp(dr_t0$b_day_c)), 2)` times as wide, which is to say narrower, because every mouse supplies its own comparison across days. The impossible record changes neither of them noticeably (`r summ(exp(dr_t2$b_genotypeKO))` for genotype without it).
+
+::: {.callout-tip title="How to read this figure"}
+Read a panel row by row, from top to bottom, and keep your eye on the dashed line at 1. The centers of the three rows should be close; if they are not, the structure is changing the answer, not only its precision. Then compare the lengths of the bars: a longer interval in the genotype panel and a shorter one in the day panel is exactly the signature of a varying intercept at work, wider where the comparison is *between* groups and narrower where it is *within* them. The mistake to avoid is to prefer the narrow interval of the first row because it looks more decisive.
+:::
+
+How much of the variation in crossing time is between mice? On the log scale the standard deviation between mice is `r summ(dr_t1$sd_mouse__Intercept)` and the intraclass correlation (with the variance of a Student-*t* for the residual) is `r summ(icc_t, 2)`: about `r round(100 * median(icc_t))`% of the variance of the log crossing time is between mice, in the neighborhood of the 35% that the chapter on behavior estimated from a Gaussian model. A mouse is fast or slow, and its crossings are more like each other than like those of another mouse. The effect of genotype is thus a statement about `r nlevels(crossings$mouse)` mice, not `r nrow(crossings)` attempts, and the model with the mouse as a level is the one that says so. The model of the previous chapter that lets each mouse have its own *practice* slope (@sec-multilevel-varying-slopes) is the next step in the same direction, and I do not repeat it.
+
+::: {.callout-tip title="Frequentist equivalent"}
+`glmmTMB` with a Student-*t* family agrees with `brms`: the genotype coefficient is `r round(fixef(glmm_wire_t)$cond["genotypeKO"], 2)` with a standard error of `r round(summary(glmm_wire_t)$coefficients$cond["genotypeKO", "Std. Error"], 3)` against a posterior median of `r round(median(dr_t1$b_genotypeKO), 2)` and a posterior standard deviation of `r round(sd(dr_t1$b_genotypeKO), 3)`, and the spread between mice is `r round(attr(VarCorr(glmm_wire_t)$cond$mouse, "stddev"), 2)` against `r round(median(dr_t1$sd_mouse__Intercept), 2)`. With 63 mice and 8 attempts each, the likelihood does the work and the weakly informative priors barely matter, so the two fits are numerically close. What `brms` adds is a whole posterior for the degrees of freedom $\nu$, which here is `r summ(dr_t1$nu, 0)`: the data say little about the tails.
+:::
+
+## How many groups is enough? {#sec-glmm-fewgroups}
+
+The opener said that a multilevel model needs enough groups, not just enough rows, and promised that the neurons would show it. I have been using `r nlevels(spk$patient)` patients. @sec-count-regression used three, and the models above can be refit with three, the same priors and the same code, to see what it does to the spread between patients.
+
+```{r}
+#| label: fit-spk-3pat
+
+# Three patients only: the model of fit_spk_ml, to see what a spread between patients looks like with three
+fit_spk_3pat <- brm(
+  spikes ~ load_f + offset(log(window_s)) + (1 | patient) + (1 | neuron),
+  data = spk3, family = negbinomial(), prior = prior_spk,
+  chains = 4, cores = 4, threads = threading(4), seed = 123, init = 0,
+  iter = 4000, control = list(metric = "dense_e", adapt_delta = 0.99),
+  file = "models/multilevel-glmm_fit5.rds", file_refit = "never"
+)
+fit_spk_3pat_narrow <- brm(
+  spikes ~ load_f + offset(log(window_s)) + (1 | patient) + (1 | neuron),
+  data = spk3, family = negbinomial(), prior = prior_spk_narrow,
+  chains = 4, cores = 4, threads = threading(4), seed = 123, init = 0,
+  iter = 4000, control = list(metric = "dense_e", adapt_delta = 0.99),
+  file = "models/multilevel-glmm_fit6.rds", file_refit = "never"
+)
+fit_spk_3pat_wide <- brm(
+  spikes ~ load_f + offset(log(window_s)) + (1 | patient) + (1 | neuron),
+  data = spk3, family = negbinomial(), prior = prior_spk_wide,
+  chains = 4, cores = 4, threads = threading(4), seed = 123, init = 0,
+  iter = 4000, control = list(metric = "dense_e", adapt_delta = 0.99),
+  file = "models/multilevel-glmm_fit7.rds", file_refit = "never"
+)
+```
+
+# Spread between patients: posterior with three patients and with sixteen, under the prior of the chapter
+dr_3 <- as_draws_df(fit_spk_3pat)
+glmm_3pat <- glmmTMB(spikes ~ load_f + offset(log(window_s)) + (1 | patient) + (1 | neuron), family = nbinom2, data = spk3)
+ci_3pat <- confint(glmm_3pat, parm = "theta_")
+few_df <- rbind(data.frame(data = "3 patients", tau = dr_3$sd_patient__Intercept),
+                data.frame(data = "16 patients", tau = dr_ml$sd_patient__Intercept))
+few_df$data <- factor(few_df$data, levels = c("3 patients", "16 patients"))
+```
+
+```{r}
+#| label: fig-glmm_fewgroups
+#| fig-cap: Posterior of the spread between patients (standard deviation of the patient intercepts, log scale) with three patients and with sixteen, under the Exponential(2) prior (dashed). With three groups the data hardly move the prior; with sixteen they pin it down.
+#| fig-alt: Two stacked density plots on a horizontal axis from 0 to 3. The upper one, for three patients, is broad and similar in shape to the dashed exponential prior curve, with a long right tail. The lower one, for sixteen patients, is narrow and peaked near 0.75.
+#| fig-width: 7
+#| fig-height: 4.4
+#| warning: false
+
+# Posterior density of the patient spread, one panel per number of patients, with the prior dashed
+ggplot(few_df, aes(x = tau)) +
+  geom_density(fill = "#0072B2", alpha = 0.4, color = "#0072B2") +
+  stat_function(fun = dexp, args = list(rate = 2), linetype = "dashed", color = "grey40") +
+  facet_wrap(~ data, ncol = 1, scales = "free_y") +
+  coord_cartesian(xlim = c(0, 3)) +
+  labs(x = "Spread between patients (log scale)", y = "Density") +
+  Plot_theme +
+  theme(strip.text = element_text(size = 11, face = "bold"))
+```
+
+I drew @fig-glmm_fewgroups with the prior as a dashed line so that the reader can see the thing that matters for few groups, which is *how much the data moved the prior*. With three patients the posterior for the spread between patients is `r summ(dr_3$sd_patient__Intercept)` (a long tail to the right, and a shape that is close to the prior's); with `r nlevels(spk$patient)` patients it is `r summ(dr_ml$sd_patient__Intercept)`, `r round(wid(dr_3$sd_patient__Intercept) / wid(dr_ml$sd_patient__Intercept), 0)` times narrower. Three patients are three data points for $\tau_{\text{patient}}$, however many neurons each has, and the spread between neurons is the same in both: `r summ(dr_3$sd_neuron__Intercept)` with three patients, `r summ(dr_ml$sd_neuron__Intercept)` with sixteen, because there are 59 and 190 neurons to say it. A maximum-likelihood fit does not warn you in a case like this one: `glmmTMB` returns `r round(attr(VarCorr(glmm_3pat)$cond$patient, "stddev"), 2)` for the three patients, a reasonable-looking number, and only if you ask for an interval does it say `r round(ci_3pat[1, 1], 2)` to `r round(ci_3pat[1, 2], 2)`. (With a still smaller number of groups, the usual symptom is an estimate of exactly zero and a warning of a singular fit, which is what @sec-multilevel-varying-slopes showed with a varying slope.) <!-- NLM-pending, query 6: how many groups are needed to estimate a group-level standard deviation and what the books advise with three or four; check the numbers quoted from Inchausti in the opener and add the textbook statement. -->
+
+The remedy is not a cleverer model. It is more groups, or an honest statement of what three groups can tell you. A prior can help a little, by ruling out absurd spreads, and it can also dominate, so I check how much it does (@tbl-glmm_prior_sens): the same model with a narrow and a wide prior on the spreads (Exponential(5) and Exponential(0.5), against the Exponential(2) used), for the three patients, and the wire model with its own three. (I did not refit the 16-patient model under the other priors: each such fit takes about an hour, and with sixteen patients the posterior in the figure above is already far from its prior.)
+
+```{r}
+# One row per fit: spread between patients (or mice), spread between neurons, and the effect of interest
+sens_row <- function(fit, label, data, par, effect) {
+  d <- as_draws_df(fit)
+  has_pat <- "sd_patient__Intercept" %in% names(d)
+  data.frame(Data = data, Prior = label,
+             `Spread between patients (log scale)` = if (has_pat) summ(d$sd_patient__Intercept) else NA,
+             `Spread between neurons or mice` = summ(if (has_pat) d$sd_neuron__Intercept else d$sd_mouse__Intercept, 2),
+             `Effect of interest` = effect(d[[par]]), check.names = FALSE)
+}
+rr_text <- function(x) summ(exp(x), 3)
+or_text <- function(x) summ(x, 2)
+
+sens_tab <- rbind(
+  sens_row(fit_spk_3pat_narrow, "Exponential(5), narrow", "Spikes, 3 patients", "b_load_f3", rr_text),
+  sens_row(fit_spk_3pat, "Exponential(2), used", "Spikes, 3 patients", "b_load_f3", rr_text),
+  sens_row(fit_spk_3pat_wide, "Exponential(0.5), wide", "Spikes, 3 patients", "b_load_f3", rr_text),
+  sens_row(fit_spk_ml, "Exponential(2), used", "Spikes, 16 patients", "b_load_f3", rr_text),
+  sens_row(fit_wire_logit_narrow, "Exponential(2), narrow", "Wire, 63 mice", "b_genotypeKO", or_text),
+  sens_row(fit_wire_logit, "Exponential(0.5), used", "Wire, 63 mice", "b_genotypeKO", or_text),
+  sens_row(fit_wire_logit_wide, "Exponential(0.2), wide", "Wire, 63 mice", "b_genotypeKO", or_text)
+)
+```
+
+```{r}
+#| label: tbl-glmm_prior_sens
+#| tbl-cap: Sensitivity of the group-level spreads and of the effect of interest to the prior on the spreads (posterior median and 95% credible interval). The effect is the rate ratio for three pictures against one (spikes) or the log-odds coefficient of KO (wire, typical mouse).
+
+gt(sens_tab) |>
+  sub_missing(missing_text = "") |>
+  tab_options(table.font.size = "small")
+```
+
+@tbl-glmm_prior_sens answers in two parts, the usual way. The effects of interest barely move with the prior, with three patients: load is a within-neuron comparison and the data are plentiful. The spread between *patients* is where the prior is heard: with three patients the median runs from `r summ(as_draws_df(fit_spk_3pat_narrow)$sd_patient__Intercept, 2)` under the narrow prior to `r summ(as_draws_df(fit_spk_3pat_wide)$sd_patient__Intercept, 2)` under the wide one, a difference that the data cannot adjudicate.. For the wire, the spread between mice is `r summ(as_draws_df(fit_wire_logit_narrow)$sd_mouse__Intercept, 1)` under the narrow prior and `r summ(as_draws_df(fit_wire_logit_wide)$sd_mouse__Intercept, 1)` under the wide one: with most mice at the ceiling, the nine attempts say little about how far above it the best mice really are, and the prior shows. The sentence for a paper writes itself: *the spread between patients was estimated from three patients, and its posterior was close to its prior; the conclusions about load did not depend on it.*
+
+## Can we trust the sampling? {#sec-glmm-sampler}
+
+This chapter fitted seventeen `brms` models that matter for the argument (plus a few prior-only ones), and the heavy ones were slow for a reason I should name. A varying intercept per neuron, with `r format(nrow(spk), big.mark = ",")` rows and `r nlevels(spk$neuron)` neurons each informed by about 130 trials, is the kind of model for which the non-centered parametrization that `brms` uses by default is not the most efficient: when every group is very well determined by its own data, the standardized deviations and the spread are strongly correlated, and the sampler needs long trajectories to cross the ridge (@sec-mcmc-model-checking explains the funnel from the other side). I did not change the parametrization, because `brms` does not expose a choice; I gave the chains more iterations and more time instead, which is what a heavy fit costs. The table checks the same three conditions as everywhere in the book (Rhat below 1.01, both effective sample sizes above 400, no divergent transitions) for every model of the chapter (@tbl-glmm_mcmc).
+
+
+```{r}
+#| label: tbl-glmm_mcmc
+#| tbl-cap: MCMC diagnostics for every model fitted in this chapter (Rhat below 1.01, effective sample sizes above 400, no divergences).
+
+# mcmc_check() reports Rhat, effective sample sizes and divergences per model
+source("functions/mcmc_check.R")
+glmm_checks <- mcmc_check(list(
+  "Spikes, neurons ignored" = fit_spk_pooled,
+  "Spikes, patients and neurons" = fit_spk_ml,
+  "Spikes, varying slope of load" = fit_spk_slope,
+  "Spikes, 3 patients" = fit_spk_3pat,
+  "Spikes, 3 patients, narrow prior" = fit_spk_3pat_narrow,
+  "Spikes, 3 patients, wide prior" = fit_spk_3pat_wide,
+  "Hemisphere, neurons ignored" = fit_hemi_pooled,
+  "Hemisphere, patients and neurons" = fit_hemi_ml,
+  "NeuN counts, negative binomial" = fit_neun_nb,
+  "Wire, logistic, mice ignored" = fit_wire_pooled,
+  "Wire, logistic with mice" = fit_wire_logit,
+  "Wire, logistic with mice and day" = fit_wire_logit_day,
+  "Wire, logistic, narrow prior" = fit_wire_logit_narrow,
+  "Wire, logistic, wide prior" = fit_wire_logit_wide,
+  "Wire times, mice ignored" = fit_wire_t,
+  "Wire times with mice" = fit_wire_t_ml,
+  "Wire times with mice, without KO122 day 3" = fit_wire_t_ml_clean
+))
+# Stop the render if any model fails a check
+stopifnot(all(glmm_checks$ok))
+
+gt(glmm_checks) |>
+  fmt_number(columns = max_rhat, decimals = 3) |>
+  fmt_number(columns = c(min_ess_bulk, min_ess_tail), decimals = 0)
+```
+
+All `r nrow(glmm_checks)` pass: the worst Rhat is `r sprintf("%.3f", max(glmm_checks$max_rhat))`, the smallest effective sample size is `r round(min(glmm_checks$min_ess_bulk, glmm_checks$min_ess_tail))` and there are `r sum(glmm_checks$divergences)` divergent transitions in total. They did not all pass the first time, and the failures are instructive. My first fit of the model with patients and neurons used the defaults, and it had 43 divergent transitions, an Rhat of 1.013 and an effective sample size of 190 for the spread between patients: the two levels were competing to explain the same differences between neurons, and with 16 patients the spread between them is the weakest-identified parameter of the model. Raising `adapt_delta` to 0.95 and using a dense mass matrix repaired it, and I refit; the first NeuN count model needed 0.99. I kept the heavy fits at 2,000 iterations, which was enough once the geometry was handled, and I did not trust a posterior with divergences, as @sec-mcmc-model-checking asks.
+
+## Reporting the results {#sec-glmm-report}
+
+I give the two sentences for each of the two analyses: the one for the neurons and the one for the wire. In both I keep the two readings apart (conditional and marginal), because it is the habit of this chapter that matters most to carry out of it.
+
+::: {.callout-note title="How to report it: the neurons"}
+**Results.** In `r nlevels(spk$neuron)` hippocampal neurons of `r nlevels(spk$patient)` patients (`r format(nrow(spk), big.mark = ",")` neuron-trials), the firing rate of a typical neuron changed by a factor of `r summ(ratio_typical, 3)` for each additional picture held in memory (rate ratio; posterior median and 95% credible interval; conditional on a neuron with zero deviation). The ratio of the population-average rates was `r summ(ratio_means, 3)`. A typical neuron fired at `r summ(rate_typical(0), 1)` spikes per second with one picture and the average neuron of the population at `r summ(rate_average(0), 1)`; from one to three pictures the average rate changed by `r summ(rate_average(2) - rate_average(0), 2)` spikes per second. Neurons differed little in their response (standard deviation of the slopes `r summ(tau_s, 3)` on the log scale per picture) compared with their baselines (`r summ(tau_u, 2)`); `r round(100 * median(share_neuron))`% of the variance of the log rate lay between neurons of the same patient and `r round(100 * median(icc_patient))`% between patients (latent scale). Left-hemisphere neurons fired at `r summ(exp(dr_hm$b_hemileft), 2)` times the rate of right-hemisphere neurons (a comparison between neurons and patients).
+
+**Methods.** Spike counts in the encoding window were modeled with a negative binomial likelihood, a log link and the log of the window length as an offset, with a varying intercept for patient and a varying intercept and slope of load (number of pictures beyond the first) for each neuron, correlated. Priors were Normal(0.5, 1.5) for the intercept, Normal(0, 0.5) for the load coefficient, InvGamma(0.4, 0.3) for the shape, Exponential(2) for the spreads of the baselines, Exponential(4) for the spread of the slopes and LKJ(2) for their correlation. Four chains of 2,000 iterations (dense mass matrix, `adapt_delta` 0.95) gave Rhat below 1.01, effective sample sizes above 400 and no divergent transitions. Marginal quantities average over the fitted distribution of neurons and patients. The spread between patients was estimated from 16 patients; with three it was close to its prior.
+:::
+
+::: {.callout-note title="How to report it: the wire"}
+**Results.** Across `r nlevels(attempts$mouse)` mice (`r sum(wire_counts$genotype == "WT")` wild type, `r sum(wire_counts$genotype == "KO")` Klf4-KO) and `r nrow(attempts)` attempts, KO mice completed `r summ(abs(population_pp), 0)` percentage points fewer attempts than wild types (marginal difference, averaged over the population of mice; posterior median and 95% credible interval). For a typical mouse the odds of completing an attempt were multiplied by `r summ(exp(dr_w$b_genotypeKO), 2)` (conditional odds ratio), a smaller change on the probability scale (`r summ(abs(typical_pp), 1)` points) because typical mice were near the ceiling. Mice differed greatly (standard deviation of the mouse intercepts `r summ(sd_m, 1)` on the log-odds scale; correlation between two attempts of one mouse `r summ(icc_wt, 2)` on the observed scale in wild types). When completed, crossings took `r summ(100 * (exp(dr_t1$b_genotypeKO) - 1), 0)`% longer in KO mice (ratio of times conditional on mouse, day and attempt); `r round(100 * median(icc_t))`% of the variance of the log time was between mice, and the interval for genotype was `r round(wid(exp(dr_t1$b_genotypeKO)) / wid(exp(dr_t0$b_genotypeKO)), 1)` times as wide as when attempts were treated as independent.
+
+**Methods.** Completion was modeled with a logistic model for each attempt with a varying intercept for mouse (priors Normal(2, 1.5) for the intercept, Normal(0, 1.5) for genotype, Exponential(0.5) for the spread of mice) and crossing time with a Student-*t* model for the log time with the same structure (Exponential(3) for the spread of mice). Four chains of 4,000 iterations (`adapt_delta` 0.95) met the sampler criteria. Marginal differences averaged the probability over the fitted distribution of mice; the conditional odds ratio refers to a mouse with zero deviation. The spread of mice was sensitive to its prior (@tbl-glmm_prior_sens), the genotype effect much less. One record with a total time shorter than its time to get into position was kept; removing it changed nothing.
+:::
+
+The two readings of one effect are the part of these paragraphs I would not let a coauthor delete. A reader who sees only "the odds ratio was 0.2" will picture a mouse that does not exist.
+
+## What the chapter settled, and what comes next {#sec-glmm-close}
+
+We started with a colleague's hand in the air and a debt. The hand asked whether a flat average was hiding neurons that speed up and neurons that slow down. The answer, with 190 neurons from 16 patients, is that the neurons do differ in their response, by a few percent per picture (@fig-glmm_slopes), against baselines that differ a hundredfold, and that most of the apparent spread of the raw slopes was the counting noise of single neurons. The debt was two intervals that were too narrow. The Student-*t* for the crossing times, with the mouse as a level, now has an interval for genotype about twice as wide, and a narrower one for the practice effect (@fig-glmm_t_compare); and the pooled hemisphere comparison that looked decisive for the spikes turned out to have far less evidence behind it than its 24,462 rows suggested (@fig-glmm_hemi). The promise of the first multilevel chapter, the NeuN counts with an area offset, came out in agreement with the log-Gaussian model (@fig-glmm_neun).
+
+Four ideas are worth carrying out of the chapter. The family and the structure are two dials, and moving one does not change what the other means (@tbl-glmm_map). In a model with a log or a logit link the coefficient is a *conditional* effect, for a neuron or a mouse at the typical value of its deviation, and what a paper usually means is a *marginal* one, averaged over the population: for ratios and a small spread they nearly agree, and for probabilities near a ceiling they are far apart (@fig-glmm_spk_marginal, @fig-glmm_wire_marginal). A logistic model with a varying intercept and a beta-binomial are two descriptions of one overdispersion, and a correlation reported without its scale (latent or observed) cannot be checked against the data (@fig-glmm_rho). And what you want to predict, a new trial, a new neuron or a new patient, decides the cross-validation that is honest, and the width of the interval you should expect (@tbl-glmm_questions, @fig-glmm_ladder).
+
+I leave three things open. A response to load that is not a straight line on the log scale, a neuron that rises with the second picture and falls with the third, is not something a single slope can see; the factor version of the varying effect would, and the data per neuron are thin for it. The outcomes of the wire and of the open field are still treated as if the days were exchangeable or independent, which is false in the way that time makes it false. And a model for *graded* outcomes, where the categories have an order, is a family this book has not met. The next chapters take these up in turn: the ordered and unordered categories of neurological deficit (@sec-ordinal-nominal-regression), the variance that has been a single $\sigma$ so far (@sec-multivariate-distributional-regression), and the animals followed through time, the open-field mice on six days and the full course of the glial scar, where observations close in time resemble each other (@sec-longitudinal-timeseries).
