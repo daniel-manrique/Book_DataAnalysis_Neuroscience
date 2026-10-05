@@ -5,4 +5,1664 @@ subtitle: Multivariate and distributional regression
 
 # Modeling two markers and their spread together {#sec-multivariate-distributional-regression}
 
-<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->
+```{r}
+#| include: false
+
+library(ggplot2)
+library(here)
+library(brms)
+library(posterior)
+library(ggdist)
+library(patchwork)
+library(glmmTMB)
+library(nlme)
+library(gt)
+
+# The book's shared plot theme (this also loads the legend helpers)
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
+
+# One row per fitted model: worst Rhat, smallest effective sample sizes, divergences
+source("functions/mcmc_check.R")
+
+# Okabe-Ito colors: one per day after ischemia, the same in every figure of the chapter
+col_day <- c("0" = "#000000", "3" = "#E69F00", "7" = "#56B4E9", "14" = "#009E73", "30" = "#D55E00")
+
+# Sampler settings for the fits of this chapter
+ctrl <- list(adapt_delta = 0.95)
+
+# Number with a fixed count of decimals (so 3.0 does not print as 3)
+fx <- function(v, digits = 2) formatC(v, format = "f", digits = digits)
+
+# Median and 95% credible interval of a vector of draws, as text for the prose
+qi <- function(x, digits = 2) {
+  q <- unname(quantile(x, c(0.5, 0.025, 0.975)))
+  sprintf("%s (95%% credible interval %s to %s)", fx(q[1], digits), fx(q[2], digits), fx(q[3], digits))
+}
+
+# The same, in the short form "median [lower, upper]" for tables and tight sentences
+qs <- function(x, digits = 2) {
+  q <- unname(quantile(x, c(0.5, 0.025, 0.975)))
+  sprintf("%s [%s, %s]", fx(q[1], digits), fx(q[2], digits), fx(q[3], digits))
+}
+
+# Percentage, rounded
+pct <- function(p, digits = 0) sprintf(paste0("%.", digits, "f%%"), 100 * p)
+
+# A posterior probability as text, without claiming certainty (">99%" instead of "100%")
+pct_prob <- function(p) if (p > 0.995) ">99%" else if (p < 0.005) "<1%" else pct(p)
+
+# The cell data: one row per animal, day as a category (SHAM first, so it is the reference level)
+cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+cell_data$DPI_f <- factor(cell_data$DPI, levels = c(0, 3, 7, 14, 30))
+cell_data$Condition <- factor(cell_data$Condition, levels = c("SHAM", "MCAO"))
+
+# Logarithm of the two markers, used from the section on two markers onward
+cell_data$lgfap <- log(cell_data$Gfap_IntDen)
+cell_data$lpdgfr <- log(cell_data$Pdgfrb_IntDen)
+
+# Animals per day, used in the text
+n_day <- table(cell_data$DPI_f)
+stopifnot(nrow(cell_data) == 49, all(n_day == c(7, 8, 11, 12, 11)))
+```
+
+
+Every model in this book so far has been a story about the *middle*. Where does the tissue area sit at day 7? By how much does GFAP rise between day 0 and day 3? The spread of the animals around that middle was a single number, the `sigma` that `lm()` and `brm()` hand you at the bottom of the summary, or it was something a family decided for us. I kept pushing that number to the back of the page, and I told you each time that it would come back. This is the chapter where it does.
+
+The question that brings it back is one you would ask at the bench before you ever opened R: **after ischemia, do the animals simply shift, or do they also scatter?** Those are different findings. If every animal moves by the same amount, the group average moves and the group gets no wider. If the injury hits some animals hard and others lightly, the average moves *and* the animals fan out, and that fanning is a result about the biology (how reproducible the lesion is, how variable the response of the glia) that a table of means cannot carry. A model that gives the spread no formula of its own cannot even ask the question.
+
+Let me show you the numbers that started this. @fig-mvdr_spread plots every one of the `r nrow(cell_data)` animals by day, for two outcomes you know well by now: the tissue area of the section, and the integrated density of GFAP. The grey bar on each day is the mean plus and minus the single standard deviation that a model with one `sigma` believes for every day. The orange bar is the mean plus and minus the standard deviation the day actually shows. Where the two bars have the same length, one `sigma` is honest. Where they differ, it is not.
+
+```{r}
+#| label: fig-mvdr_spread
+#| fig-cap: "Every animal by day for tissue area and GFAP integrated density. Grey bars: mean plus and minus the one standard deviation that a model with an equal spread assumes for every day. Orange bars: mean plus and minus the standard deviation of the day itself. Circles are ischemic animals, triangles are shams (all at day 0)."
+#| fig-alt: "Two panels with the days 0, 3, 7, 14 and 30 on the horizontal axis. In the tissue area panel, the orange bar at day 3 is about three times longer than the grey bar, while at days 0, 7 and 14 the orange bars are shorter than the grey ones. In the GFAP panel, the orange bar at day 0 is a small fraction of the grey bar, and from day 7 onward the orange bars are similar to or longer than the grey ones. Points are spread around the day means."
+#| fig-width: 10
+#| fig-height: 4.6
+#| warning: false
+
+# The two outcomes in one long table, with the animal's day and condition
+spread_long <- rbind(
+  data.frame(outcome = "Tissue area (mm²)", DPI_f = cell_data$DPI_f, Condition = cell_data$Condition,
+             y = cell_data$Tissue_Area),
+  data.frame(outcome = "GFAP integrated density", DPI_f = cell_data$DPI_f, Condition = cell_data$Condition,
+             y = cell_data$Gfap_IntDen)
+)
+spread_long$outcome <- factor(spread_long$outcome, levels = c("Tissue area (mm²)", "GFAP integrated density"))
+spread_long$x <- as.numeric(spread_long$DPI_f)
+
+# Per day: the mean, the SD of the day, and the single pooled SD of an equal-spread model
+day_summary <- do.call(rbind, lapply(split(spread_long, spread_long$outcome), function(g) {
+  data.frame(outcome = g$outcome[1], x = seq_along(levels(g$DPI_f)),
+             mean = as.numeric(tapply(g$y, g$DPI_f, mean)), sd_day = as.numeric(tapply(g$y, g$DPI_f, sd)),
+             sd_pooled = sigma(lm(y ~ DPI_f, data = g)))
+}))
+
+# Every animal as a point; grey bar for the single sigma, orange bar for the day's own spread
+ggplot() +
+  geom_linerange(data = day_summary, aes(x = x - 0.28, ymin = mean - sd_pooled, ymax = mean + sd_pooled),
+                 color = "grey55", linewidth = 2.2) +
+  geom_linerange(data = day_summary, aes(x = x + 0.28, ymin = mean - sd_day, ymax = mean + sd_day),
+                 color = "#D55E00", linewidth = 2.2) +
+  geom_jitter(data = spread_long, aes(x = x, y = y, shape = Condition), width = 0.09, height = 0,
+              color = "#0072B2", alpha = 0.7, size = 2.2) +
+  geom_point(data = day_summary, aes(x = x, y = mean), shape = 18, size = 3.5, color = "black") +
+  scale_shape_manual(values = c(SHAM = 17, MCAO = 16)) +
+  scale_x_continuous(breaks = 1:5, labels = levels(cell_data$DPI_f)) +
+  facet_wrap(~outcome, scales = "free_y") +
+  labs(x = "Days post-injury (DPI)", y = NULL, shape = NULL) +
+  Plot_theme + legend_none() +
+  theme(strip.text = element_text(size = 14))
+```
+
+```{r}
+#| include: false
+
+# Numbers quoted in the text: pooled and day SDs of both outcomes
+sd_area_day <- with(day_summary[day_summary$outcome == "Tissue area (mm²)", ], setNames(sd_day, levels(cell_data$DPI_f)))
+sd_gfap_day <- with(day_summary[day_summary$outcome == "GFAP integrated density", ], setNames(sd_day, levels(cell_data$DPI_f)))
+sd_area_pooled <- day_summary$sd_pooled[day_summary$outcome == "Tissue area (mm²)"][1]
+sd_gfap_pooled <- day_summary$sd_pooled[day_summary$outcome == "GFAP integrated density"][1]
+```
+
+This picture is drawn with `ggplot2` (`geom_jitter()` for the animals, `geom_linerange()` for the bars, as in @sec-linear-regression-assumptions) because the argument is about the *spread*, and a spread is only convincing if you can see the animals it is made of. A bar plot of the day means with error whiskers would show you the means moving and hide that the whiskers should have different lengths for different days; a bar with an asterisk would hide it completely. The design tip: when the claim is about variability, draw the variability twice, once as the model believes it and once as the data show it, and let the reader compare the two lengths.
+
+::: {.callout-tip title="How to read this figure"}
+Start with the points: each is one animal, and the black diamond is the mean of its day. Then compare the two bars of each day. A grey bar longer than the orange one means the single `sigma` is too generous for that day (the model would predict animals farther from the mean than any we saw). A grey bar shorter than the orange one means it is too stingy (the model is surprised by animals that are not surprising). Tissue area (left): the day-3 orange bar is about `r round(sd_area_day["3"] / sd_area_pooled, 1)` times the grey one, and the others are shorter than it. GFAP (right): the day-0 orange bar is about `r round(sd_gfap_day["0"] / sd_gfap_pooled, 2)` of the grey one and the bars of days 7 to 30 are about as long or longer. The mistake to avoid is reading a long bar on one day as noise to be averaged away: it is the day telling you something.
+:::
+
+The tissue area of the left panel is spread by about `r round(sd_area_day["3"], 1)` mm² at day 3 and by `r round(min(sd_area_day[c("0", "7", "14", "30")]), 1)` to `r round(max(sd_area_day[c("0", "7", "14", "30")]), 1)` mm² on the other days, against the single `r round(sd_area_pooled, 1)` mm² that an equal-spread model reports. GFAP is the same finding with a different shape: the standard deviation grows from about `r round(sd_gfap_day["0"])` at day 0 to between `r round(min(sd_gfap_day[c("7", "14", "30")]))` and `r round(max(sd_gfap_day[c("7", "14", "30")]))` from day 7 on, while the single `sigma` sits at `r round(sd_gfap_pooled)`. The grey bar of the GFAP panel at day 0 even reaches below zero, which an integrated density cannot do: a first hint that, for this marker, one `sigma` is the wrong kind of statement and not only the wrong size. Two outcomes from the same animals, two different ways in which "the animals scatter" is not constant over time, and both of them were flagged in earlier chapters and left open.
+
+## What the book left open {#sec-mvdr-open}
+
+Several chapters pointed here, and I would rather list them than let you wonder which promises I am keeping. @tbl-mvdr_threads has the five threads, what each asked for, and where this chapter delivers it.
+
+| Where it was left open | The question | Where it is answered |
+|:--------------------|:-----------------------------|:------------------------|
+| @sec-linear-regression-assumptions and @sec-linear-regression-single-continuous | One `sigma` is too small for day 3 and too large for the other days; GFAP spreads about tenfold from day 7. Is day 3 one unusual animal or a wider day, with eight animals? | @sec-mvdr-model to @sec-mvdr-few |
+| @sec-linear-regression-multiple | The posterior predictive check of the spread per day failed (`fig-multiple_ppcheck_sd`), and no predictor could repair it | @sec-mvdr-predict |
+| [The introduction to GLMs](glm-intro.qmd#sec-glm-intro) and @sec-beta-robust-regression | A family ties the variance to the mean; a beta model already gave the precision `phi` its own formula. When is the variance a consequence of the mean, and when a quantity of its own? | @sec-mvdr-implied |
+| [The introduction to exploration](eda-intro.qmd) and @sec-eda-ggpairs | GFAP and PDGFR-β correlate strongly across days, but day drives both (a confounded correlation). What correlation remains once the day is accounted for? | @sec-mvdr-multivariate |
+| @sec-multilevel-varying-slopes | The injury response of the NeuN mice varies from mouse to mouse, but all days shared one spread, so the asymmetry of naive mice and the response of injured ones were mixed | @sec-mvdr-neun |
+
+: The open threads this chapter picks up, and where each is closed. {#tbl-mvdr_threads}
+
+The plan is to take them in that order. First the spread as a quantity with its own formula (distributional regression), applied to tissue area where the problem is one wide day. Then what a small number of animals can and cannot say about a spread. Then the difference between a variance the family implies and one you model, with GFAP. Then the two markers in one model with a correlation between their residuals (multivariate regression). And last a variance with levels, on the NeuN mice of @sec-multilevel-varying-slopes.
+
+![A flock that flies in a tight group on day 0 and fans out by day 7: the center of the flock stays where the birds are heading, and the spread is the new finding.](images/multivariate-distributional-regression_flock-tight-and-spread.png){#fig-mvdr-flock fig-align="center" width="85%" fig-alt="Watercolor sketch in teal and ochre of two panels of birds in flight separated by a faint vertical line. On the left about twenty birds fly in a tight cluster; on the right the same number fly in the same direction but spread over a much larger area. A dashed ochre horizontal line at the same height runs through the center of the flock in both panels."}
+
+@fig-mvdr-flock is the whole chapter in a sketch: the center of the flock can be the same while the spread changes, and then the spread, not the center, is what has changed after the injury.
+
+
+## Giving sigma its own formula {#sec-mvdr-model}
+
+Picture the thermostat of an incubator, with two dials. One sets the temperature you want. The other sets how much the temperature is allowed to wobble around it. Every linear model so far gave us a dial for the temperature of each day and a single, fixed wobble for the whole experiment. A [distributional regression]{style="color:green; font-weight:bold;"} gives the second dial a formula too: the wobble of each day is its own number, and the model estimates the means and the wobbles together. The word "distributional" says what changed in the point of view. We are no longer modeling one summary of the outcome (its mean) but the whole distribution, and a Gaussian has two parameters, so each of them can depend on the predictors.
+
+For tissue area by day, with $i$ an animal and $d[i]$ its day, the model is @eq-mvdr-model.
+
+$$
+\begin{aligned}
+y_i &\sim \text{Normal}(\mu_i,\, \sigma_i), \\
+\mu_i &= \alpha + \beta_{d[i]}, \\
+\log \sigma_i &= \gamma + \delta_{d[i]},
+\end{aligned}
+$$ {#eq-mvdr-model}
+
+where $\beta_0 = \delta_0 = 0$ for the reference day (day 0, the shams), so that $\alpha$ is the mean of the shams and $\gamma$ the logarithm of their standard deviation. The first two lines are the model you know. The third line is the new dial. Two things about it deserve a word before any number.
+
+The first is the logarithm. A standard deviation has to be positive, and a linear predictor can wander to any real number, so the model works on $\log \sigma$ and exponentiates at the end (the same move as the log link of the count models in @sec-count-regression). The second is what that does to the coefficients. On the log scale, adding means multiplying: if $\delta_3 = 0.69$, then $e^{0.69} \approx 2$ and the animals of day 3 are about twice as variable as the shams. So $e^{\delta_d}$ is a [ratio of standard deviations]{style="color:green; font-weight:bold;"}, the quantity that answers "how much more do the animals scatter on day $d$ than at baseline?", and a ratio is the natural way to talk about a spread, because the bench never asks how many mm² wider a spread is, but how many times wider.
+
+In `brms` the second dial is a second formula inside `bf()`: `bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f)`. `DPI_f` is the day as a category, which gives each day its own mean and its own spread, with no straight line imposed (the lesson of @sec-linear-regression-assumptions). Since the two formulas are free to differ, I could model the spread with fewer or other predictors than the mean; here they match because the question is whether each day has its own spread.
+
+### Priors for a spread
+
+A prior for a log standard deviation is easy to get wrong, for the reason the warning in @sec-glm-intro gave for every link scale: a coefficient that looks timid can be enormous once it is exponentiated. So I derive the priors on the outcome scale (the book's way, @sec-priors-regularization). For the mean part I use what the shams taught us in @sec-linear-regression-assumptions, a section of about 14 mm² and changes over the course of the experiment of a few mm², so `Normal(14, 6)` for the intercept and `Normal(0, 5)` for the differences between days. For the shams' spread, `Normal(0, 1)` on the log scale says that the standard deviation of tissue area at baseline is most likely around 1 mm², and plausibly anywhere from `r round(exp(qnorm(0.025)), 2)` to `r round(exp(qnorm(0.975)), 1)` mm². For the *differences* in log spread between a day and the reference, I need to say how different two days' spreads may be before the data speak. @fig-mvdr_prior (left) shows the ratio of standard deviations that three priors allow (and its right panel what the chosen one implies for the tissue area itself): `Normal(0, 0.5)`, `Normal(0, 1)` and `Normal(0, 2)`.
+
+Why a model of the spread and not a transformation? The reasons usually given are three. A logarithm stabilizes a spread that grows with the mean, but it does nothing when two groups have similar means and different spreads (it changes the scale of the means and leaves the difference in spreads where it was); it breaks at zeros; and it hides the spread when the spread is what you want to estimate. This chapter's question is the third. Gelman, Hill and Vehtari show the model of this section, a regression whose residual standard deviation depends on a predictor, fitted with a `brms` formula for `sigma` [@gelman2020]; Inchausti does the same for the dispersion parameters of his ecological models [@inchausti2023]; and McElreath's broader point is that a model is a generative story, so nothing obliges its noise to be constant [@mcelreath2020]. The syntax, a formula for every parameter of the response distribution, comes from `brms` itself [@brms; @burkner2018].
+
+The reason to be strict with the priors is the link-scale trap of @sec-glm-intro in its sharpest form. A coefficient of $\log \sigma$ is added on the log scale and exponentiated, so a `Normal(0, 10)` that looks vague allows a ratio of spreads of $e^{10}$, about 22,000, and puts nearly all of its mass on ratios that no experiment could show. The coefficients of $\log \sigma$ are unbounded real numbers, so they get an ordinary normal prior centered at zero. A standard deviation *itself* is bounded below by zero, and it gets a prior with positive support instead (the exponential of @sec-multilevel-varying-slopes, which I use again for the NeuN mice at the end of this chapter). And the way to know whether a prior is sensible is the prior predictive check, simulating from the prior and looking at the outcomes and ratios it implies [@gelman2026; @mcelreath2020]. The narrowest prior of the figure, `Normal(0, 0.5)`, keeps ratios between about 0.4 and 2.7 with 95% of its mass; the sensitivity section uses it as the cautious end.
+
+```{r}
+# Priors of the model of the spread: means in mm2, the spread on the log scale
+prior_spread <- c(
+  prior(normal(14, 6), class = "Intercept"),
+  prior(normal(0, 5), class = "b"),
+  prior(normal(0, 1), class = "Intercept", dpar = "sigma"),
+  prior(normal(0, 1), class = "b", dpar = "sigma")
+)
+
+# Prior predictive fit (priors only, no data likelihood), as in the earlier chapters
+fit_prior_area <- brm(
+  bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f),
+  data = cell_data, prior = prior_spread, sample_prior = "only",
+  chains = 4, cores = 4, seed = 123,
+  file = "models/multivariate-distributional-regression_fit1.rds", file_refit = "never"
+)
+
+# Share of a prior ratio of SDs that lies between one quarter and four times, for each prior width
+share_ratio <- function(s) pnorm(log(4), 0, s) - pnorm(log(1 / 4), 0, s)
+
+# Share of simulated tissue areas between 0 and 30 mm2 under the chosen prior
+sim_area <- posterior_predict(fit_prior_area, ndraws = 1000)
+share_area_ok <- mean(sim_area > 0 & sim_area < 30)
+share_area_neg <- mean(sim_area < 0)
+```
+
+```{r}
+#| label: fig-mvdr_prior
+#| fig-cap: "Priors of the model of the spread. Left: prior density of the log ratio of a day's standard deviation to the reference day's for three widths (the horizontal axis is labeled as ratios; 1 means equal spreads). Right: prior predictive check, the tissue area that the priors give an animal of day 7 (curve) against the 49 observed areas (ticks)."
+#| fig-alt: "Left: three bell-shaped curves centered at a ratio of 1 on a horizontal axis labeled from one tenth to ten; the narrowest is tall and reaches roughly from one half to two, the widest is flat and reaches beyond one tenth and ten. Right: a single broad bell-shaped curve of simulated tissue area for day 7, centered near 14 and extending from about minus 20 to 50 square millimeters, with short black ticks of the observed areas bunched between about 6 and 20."
+#| fig-width: 10
+#| fig-height: 4
+#| warning: false
+
+# Left: prior of the log ratio of SDs, drawn for three widths, with the axis labeled as ratios
+log_ratio <- seq(-5.5, 5.5, length.out = 500)
+prior_curves <- do.call(rbind, lapply(c(0.5, 1, 2), function(s) {
+  data.frame(x = log_ratio, density = dnorm(log_ratio, 0, s), width = paste0("Normal(0, ", s, ")"))
+}))
+ratio_breaks <- c(1 / 10, 1 / 4, 1, 4, 10)
+p_prior_ratio <- ggplot(prior_curves, aes(x = x, y = density, color = width, linetype = width)) +
+  geom_line(linewidth = 1.1) +
+  geom_vline(xintercept = 0, color = "grey50") +
+  scale_x_continuous(breaks = log(ratio_breaks), labels = c("1/10", "1/4", "1", "4", "10")) +
+  scale_color_manual(values = c("#009E73", "#D55E00", "#0072B2")) +
+  labs(x = "Ratio of a day's SD to the reference day's", y = "Prior density", color = NULL, linetype = NULL) +
+  Plot_theme + legend_inside(0.82, 0.85)
+
+# Right: tissue areas simulated from the priors for day-7 animals, with the observed areas as ticks
+sim_day7 <- as.vector(sim_area[, cell_data$DPI == 7])
+p_prior_pp <- ggplot(data.frame(y = sim_day7), aes(x = y)) +
+  geom_density(fill = "#56B4E9", alpha = 0.6, color = "#0072B2") +
+  geom_rug(data = cell_data, aes(x = Tissue_Area), inherit.aes = FALSE, color = "black", alpha = 0.7) +
+  coord_cartesian(xlim = c(-40, 60)) +
+  labs(x = "Tissue area (mm²)", y = "Prior predictive density") +
+  Plot_theme
+
+p_prior_ratio + p_prior_pp
+```
+
+I drew the left panel by hand with `ggplot2::geom_line()` because it is not a simulation but a known distribution (a normal on the log scale), and the point is to translate it into the language of the bench: the horizontal axis reads as "how many times wider". With `Normal(0, 1)`, the one I use, the ratio of a day's spread to the spread of the reference day has `r pct(share_ratio(1))` of its prior probability between one quarter and four times, so I am allowing a day to scatter several times more or less than the reference, which is what the GFAP data showed in the first figure, and still not an absurd number. `Normal(0, 0.5)` keeps `r pct(share_ratio(0.5))` of the mass in that range and would take real convincing to believe a ratio of 5; `Normal(0, 2)` keeps only `r pct(share_ratio(2))` and lets a ratio of 50 in. I come back to all three in the sensitivity section, because with a few animals per day the prior on a spread is the one place where I expect it to matter.
+
+The right panel is the usual prior predictive check of @sec-priors-regularization: simulate animals from the priors alone and look at what they would measure. It is honest about a weakness: a Gaussian does not know that an area cannot be negative, so the prior (like the model) puts `r pct(share_area_neg, 1)` of its simulated areas below zero, and `r pct(share_area_ok)` between 0 and 30 mm². The curve is much wider than the observed areas, as a weakly informative prior should be, and its bulk is on areas that a section of a brain can have.
+
+### Fitting it
+
+Two fits, so that we can see what the second dial buys: the same means with a single `sigma` (the model of the chapters before this one, with one mean per day), and the distributional model.
+
+```{r}
+# One mean per day and a single spread: the model of the earlier chapters
+fit_area_common <- brm(
+  Tissue_Area ~ DPI_f,
+  data = cell_data,
+  prior = c(prior(normal(14, 6), class = "Intercept"), prior(normal(0, 5), class = "b"),
+            prior(exponential(0.5), class = "sigma")),
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+  file = "models/multivariate-distributional-regression_fit2.rds", file_refit = "never"
+)
+
+# One mean per day and one spread per day: the distributional model of the chapter
+fit_area_sigma <- brm(
+  bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f),
+  data = cell_data, prior = prior_spread,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+  file = "models/multivariate-distributional-regression_fit3.rds", file_refit = "never"
+)
+```
+
+`parsnip` has no engine that models the spread: its linear-regression engines estimate one residual variance. The frequentist counterparts live in other packages. `glmmTMB` takes the second formula in its `dispformula` argument (for a Gaussian, the log of the standard deviation again), and `nlme::gls()` takes a variance function, `varIdent()`, that gives each level of a factor its own standard deviation relative to a reference level. Both are shown next to the `brms` fit.
+
+::: panel-tabset
+### brms
+
+```{r}
+# Means and log spreads by day; the sigma_ rows are the second dial
+summary(fit_area_sigma)
+```
+
+### glmmTMB
+
+```{r}
+# The same model by maximum likelihood: dispformula is the formula of the spread
+area_tmb <- glmmTMB(Tissue_Area ~ DPI_f, dispformula = ~ DPI_f, data = cell_data)
+summary(area_tmb)
+```
+
+### nlme::gls
+
+```{r}
+# Rows sorted by day so that day 0 is the reference level of the variance function
+cell_sorted <- cell_data[order(cell_data$DPI), ]
+
+# One mean per day, and a standard deviation per day relative to the first one (by REML)
+area_gls <- gls(Tissue_Area ~ DPI_f, data = cell_sorted,
+                weights = varIdent(form = ~ 1 | DPI_f), method = "REML")
+round(summary(area_gls)$tTable, 3)
+intervals(area_gls)$varStruct
+```
+:::
+
+```{r}
+#| include: false
+
+# Sampler checks that stop the render if a fit fails them (Rhat < 1.01, ESS > 400, no divergences)
+chk_area <- mcmc_check(list("Common sigma" = fit_area_common, "Sigma by day" = fit_area_sigma))
+stopifnot(all(chk_area$ok))
+
+# SD of each day, from the draws (log link inverted), and ratios against the reference day
+dr_area <- as_draws_df(fit_area_sigma)
+sd_from_draws <- function(dr, int = "b_sigma_Intercept", slope = "b_sigma_DPI_f") {
+  sapply(levels(cell_data$DPI_f), function(k) {
+    exp(dr[[int]] + if (k == "0") 0 else dr[[paste0(slope, k)]])
+  })
+}
+sd_area <- sd_from_draws(dr_area)
+ratio_area <- sd_area / sd_area[, "0"]
+
+# Maximum likelihood versions of the same quantities
+tmb_disp <- fixef(area_tmb)$disp
+tmb_se <- sqrt(diag(vcov(area_tmb)$disp))
+names(tmb_se) <- sub("^disp~", "", names(tmb_se))
+gls_var <- intervals(area_gls)$varStruct
+tmb_sd0 <- exp(tmb_disp["(Intercept)"])
+tmb_ratio3 <- exp(tmb_disp["DPI_f3"])
+tmb_ratio3_ci <- exp(tmb_disp["DPI_f3"] + c(-1, 1) * 1.96 * tmb_se["DPI_f3"])
+```
+
+All the sampler checks pass (Rhat below 1.01, effective sample sizes above 400, no divergent transitions; the full table, with the other models of the chapter, is in the sampler section at the end). Now the result. What I want to see is the spread of each day with its uncertainty, and the ratio of each day's spread to the baseline, and @fig-mvdr_sd_ratio shows both.
+
+```{r}
+#| label: fig-mvdr_sd_ratio
+#| fig-cap: "Posterior of the standard deviation of tissue area by day (A) and of its ratio to the standard deviation of the shams at day 0 (B), from the model with a spread per day. Dots are medians, thick and thin bars the 66% and 95% credible intervals. Black crosses in A mark the standard deviation observed in each day; the dashed line in B marks equal spreads."
+#| fig-alt: "Panel A: five half-eye densities of the standard deviation of tissue area for days 0, 3, 7, 14 and 30. The day 3 half-eye is centered near 3 mm² and is much wider than the others, which are centered near 1 mm². Black crosses mark the observed standard deviations, each close to the center of its density. Panel B: half-eyes of the ratio to day 0 on a logarithmic axis for days 3, 7, 14 and 30. The day 3 ratio is centered near 3.5 with an interval that excludes 1; the other three are centered near 1.2 with intervals that include 1."
+#| fig-width: 10
+#| fig-height: 4.6
+#| warning: false
+
+# Long table of draws: one row per draw and day
+sd_long <- data.frame(day = rep(levels(cell_data$DPI_f), each = nrow(sd_area)), sd = as.vector(sd_area),
+                      ratio = as.vector(ratio_area))
+sd_long$day <- factor(sd_long$day, levels = levels(cell_data$DPI_f))
+obs_sd <- data.frame(day = factor(levels(cell_data$DPI_f), levels = levels(cell_data$DPI_f)),
+                     sd = as.numeric(tapply(cell_data$Tissue_Area, cell_data$DPI_f, sd)))
+
+# Panel A: SD by day; the observed SD of each day as a black cross
+pA <- ggplot(sd_long, aes(x = day, y = sd)) +
+  stat_halfeye(aes(fill = day), .width = c(0.66, 0.95), point_interval = "median_qi", alpha = 0.8) +
+  geom_point(data = obs_sd, shape = 4, size = 3.5, stroke = 1.4) +
+  scale_fill_manual(values = col_day) +
+  coord_cartesian(ylim = c(0, 7)) +
+  labs(x = "Days post-injury (DPI)", y = "SD of tissue area (mm²)") +
+  Plot_theme + legend_none()
+
+# Panel B: ratio to the SD of the shams, on a log axis with a dashed line at 1
+pB <- ggplot(subset(sd_long, day != "0"), aes(x = day, y = ratio)) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "grey40") +
+  stat_halfeye(aes(fill = day), .width = c(0.66, 0.95), point_interval = "median_qi", alpha = 0.8) +
+  scale_fill_manual(values = col_day) +
+  scale_y_log10(breaks = c(0.5, 1, 2, 4, 8, 16)) +
+  coord_cartesian(ylim = c(0.35, 20)) +
+  labs(x = "Days post-injury (DPI)", y = "Ratio of SDs to day 0") +
+  Plot_theme + legend_none()
+
+pA + pB + plot_annotation(tag_levels = "A")
+```
+
+The half-eye is the picture that suits a quantity as awkward as a standard deviation. I use `ggdist::stat_halfeye()`, as in @sec-bayesian-core-workflow, because the posterior of a spread is skewed, with a short tail on the left (a standard deviation cannot go below zero) and a long one on the right, and a single bar with whiskers would force you to read a symmetric interval into something that is not symmetric. The black crosses are the raw standard deviations, so you can see where the model is shrinking an estimate toward the others. A bar plot of the means with asterisks, the figure most papers would show for these data, contains no information about any of this.
+
+::: {.callout-tip title="How to read this figure"}
+**Panel A**: each blob is the plausible range of one day's standard deviation. Read the horizontal position (the size of the spread), then the width (how sure we are), then the tail on the right (a spread can be much bigger than its estimate, never much smaller). A day whose blob sits clearly to the right of the others is a day with a wider spread. **Panel B** puts the same thing in the unit the bench uses: a ratio to the baseline, on a log axis so that "twice as wide" and "half as wide" are the same distance from the dashed line at 1. If a blob is entirely right of the line, that day is more variable than baseline; if it straddles the line, the data cannot tell. The mistake to avoid is to read a day-by-day difference in the middle of two wide blobs as a finding: look at how much the blobs overlap.
+:::
+
+```{r}
+#| include: false
+
+# Numbers quoted below: day 3 against the shams, and against days 7 and 14
+r3 <- ratio_area[, "3"]
+r3_7 <- sd_area[, "3"] / sd_area[, "7"]
+r3_14 <- sd_area[, "3"] / sd_area[, "14"]
+p_day3_wider <- mean(sd_area[, "3"] > pmax(sd_area[, "7"], sd_area[, "14"], sd_area[, "30"], sd_area[, "0"]))
+```
+
+Read the left panel first. The animals of day 3 scatter with a standard deviation of `r qi(sd_area[, "3"], 1)` mm², against `r qi(sd_area[, "7"], 1)` at day 7 and `r qi(sd_area[, "14"], 1)` at day 14. In the right panel that is a ratio of `r qs(r3, 1)` to the shams, while the ratios of days 7, 14 and 30 are `r qs(ratio_area[, "7"], 1)`, `r qs(ratio_area[, "14"], 1)` and `r qs(ratio_area[, "30"], 1)`: their intervals sit around 1, which says that, within what these animals can say, the shams and the animals of the later days scatter alike, and day 3 does not. Day 3 against day 7, which does not use the shams at all, is a ratio of `r qs(r3_7, 1)`. The probability that day 3 has the widest spread of the five days is `r pct(p_day3_wider)`.
+
+::: {.callout-tip title="Frequentist equivalent"}
+Both frequentist fits find the same pattern. In `glmmTMB` the standard deviation of the shams is `r round(tmb_sd0, 2)` mm² and the ratio of day 3 to the shams is `r round(tmb_ratio3, 1)` (95% Wald interval `r round(tmb_ratio3_ci[1], 1)` to `r round(tmb_ratio3_ci[2], 1)`), against `r qs(r3, 1)` in the Bayesian fit; the `gls` fit, by REML, gives `r round(gls_var["3", "est."], 1)` (`r round(gls_var["3", "lower"], 1)` to `r round(gls_var["3", "upper"], 1)`), the same within rounding. They do not agree to the decimal, and the reason is the lesson of the chapter in miniature: the shams are only `r n_day["0"]` animals, and a spread estimated from seven animals is a noisy number, which the data alone place near `r round(tmb_sd0, 2)` mm² and which my prior, centered on 1 mm², pulls up to `r round(median(sd_area[, "0"]), 2)`. The ratio, which divides by that noisy number, moves with it. The means agree to the first decimal (day 3 minus day 0: `r round(fixef(area_tmb)$cond["DPI_f3"], 2)` mm² in `glmmTMB`, `r round(median(dr_area$b_DPI_f3), 2)` in `brms`, within 0.1 mm²). So the two lenses agree about *where* the spread changes and differ about *by how much*, and the difference is where a prior and a likelihood disagree most: in the estimation of a variance from few animals. I come back to that in the next section and in the sensitivity analysis.
+:::
+
+
+## How much can eight animals say about a spread? {#sec-mvdr-few}
+
+Ask a colleague to pipette 10 µL eight times and tell you, from those eight volumes, how steady their hand is. You will get a number. Ask a second colleague for another eight and compare the two numbers: they will differ by a surprising amount even if the two hands are identical, because *a spread is a property of the whole scatter, and eight points are a very small scatter*. A mean uses all eight values to locate one thing. A standard deviation uses the same eight values to measure how far they are from each other, and that is a less well determined quantity. The usual rough rule is that the relative standard error of a sample standard deviation from $n$ roughly normal values is $1/\sqrt{2(n-1)}$ (the width of a chi-squared distribution, in other words). For the `r n_day["0"]` shams that is about `r pct(1 / sqrt(2 * (n_day["0"] - 1)))`, for the `r n_day["3"]` animals of day 3 about `r pct(1 / sqrt(2 * (n_day["3"] - 1)))`, and for the `r n_day["14"]` of day 14 about `r pct(1 / sqrt(2 * (n_day["14"] - 1)))`. (This is a standard result of sampling theory, which follows from the chi-squared distribution of the sample variance; I give it as such and not as a quotation from the books.) Compare that with the mean of a day, which you know to a few percent. @tbl-mvdr_sd_table puts the estimates of every day next to each other, for the classical interval (based on the chi-squared distribution, which assumes a Gaussian) and for the posterior of the model of the previous section.
+
+```{r}
+#| label: tbl-mvdr_sd_table
+#| tbl-cap: Standard deviation of tissue area (mm²) by day. The classical interval uses the chi-squared distribution of the sample variance; the posterior is that of the model with a spread per day. The last column is the upper limit divided by the lower limit of the posterior interval.
+
+# Observed SD and its classical 95% interval (chi-squared with n - 1 degrees of freedom)
+obs_sd_day <- tapply(cell_data$Tissue_Area, cell_data$DPI_f, sd)
+n_vec <- as.integer(n_day)
+classical_lo <- sqrt((n_vec - 1) * obs_sd_day^2 / qchisq(0.975, n_vec - 1))
+classical_hi <- sqrt((n_vec - 1) * obs_sd_day^2 / qchisq(0.025, n_vec - 1))
+
+# Posterior median and 95% interval of the model with a spread per day
+post_q <- apply(sd_area, 2, quantile, c(0.5, 0.025, 0.975))
+
+# One row per day
+sd_table <- data.frame(
+  Day = levels(cell_data$DPI_f), Animals = n_vec,
+  `Observed SD` = round(as.numeric(obs_sd_day), 2),
+  `Classical 95% interval` = sprintf("%.2f to %.2f", classical_lo, classical_hi),
+  `Posterior median` = round(post_q[1, ], 2),
+  `Posterior 95% interval` = sprintf("%.2f to %.2f", post_q[2, ], post_q[3, ]),
+  `Upper / lower` = round(post_q[3, ] / post_q[2, ], 1),
+  check.names = FALSE
+)
+gt(sd_table)
+```
+
+The first thing @tbl-mvdr_sd_table says is how wide these intervals are: for every day, the upper limit is between `r round(min(post_q[3, ] / post_q[2, ]), 1)` and `r round(max(post_q[3, ] / post_q[2, ]), 1)` times the lower one. A spread estimated from 7 to 12 animals is known to within a factor of about two or three, not to a decimal. That is not a defect of the Bayesian model: the classical interval is just as wide, and the two agree on which days are loose and which are tight. The second thing is how close the two sets of intervals are: the posterior ones are shifted a little toward the middle of the prior, and nowhere does one method say something the other contradicts. The third is the direction of the shift. For `r n_day["0"]` shams with an observed standard deviation of `r round(obs_sd_day["0"], 2)` mm², the posterior median is `r round(post_q[1, "0"], 2)`: the model does not believe that seven animals which happened to land close together are *that* close in truth. Small samples underestimate their own spread more often than they overestimate it, and a prior that is not too narrow takes some of that back. (A spread cannot be negative, so there is more room above an estimated standard deviation than below it, and the posterior has a long right tail; McElreath makes the same point about the posterior of $\sigma$ [@mcelreath2020], and the half-eyes of the previous figure have that shape. It is also why a symmetric interval, an estimate plus and minus two standard errors, is the wrong tool for a spread.)
+
+What to do about it is modest advice. Use a weakly informative prior, as I did, so that the right tail is bounded by something other than the data. Share information across groups (partial pooling) when the groups can reasonably be seen as draws from one population, which the five days of this experiment are not, since a sham day and a day of ischemia are different conditions, so each day keeps its own spread here. And report the whole interval, which is what the table does [@mcelreath2020; @gelman2020].
+
+### One unusual animal, or a wider day?
+
+Now to the question that @sec-linear-regression-single-continuous left open. At day 3 one animal sits well below the others (the lone low point in @fig-mvdr_spread), and without it the standard deviation of that day falls but does not reach the other days'. Is day 3 a day on which animals genuinely differ more, or is it a day with one unusual animal? With eight animals the data cannot be asked to settle it, but they can be asked to bound it, and there are three ways to put the question to the model. The first is the model I already have. The second keeps all animals and gives the likelihood heavier tails, a Student-t (the tool of @sec-beta-robust-regression), so that one animal far from its group is allowed to be far without forcing the whole day's spread up. The third removes the animal. The animal has no known technical problem, as far as the records of the experiment say (no section out of plane, no staining failure), so I do *not* delete it from the analysis: the third model is a sensitivity analysis, not a correction, in the same spirit as the Student-t sensitivities of @sec-beta-robust-regression.
+
+```{r}
+# The day-3 animal with the lowest tissue area (the lone low point of the earlier figures)
+day3 <- cell_data[cell_data$DPI == 3, ]
+low_animal <- day3$MouseID[which.min(day3$Tissue_Area)]
+low_value <- min(day3$Tissue_Area)
+
+# Student-t version: heavier tails; sigma is now a scale, nu has a Gamma(2, 0.1) prior
+fit_area_t <- brm(
+  bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f),
+  family = student(),
+  data = cell_data, prior = c(prior_spread, prior(gamma(2, 0.1), class = "nu")),
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+  file = "models/multivariate-distributional-regression_fit4.rds", file_refit = "never"
+)
+
+# The Gaussian model without that animal (sensitivity analysis)
+fit_area_drop <- brm(
+  bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f),
+  data = cell_data[cell_data$MouseID != low_animal, ], prior = prior_spread,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+  file = "models/multivariate-distributional-regression_fit5.rds", file_refit = "never"
+)
+```
+
+```{r}
+#| include: false
+
+# Draws of the day-3 spread (or scale) and of the ratio day 3 / day 7 in the three models
+sd_t <- sd_from_draws(as_draws_df(fit_area_t))
+dr_drop <- as_draws_df(fit_area_drop)
+sd_drop <- sd_from_draws(dr_drop)
+nu_t <- as_draws_df(fit_area_t)$nu
+chk_day3 <- mcmc_check(list("Student-t" = fit_area_t, "Without the animal" = fit_area_drop))
+stopifnot(all(chk_day3$ok))
+```
+
+```{r}
+#| label: tbl-mvdr_day3
+#| tbl-cap: The spread of day 3 under three treatments of the unusual animal. For the Student-t model sigma is a scale, not a standard deviation (the standard deviation is larger by a factor that depends on nu). The ratio compares day 3 with day 7 and is comparable across the three rows.
+
+# One row per model: day-3 spread, ratio to day 7, probability that day 3 is wider
+day3_row <- function(sd_mat, label, extra = "") {
+  data.frame(Model = label, `Day 3 spread (mm²)` = qs(sd_mat[, "3"], 1),
+             `Ratio day 3 / day 7` = qs(sd_mat[, "3"] / sd_mat[, "7"], 1),
+             `Probability day 3 wider than day 7` = pct_prob(mean(sd_mat[, "3"] > sd_mat[, "7"])),
+             check.names = FALSE)
+}
+# One row per treatment of the unusual animal
+tbl_day3 <- rbind(
+  day3_row(sd_area, "Gaussian, all animals"),
+  day3_row(sd_t, "Student-t, all animals"),
+  day3_row(sd_drop, "Gaussian, without the lowest day-3 animal")
+)
+# Show the three rows as a table
+gt(tbl_day3)
+```
+
+```{r}
+#| label: fig-mvdr_day3
+#| fig-cap: "Ratio of the spread of day 3 to the spread of day 7 under three treatments of the unusual day-3 animal. Dots are medians, thick and thin bars the 66% and 95% credible intervals. The dashed line marks equal spreads."
+#| fig-alt: "Three half-eye densities of the ratio of day 3 to day 7 spread on a logarithmic axis from 0.5 to 20. The Gaussian model with all animals and the Student-t model are both centered near 2.7 with a long right tail, and their intervals stay above 1. The Gaussian model without the animal is centered lower, near 1.7, and its interval reaches just below 1. A dashed vertical line marks a ratio of 1."
+#| fig-width: 8
+#| fig-height: 3.6
+#| warning: false
+
+# Ratio of day 3 to day 7 for each treatment, in one long table
+ratio37 <- rbind(
+  data.frame(model = "Gaussian, all animals", ratio = sd_area[, "3"] / sd_area[, "7"]),
+  data.frame(model = "Student-t, all animals", ratio = sd_t[, "3"] / sd_t[, "7"]),
+  data.frame(model = "Gaussian, without the animal", ratio = sd_drop[, "3"] / sd_drop[, "7"])
+)
+ratio37$model <- factor(ratio37$model, levels = rev(unique(ratio37$model)))
+
+# Half-eye per treatment on a log axis, dashed line at equal spreads
+ggplot(ratio37, aes(x = ratio, y = model)) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey40") +
+  stat_halfeye(.width = c(0.66, 0.95), point_interval = "median_qi", fill = "#56B4E9", alpha = 0.85) +
+  scale_x_log10(breaks = c(0.5, 1, 2, 4, 8, 16)) +
+  coord_cartesian(xlim = c(0.4, 25)) +
+  labs(x = "Ratio of day 3 spread to day 7 spread", y = NULL) +
+  Plot_theme + legend_none()
+```
+
+@fig-mvdr_day3 and @tbl-mvdr_day3 show the answer I can honestly give. The Student-t model estimates a `nu` with a posterior median of `r round(median(nu_t), 1)`: the tails it needs are only mildly heavy, and since that one `nu` is shared by all days it cannot give day 3 a tail of its own, so it leaves the ratio of day 3 to day 7 where it was (`r qs(sd_area[, "3"] / sd_area[, "7"], 1)` for the Gaussian, `r qs(sd_t[, "3"] / sd_t[, "7"], 1)` for the Student-t). Removing the animal (tissue area of `r round(low_value, 1)` mm², the lowest of its day) does move it, to `r qs(sd_drop[, "3"] / sd_drop[, "7"], 1)`. In none of the three does day 3 become as calm as day 7: the probability that day 3 is wider than day 7 is `r tbl_day3[1, 4]`, `r tbl_day3[2, 4]` and `r tbl_day3[3, 4]`. And in none of the three is the interval narrow. So the answer to the question of the previous chapters is: *both*. The one low animal accounts for a good part of the excess (the ratio goes from about `r round(median(sd_area[, "3"] / sd_area[, "7"]), 1)` to about `r round(median(sd_drop[, "3"] / sd_drop[, "7"]), 1)`), and what is left, a ratio of `r qs(sd_drop[, "3"] / sd_drop[, "7"], 1)`, is compatible with anything from no excess at all to a threefold one. How much of the wider day 3 is a wider day and how much is one animal, with eight animals, remains a question for a bigger experiment.
+
+::: {.callout-tip title="Frequentist equivalent"}
+The closest frequentist route to the Student-t model is `glmmTMB` with `family = t_family()` and a `dispformula`. I tried it, and it ends with a warning of false convergence and returns, to the decimal, the Gaussian estimates: with this little data per day, the likelihood has nothing to say about the tails, and the optimizer cannot tell. I would not report it. What a frequentist analysis usually does here is the third row of @tbl-mvdr_day3: leave the animal in and report the interval, or take it out and report the interval. The Bayesian version adds a prior on `nu` that keeps the tails from becoming arbitrary, and the freedom to look at all three and say how much the conclusion moves.
+:::
+
+
+## Mean and spread together: what changes in the predictions {#sec-mvdr-predict}
+
+A weather service can tell you two different things about March. It can say that the *typical* temperature of a March day in your city is 9 °C, known to within a degree because it has decades of records. Or it can say that the temperature you will meet on a *particular* March day will be between 2 and 16 °C. The first is a statement about an average and the second a statement about one day, and the second is wider because it carries the day-to-day scatter on top of the uncertainty about the average. Every regression has both statements, and `brms` computes them with two different functions. `posterior_epred()` gives the uncertainty about the *mean* of a day, the climate. `posterior_predict()` gives where a *new animal* of that day would land, the weather, which adds the animal-to-animal scatter, `sigma`, to the first.
+
+This is where giving `sigma` its own formula pays off most visibly. The uncertainty about the *means* is a statement about how well we know each day's average, and it barely cares how `sigma` is modeled (a bit, through the weights each animal gets). The prediction for a new animal is built from `sigma`, so a model with one `sigma` can only make a prediction interval of the same width for every day, and a model with a `sigma` per day makes it as wide as the day deserves. @fig-mvdr_predint draws both intervals for both models, day by day.
+
+```{r}
+# One row per day to predict: a new animal of that day
+newdays <- data.frame(DPI_f = factor(levels(cell_data$DPI_f), levels = levels(cell_data$DPI_f)))
+
+# For one model: 95% interval of the mean (posterior_epred) and of a new animal (posterior_predict), per day
+set.seed(123)
+pred_summary <- function(fit, label) {
+  e <- posterior_epred(fit, newdata = newdays)
+  p <- posterior_predict(fit, newdata = newdays)
+  data.frame(model = label, day = levels(newdays$DPI_f), x = seq_len(nrow(newdays)),
+             mean = colMeans(e),
+             mean_lo = apply(e, 2, quantile, 0.025), mean_hi = apply(e, 2, quantile, 0.975),
+             new_lo = apply(p, 2, quantile, 0.025), new_hi = apply(p, 2, quantile, 0.975))
+}
+pred_all <- rbind(pred_summary(fit_area_common, "One sigma"), pred_summary(fit_area_sigma, "Sigma by day"))
+pred_all$model <- factor(pred_all$model, levels = c("One sigma", "Sigma by day"))
+pred_all$width_new <- pred_all$new_hi - pred_all$new_lo
+pred_all$width_mean <- pred_all$mean_hi - pred_all$mean_lo
+```
+
+```{r}
+#| label: fig-mvdr_predint
+#| fig-cap: "Intervals for tissue area by day from the model with one sigma (grey, diamonds) and the model with a sigma per day (orange, circles). The thick bar is the 95% interval of the mean of the day; the thin bar is the 95% interval of a new animal of that day. Blue dots are the observed animals."
+#| fig-alt: "For each of the days 0, 3, 7, 14 and 30, two pairs of vertical bars next to a cloud of blue dots. The thick bars, intervals of the mean, are short and nearly equal in the two models. The thin grey bars, intervals for a new animal under one sigma, have the same length of about 6 mm² on every day. The thin orange bars are short at days 0, 7, 14 and 30 (about 4 mm²) and very long at day 3, reaching from about 10 to 24 mm²."
+#| fig-width: 9
+#| fig-height: 4.6
+#| warning: false
+
+# Offsets so that the two models sit side by side within each day
+pred_all$xpos <- pred_all$x + ifelse(pred_all$model == "One sigma", -0.2, 0.2)
+
+# Every animal as a blue dot; thin bar = new animal, thick bar = mean of the day
+ggplot() +
+  geom_jitter(data = cell_data, aes(x = as.numeric(DPI_f), y = Tissue_Area), width = 0.06, height = 0,
+              color = "#0072B2", alpha = 0.6, size = 2) +
+  geom_linerange(data = pred_all, aes(x = xpos, ymin = new_lo, ymax = new_hi, color = model), linewidth = 0.9) +
+  geom_linerange(data = pred_all, aes(x = xpos, ymin = mean_lo, ymax = mean_hi, color = model), linewidth = 3.2) +
+  geom_point(data = pred_all, aes(x = xpos, y = mean, shape = model), size = 2.6, color = "black") +
+  scale_color_manual(values = c("One sigma" = "grey55", "Sigma by day" = "#D55E00")) +
+  scale_shape_manual(values = c("One sigma" = 18, "Sigma by day" = 16)) +
+  scale_x_continuous(breaks = 1:5, labels = levels(cell_data$DPI_f)) +
+  labs(x = "Days post-injury (DPI)", y = "Tissue area (mm²)", color = NULL, shape = NULL) +
+  Plot_theme + legend_top()
+```
+
+The figure puts two intervals on top of each other in each model because they answer different questions, and mixing them up is one of the commonest mistakes in a Results section. It is drawn with `ggplot2::geom_linerange()` at two thicknesses, the mean as a thick bar and the new animal as a thin one, and with the animals themselves underneath. A bar plot with whiskers would show one of the two intervals (usually a standard error of the mean, which is the narrow one) and let the reader read it as the other.
+
+::: {.callout-tip title="How to read this figure"}
+Read the thick bars first: they are how well we know the average of each day, and they are short and almost the same for both models, so the means are not what has changed. Then read the thin bars, which say where a new animal would fall. Grey, one `sigma`: the same length on every day, which means that on day 7 it covers every animal and more, and on day 3 it leaves some of the animals outside. Orange, a `sigma` per day: short where the animals are tight and long on day 3. A good prediction interval is one that covers about 95% of animals of that day; count the dots outside each thin bar. The mistake to avoid is to quote the thick bar when you mean to say where an animal will land.
+:::
+
+```{r}
+#| include: false
+
+# Number of observed animals outside each model's 95% prediction interval, per day, and widths used in the text
+outside <- sapply(c("One sigma", "Sigma by day"), function(m) {
+  pm <- pred_all[pred_all$model == m, ]
+  sapply(seq_len(nrow(pm)), function(i) {
+    y <- cell_data$Tissue_Area[as.numeric(cell_data$DPI_f) == i]
+    sum(y < pm$new_lo[i] | y > pm$new_hi[i])
+  })
+})
+rownames(outside) <- levels(cell_data$DPI_f)
+
+# Widths of the 95% interval of a new animal (w) and of the mean (wm), for one model and day
+w <- function(m, d) pred_all$width_new[pred_all$model == m & pred_all$day == d]
+wm <- function(m, d) pred_all$width_mean[pred_all$model == m & pred_all$day == d]
+```
+
+Look at day 3. With one `sigma` the interval for a new animal is `r fx(w("One sigma", "3"), 1)` mm² wide, the same as on every other day, and `r outside["3", "One sigma"]` of the `r n_day["3"]` animals actually seen on that day falls outside it (a 95% interval would be expected to miss about `r fx(0.05 * n_day["3"], 1)`). With a `sigma` per day it is `r fx(w("Sigma by day", "3"), 1)` mm² wide, `r fx(w("Sigma by day", "3") / w("One sigma", "3"), 1)` times wider, and `r outside["3", "Sigma by day"]` animals fall outside it. On day 7 the intervals go the other way: `r fx(w("One sigma", "7"), 1)` mm² with one `sigma`, `r fx(w("Sigma by day", "7"), 1)` with a `sigma` of the day. Meanwhile the interval of the *mean* of day 3 is `r fx(wm("One sigma", "3"), 1)` mm² wide with one `sigma` and `r fx(wm("Sigma by day", "3"), 1)` with a `sigma` per day: it widens too, because the mean of a day of eight scattered animals is less well known than the mean of eight tight ones. That is the sentence promised in @sec-linear-regression-multiple, that every interval of that chapter was slightly optimistic for day 3: the ones for the mean, a little; the ones for a new animal, a lot.
+
+### The check that failed, again
+
+@sec-linear-regression-multiple asked of its model whether the spread seen on each day was the sort the model produced, and the answer was no: the model's `sigma` was too small for day 3 and too large for days 7 and 14. The same check on the two models of this chapter is in @fig-mvdr_ppc_sd, for the model with one `sigma` (A) and with a `sigma` per day (B).
+
+```{r}
+#| label: fig-mvdr_ppc_sd
+#| fig-cap: "Posterior predictive checks of the standard deviation of tissue area, by day. Pale bars are the distribution of the standard deviation across 1,000 replicated datasets; the dark line is the real value. A: one sigma for every day. B: a sigma for each day."
+#| fig-alt: "Two rows of five small histograms, one per day. In the top row (one sigma) the observed standard deviation falls in the far left tail of the replicates at days 0, 7, 14 and 30 and in the right tail at day 3. In the bottom row (sigma by day) the observed standard deviation lies near the middle of the replicates on every day."
+#| fig-width: 11
+#| fig-height: 5.6
+#| warning: false
+
+# Panel titles ("Day 3") and a theme piece that hides the meaningless count axis
+day_label <- as_labeller(function(x) paste("Day", x))
+no_counts <- theme(strip.text = element_text(size = 12), axis.text.y = element_blank(),
+                   axis.ticks.y = element_blank(), axis.line.y = element_blank(),
+                   axis.text.x = element_text(size = 11))
+
+# A: the standard deviation of each day, real value against replicates from the one-sigma model
+set.seed(123)
+p_ppc_common <- pp_check(fit_area_common, type = "stat_grouped", stat = "sd", group = "DPI_f", ndraws = 1000) +
+  facet_wrap(~group, scales = "free", nrow = 1, labeller = day_label) +
+  labs(x = "SD of tissue area (mm²)") +
+  Plot_theme + no_counts + legend_none()
+
+# B: the same, from the model with a sigma per day
+p_ppc_sigma <- pp_check(fit_area_sigma, type = "stat_grouped", stat = "sd", group = "DPI_f", ndraws = 1000) +
+  facet_wrap(~group, scales = "free", nrow = 1, labeller = day_label) +
+  labs(x = "SD of tissue area (mm²)") +
+  Plot_theme + no_counts + legend_none()
+
+p_ppc_common / p_ppc_sigma + plot_annotation(tag_levels = "A")
+```
+
+```{r}
+#| include: false
+
+# Share of replicated standard deviations at least as large as the real one, per day and model
+yrep_common <- posterior_predict(fit_area_common, ndraws = 2000)
+yrep_sigma <- posterior_predict(fit_area_sigma, ndraws = 2000)
+
+# For one day: how often a replicated dataset is at least as variable as the real animals of that day
+share_sd <- function(yrep, day) {
+  idx <- cell_data$DPI == day
+  mean(apply(yrep[, idx, drop = FALSE], 1, sd) >= sd(cell_data$Tissue_Area[idx]))
+}
+# The same share for the five days, under each model
+days_num <- c(0, 3, 7, 14, 30)
+ppc_common <- sapply(days_num, share_sd, yrep = yrep_common)
+ppc_sigma <- sapply(days_num, share_sd, yrep = yrep_sigma)
+names(ppc_common) <- names(ppc_sigma) <- days_num
+```
+
+In panel A the real standard deviations of days 0, 7, 14 and 30 sit in the left part of what the one-sigma model expects: `r pct(ppc_common["0"])`, `r pct(ppc_common["7"])`, `r pct(ppc_common["14"])` and `r pct(ppc_common["30"])` of its replicated days were at least as variable as the real one. Day 3 sits in the right tail: only `r pct(ppc_common["3"], 1)` of replicated days were as variable as the real day 3. In panel B every day sits inside its cloud (the shares run from `r pct(min(ppc_sigma))` to `r pct(max(ppc_sigma))`). I would not make too much of that pass: a model with a parameter for the spread of each day is *built* to match the spread of each day, so this check is nearly unfailable and tells you that the second dial works, not that the model is right. The checks that can still fail are the ones about what the spread leaves out: the shape of the tails (the animal of day 3 is still the lowest point in its group) and the prediction of animals that were not used to fit the model, which is what the comparison below does.
+
+```{r}
+# Leave-one-out predictive comparison of the three models (the Student-t one has its own scale per day)
+loo_common <- loo(fit_area_common)
+loo_sigma <- loo(fit_area_sigma)
+loo_t <- loo(fit_area_t)
+
+# Table helper: elpd difference from the best model, its standard error, and the number of Pareto k above 0.7
+loo_table <- function(ll, label = "") {
+  cmp <- loo_compare(ll)
+  k_bad <- sapply(ll, function(x) sum(x$diagnostics$pareto_k > 0.7))
+  data.frame(Model = rownames(cmp), `elpd difference` = round(cmp[, "elpd_diff"], 1),
+             `SE of difference` = round(cmp[, "se_diff"], 1), `Pareto k above 0.7` = unname(k_bad[rownames(cmp)]),
+             check.names = FALSE, row.names = NULL)
+}
+cmp_area <- loo_table(list("One sigma" = loo_common, "Sigma by day" = loo_sigma, "Sigma by day, Student-t" = loo_t))
+```
+
+```{r}
+#| label: tbl-mvdr_loo_area
+#| tbl-cap: Leave-one-out comparison of the models of tissue area. The elpd difference is relative to the best model (zero) and is read against its own standard error. The last column counts observations whose Pareto k exceeds 0.7.
+
+# Show the comparison as a table
+gt(cmp_area)
+```
+
+@tbl-mvdr_loo_area gives the cross-validated version of the same question: which model predicts a held-out animal best? The two models with a `sigma` per day cannot be told apart (the Gaussian is `r abs(cmp_area[cmp_area$Model == "Sigma by day", "elpd difference"])` elpd units behind the Student-t version, with a standard error of `r cmp_area[cmp_area$Model == "Sigma by day", "SE of difference"]`). The model with a single `sigma` is `r abs(cmp_area[cmp_area$Model == "One sigma", "elpd difference"])` units behind them, against a standard error of `r cmp_area[cmp_area$Model == "One sigma", "SE of difference"]`. That is about one standard error: it points in the direction the figures pointed, and with 49 animals it is not enough, by itself, to separate the models. The predictive check and the prediction intervals above are the stronger evidence, and the log score agrees with them without adding to them. As in @sec-mcmc-model-checking, this is a *relative* statement about three candidates, and the paragraph above says what none of them captures. A caution on the Pareto k column: leaving out a whole day-3 animal changes the spread of that day, and `loo()` can be unreliable for exactly such points; where the count is not zero, read the differences as approximate.
+
+
+## A variance that follows from the mean, or a variance of its own? {#sec-mvdr-implied}
+
+Two pipettes sit on the bench. The label of the first says "accurate to 1 µL". The label of the second says "accurate to 2%". Ask each for 10 µL and the first is off by up to 1 µL (10%) and the second by 0.2 µL. Ask each for 1,000 µL and the first is still off by up to 1 µL (0.1%), while the second is off by 20 µL. The first pipette has an *absolute* error that does not care what you ask of it; the second has a *relative* error, a spread that is a fixed fraction of the reading. Biological measurements come in both kinds, and the model has to say which kind it believes.
+
+That is what a family does and what a distributional model lets you choose. A [coefficient of variation]{style="color:green; font-weight:bold;"} (CV) is the spread divided by the mean, the "2%" on the label. A Gaussian with one `sigma` says the error is absolute. A gamma or a lognormal outcome says the CV is constant: the variance is a *consequence* of the mean, because both grow together (this is what @sec-glm-intro meant when it said that choosing a family is choosing a model for the variance). A Gaussian with a `sigma` per day says neither: the spread of each day is a quantity of its own, to be read from the data. GFAP integrated density is a good place to compare them. It is positive, its spread grows with its mean (the first figure of the chapter), and there is a biological reason to expect a relative error: an integrated density is a sum of many positive contributions (area times intensity), and sums of positive terms vary in proportion to their size.
+
+I fit six models for `Gfap_IntDen`, two for each idea. The Gaussian with one `sigma` is the straight-line model of the earlier chapters (with a mean per day), and with a `sigma` per day it is the distributional model of the last sections. The lognormal says that the logarithm of GFAP is Gaussian; the gamma, with a log link, says the mean is multiplicative and the variance is the square of the mean divided by a `shape`, so that the CV is $1/\sqrt{\text{shape}}$ on every day. Each can also be made distributional: a `sigma ~ DPI_f` for the lognormal, a `shape ~ DPI_f` for the gamma, which lets the relative spread differ between days. For the priors, the outcome scale again: GFAP of the shams is around 70, and of the injured animals a few hundred to a thousand, so intercepts on the log scale are centered on `Normal(5, 1.5)` (about 150, with 95% of the mass between 8 and 3,000), and the log-scale differences between days are `Normal(0, 1.5)`, which allows a factor of 19. The Gaussian gets `Normal(100, 150)` for the shams and `Normal(0, 500)` for the differences. For a spread on the log scale, `Normal(0, 1)` for differences as before, centered so that the Gaussian's standard deviation is around 55 and the lognormal's `sigma` is around 0.5. I checked the outcome-scale consequences of these priors with prior predictive fits for the two families that are new here.
+
+```{r}
+# Priors of the six GFAP models: a mean part on the original scale (Gaussian) or the log scale (the other two)
+prior_g_mean <- c(prior(normal(100, 150), class = "Intercept"), prior(normal(0, 500), class = "b"))
+prior_l_mean <- c(prior(normal(5, 1.5), class = "Intercept"), prior(normal(0, 1.5), class = "b"))
+
+# Gaussian: one sigma, or a sigma per day (log scale)
+prior_g_common <- c(prior_g_mean, prior(exponential(0.005), class = "sigma"))
+prior_g_free <- c(prior_g_mean, prior(normal(4, 1), class = "Intercept", dpar = "sigma"),
+                  prior(normal(0, 1), class = "b", dpar = "sigma"))
+
+# Lognormal: one sigma, or a sigma per day; Gamma: one shape, or a shape per day (log scale)
+prior_ln_common <- c(prior_l_mean, prior(exponential(2), class = "sigma"))
+prior_ln_free <- c(prior_l_mean, prior(normal(-0.7, 0.7), class = "Intercept", dpar = "sigma"),
+                   prior(normal(0, 1), class = "b", dpar = "sigma"))
+prior_ga_common <- c(prior_l_mean, prior(gamma(2, 0.2), class = "shape"))
+prior_ga_free <- c(prior_l_mean, prior(normal(2, 1), class = "Intercept", dpar = "shape"),
+                   prior(normal(0, 1), class = "b", dpar = "shape"))
+
+# Prior predictive fits (priors only) for the two families that are new in this chapter
+fit_prior_ln <- brm(Gfap_IntDen ~ DPI_f, data = cell_data, family = brms::lognormal(), prior = prior_ln_common,
+                    sample_prior = "only", chains = 4, cores = 4, seed = 123,
+                    file = "models/multivariate-distributional-regression_fit6.rds", file_refit = "never")
+fit_prior_ga <- brm(Gfap_IntDen ~ DPI_f, data = cell_data, family = Gamma(link = "log"), prior = prior_ga_common,
+                    sample_prior = "only", chains = 4, cores = 4, seed = 123,
+                    file = "models/multivariate-distributional-regression_fit7.rds", file_refit = "never")
+
+# Share of simulated GFAP values between 10 and 5,000 under each prior
+share_gfap_ok <- function(fit) mean({s <- posterior_predict(fit, ndraws = 500); s > 10 & s < 5000})
+share_ln <- share_gfap_ok(fit_prior_ln)
+share_ga <- share_gfap_ok(fit_prior_ga)
+```
+
+The prior predictive simulations put `r pct(share_ln)` (lognormal) and `r pct(share_ga)` (gamma) of the simulated GFAP values between 10 and 5,000, so neither prior rules out the range of the data, and neither bets on it. The six fits follow.
+
+```{r}
+# Gaussian with one sigma, and with a sigma per day
+fit_g_common <- brm(Gfap_IntDen ~ DPI_f, data = cell_data, prior = prior_g_common,
+                    chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                    file = "models/multivariate-distributional-regression_fit8.rds", file_refit = "never")
+fit_g_free <- brm(bf(Gfap_IntDen ~ DPI_f, sigma ~ DPI_f), data = cell_data, prior = prior_g_free,
+                  chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                  file = "models/multivariate-distributional-regression_fit9.rds", file_refit = "never")
+
+# Lognormal and gamma (log link), spread tied to the mean (constant CV)
+fit_ln <- brm(Gfap_IntDen ~ DPI_f, data = cell_data, family = brms::lognormal(), prior = prior_ln_common,
+              chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+              file = "models/multivariate-distributional-regression_fit10.rds", file_refit = "never")
+fit_ga <- brm(Gfap_IntDen ~ DPI_f, data = cell_data, family = Gamma(link = "log"), prior = prior_ga_common,
+              chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+              file = "models/multivariate-distributional-regression_fit11.rds", file_refit = "never")
+
+# The same two with their own spread parameter per day: sigma for the lognormal, shape for the gamma
+fit_ln_free <- brm(bf(Gfap_IntDen ~ DPI_f, sigma ~ DPI_f), data = cell_data, family = brms::lognormal(), prior = prior_ln_free,
+                   chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                   file = "models/multivariate-distributional-regression_fit12.rds", file_refit = "never")
+fit_ga_free <- brm(bf(Gfap_IntDen ~ DPI_f, shape ~ DPI_f), data = cell_data, family = Gamma(link = "log"),
+                   prior = prior_ga_free, chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                   file = "models/multivariate-distributional-regression_fit13.rds", file_refit = "never")
+```
+
+The frequentist counterparts are in `glmmTMB`, which has the Gaussian, lognormal and gamma families and the same `dispformula`, so that all six models can be fitted by maximum likelihood with a single function and compared on one scale (their log-likelihoods are all on the original GFAP scale). `parsnip` has engines for the plain Gaussian and gamma means but not for a spread model, and `glm()` cannot model the spread at all.
+
+::: panel-tabset
+### brms
+
+```{r}
+# The gamma model: a mean per day (log link) and a single shape
+summary(fit_ga)
+```
+
+### glmmTMB
+
+```{r}
+# The six models by maximum likelihood (glmmTMB's lognormal is on the original scale, like brms');
+# the package prefix is needed because both packages define a function called lognormal
+tmb_g_common <- glmmTMB(Gfap_IntDen ~ DPI_f, family = gaussian, data = cell_data)
+tmb_g_free <- glmmTMB(Gfap_IntDen ~ DPI_f, dispformula = ~ DPI_f, family = gaussian, data = cell_data)
+tmb_ln <- glmmTMB(Gfap_IntDen ~ DPI_f, family = glmmTMB::lognormal(link = "log"), data = cell_data)
+tmb_ga <- glmmTMB(Gfap_IntDen ~ DPI_f, family = Gamma(link = "log"), data = cell_data)
+tmb_ln_free <- glmmTMB(Gfap_IntDen ~ DPI_f, dispformula = ~ DPI_f, family = glmmTMB::lognormal(link = "log"), data = cell_data)
+tmb_ga_free <- glmmTMB(Gfap_IntDen ~ DPI_f, dispformula = ~ DPI_f, family = Gamma(link = "log"), data = cell_data)
+
+# AIC of each (lower is better; all on the same outcome scale)
+aic_tab <- AIC(tmb_g_common, tmb_g_free, tmb_ln, tmb_ga, tmb_ln_free, tmb_ga_free)
+round(aic_tab, 1)
+```
+:::
+
+```{r}
+#| include: false
+
+# Sampler checks that stop the render if a fit fails them
+fits_gfap <- list("Gaussian, one sigma" = fit_g_common, "Gaussian, sigma by day" = fit_g_free,
+                  "Lognormal" = fit_ln, "Gamma" = fit_ga,
+                  "Lognormal, sigma by day" = fit_ln_free, "Gamma, shape by day" = fit_ga_free)
+chk_gfap <- mcmc_check(fits_gfap)
+stopifnot(all(chk_gfap$ok))
+
+# Implied standard deviation of each day under each model: the Gaussian one is sigma itself; the lognormal
+# and gamma ones are the mean of the day times the CV they imply (sqrt(exp(sigma^2) - 1), or 1/sqrt(shape))
+epred_day <- function(fit) posterior_epred(fit, newdata = newdays)
+dr_ln <- as_draws_df(fit_ln)
+dr_ga <- as_draws_df(fit_ga)
+sd_g_common <- matrix(rep(as_draws_df(fit_g_common)$sigma, 5), ncol = 5)
+sd_g_free <- sd_from_draws(as_draws_df(fit_g_free))
+cv_ln <- sqrt(exp(dr_ln$sigma^2) - 1)
+cv_ga <- 1 / sqrt(dr_ga$shape)
+sd_ln <- epred_day(fit_ln) * cv_ln
+sd_ga <- epred_day(fit_ga) * cv_ga
+mean_ga <- colMeans(epred_day(fit_ga))
+colnames(sd_g_common) <- colnames(sd_ln) <- colnames(sd_ga) <- levels(cell_data$DPI_f)
+```
+
+Before the numbers, look at what each model *believes* about the spread of each day, next to what the day shows. In @fig-mvdr_implied (panel A) the black crosses are the observed standard deviations of GFAP; each colored interval is the standard deviation implied by one model (for the Gaussian with one `sigma`, a single value repeated on every day). Panels B and C ask the same question as a mean-variance plot: each day is a point at its mean and its standard deviation, with logarithmic axes, so that a constant CV becomes a straight line of slope one and a constant `sigma` a horizontal line. Panel B is GFAP, panel C is the tissue area of the earlier sections.
+
+```{r}
+#| label: fig-mvdr_implied
+#| fig-cap: "What each model says about the spread of GFAP integrated density (A), and how the spread of each day relates to its mean for GFAP (B) and for tissue area (C). A: crosses are the observed standard deviations; colored bars are 95% credible intervals of the standard deviation that each model implies (medians as dots). B and C: one point per day, labeled with the day; the dashed line is a constant coefficient of variation, the grey line a constant standard deviation."
+#| fig-alt: "Panel A: for days 0, 3, 7, 14 and 30, black crosses of observed standard deviations of GFAP (about 25, 71, 319, 266 and 247) with intervals from four models. The Gaussian with one sigma is a single wide interval around 220 on every day. The Gaussian with a sigma per day and the lognormal and gamma models follow the crosses, but the lognormal and gamma intervals at day 3 are above the cross. Panel B: five labeled points on logarithmic axes of mean against standard deviation for GFAP, lying close to the dashed diagonal line of constant coefficient of variation and far from the horizontal grey line. Panel C: five labeled points for tissue area that do not follow the dashed diagonal; day 3 lies far above the horizontal grey line."
+#| fig-width: 13
+#| fig-height: 4.8
+#| warning: false
+
+# Panel A: implied SD per day and model, long format with 95% intervals
+implied <- do.call(rbind, lapply(list("Gaussian, one sigma" = sd_g_common, "Gaussian, sigma by day" = sd_g_free,
+                                      "Lognormal" = sd_ln, "Gamma" = sd_ga), function(m) {
+  data.frame(x = 1:5, med = apply(m, 2, median), lo = apply(m, 2, quantile, 0.025), hi = apply(m, 2, quantile, 0.975))
+}))
+rownames(implied) <- NULL
+implied$model <- rep(c("Gaussian, one sigma", "Gaussian, sigma by day", "Lognormal", "Gamma"), each = 5)
+implied$model <- factor(implied$model, levels = c("Gaussian, one sigma", "Gaussian, sigma by day", "Lognormal", "Gamma"))
+implied$xpos <- implied$x + c(-0.27, -0.09, 0.09, 0.27)[as.integer(implied$model)]
+obs_gfap_sd <- data.frame(x = 1:5, sd = as.numeric(tapply(cell_data$Gfap_IntDen, cell_data$DPI_f, sd)))
+col_model <- c("Gaussian, one sigma" = "grey55", "Gaussian, sigma by day" = "#D55E00", "Lognormal" = "#0072B2", "Gamma" = "#009E73")
+
+pA <- ggplot() +
+  geom_linerange(data = implied, aes(x = xpos, ymin = lo, ymax = hi, color = model), linewidth = 1.8) +
+  geom_point(data = implied, aes(x = xpos, y = med, color = model, shape = model), size = 2.4) +
+  geom_point(data = obs_gfap_sd, aes(x = x, y = sd), shape = 4, size = 3.4, stroke = 1.4) +
+  scale_color_manual(values = col_model) +
+  scale_shape_manual(values = c(18, 16, 15, 17)) +
+  scale_x_continuous(breaks = 1:5, labels = levels(cell_data$DPI_f)) +
+  labs(x = "Days post-injury (DPI)", y = "SD of GFAP integrated density", color = NULL, shape = NULL) +
+  Plot_theme + legend_top() +
+  guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 2)) +
+  theme(legend.text = element_text(size = 9))
+
+# Panels B and C: mean and SD of each day (observed), on log axes, with a constant-CV line and a constant-SD line
+mean_var_panel <- function(y, title) {
+  m <- as.numeric(tapply(y, cell_data$DPI_f, mean)); s <- as.numeric(tapply(y, cell_data$DPI_f, sd))
+  cv <- exp(mean(log(s / m)))
+  ggplot(data.frame(m = m, s = s, day = levels(cell_data$DPI_f)), aes(x = m, y = s)) +
+    geom_abline(slope = 1, intercept = log10(cv), linetype = "dashed", color = "#0072B2") +
+    geom_hline(yintercept = sigma(lm(y ~ cell_data$DPI_f)), color = "grey55", linewidth = 1) +
+    geom_point(aes(color = day), size = 3.5) +
+    geom_text(aes(label = day), nudge_y = 0.09, size = 4.2) +
+    scale_color_manual(values = col_day) +
+    scale_x_log10() + scale_y_log10() +
+    labs(x = "Mean of the day", y = "SD of the day", title = title) +
+    Plot_theme + legend_none() + theme(plot.title = element_text(size = 13))
+}
+pB <- mean_var_panel(cell_data$Gfap_IntDen, "GFAP")
+pC <- mean_var_panel(cell_data$Tissue_Area, "Tissue area")
+
+pA + pB + pC + plot_annotation(tag_levels = "A")
+```
+
+I drew panel A with `ggplot2::geom_linerange()` and the crosses because the question is a *comparison of four statements about the same quantity*, and an interval for each against the raw value is the most direct way to see which statement the data support. The log-log mean-variance plot in B and C is the old diagnostic of the variance-stabilizing literature, and its use here is that it turns two competing ideas (constant `sigma`, constant CV) into two lines that you can hold a ruler against.
+
+::: {.callout-tip title="How to read this figure"}
+**A**: for each day, find the black cross (what the day shows) and check which colored bars contain it. A model whose bar misses the cross on several days is making a statement the data do not support; a bar that is very wide is a model that is not saying much. **B and C**: each point is a day. Points that follow the dashed diagonal behave as if the spread were a fixed fraction of the mean (a constant CV); points that sit on the grey horizontal line behave as if the spread were the same whatever the mean. A cloud that follows neither is a spread with a story of its own, and that is where the distributional model earns its place. The mistake to avoid is to read the dashed line as a fit: it is a reference, drawn through the geometric mean of the five observed CVs.
+:::
+
+```{r}
+#| include: false
+
+# Numbers for the text: CVs, implied and observed
+cv_day_gfap <- tapply(cell_data$Gfap_IntDen, cell_data$DPI_f, sd) / tapply(cell_data$Gfap_IntDen, cell_data$DPI_f, mean)
+cv_day_area <- tapply(cell_data$Tissue_Area, cell_data$DPI_f, sd) / tapply(cell_data$Tissue_Area, cell_data$DPI_f, mean)
+
+# Share of replicated standard deviations at least as large as the real one, for the four mean-variance statements
+yrep_gfap <- lapply(list(g1 = fit_g_common, g2 = fit_g_free, ln = fit_ln, ga = fit_ga), posterior_predict, ndraws = 2000)
+share_sd_gfap <- function(yrep, day) {
+  idx <- cell_data$DPI == day
+  mean(apply(yrep[, idx, drop = FALSE], 1, sd) >= sd(cell_data$Gfap_IntDen[idx]))
+}
+ppc_gfap <- sapply(yrep_gfap, function(yr) sapply(days_num, share_sd_gfap, yrep = yr))
+rownames(ppc_gfap) <- days_num
+share_neg <- sapply(yrep_gfap, function(yr) mean(yr < 0))
+```
+
+For GFAP the points of panel B lie close to the diagonal: the CV of the days runs from `r fx(min(cv_day_gfap), 2)` to `r fx(max(cv_day_gfap), 2)`, so the standard deviation grows roughly as fast as the mean, as a constant-CV family would have it, and the grey line is very wrong at both ends (it is why the grey bar of the first figure reached below zero). For tissue area, panel C, the days are not on the diagonal: the CVs run from `r fx(min(cv_day_area), 2)` to `r fx(max(cv_day_area), 2)`, the mean falls by almost half between day 0 and day 30 while the standard deviation barely moves, and day 3 stands out with both a high mean and a very high spread. In tissue area the spread is not a consequence of the mean; it is a quantity of its own, and a gamma or lognormal would impose on it a relation that the data do not have.
+
+For GFAP, then, the choice is between "the spread follows the mean" and "the spread is free", and @tbl-mvdr_gfap_loo asks the predictive question: which model predicts a held-out animal best?
+
+```{r}
+# Leave-one-out comparison of the six models for GFAP (comparable: all densities are on the original GFAP scale)
+loo_gfap <- lapply(fits_gfap, loo)
+cmp_gfap <- loo_table(loo_gfap)
+```
+
+```{r}
+#| label: tbl-mvdr_gfap_loo
+#| tbl-cap: Leave-one-out comparison of six models of GFAP integrated density. The elpd difference is relative to the best model (zero) and is read against its own standard error. The last column counts observations whose Pareto k exceeds 0.7.
+
+# Show the comparison as a table
+gt(cmp_gfap)
+```
+
+```{r}
+#| include: false
+
+# Convenient pieces for the text
+best_gfap <- cmp_gfap$Model[1]
+d_gfap <- function(model) cmp_gfap[cmp_gfap$Model == model, c("elpd difference", "SE of difference")]
+```
+
+@tbl-mvdr_gfap_loo says that the best model is `r best_gfap`, and the useful question is how far the others are from it in units of their own standard errors: `r paste0(cmp_gfap$Model[-1], " (", abs(cmp_gfap[-1, "elpd difference"]), " behind, standard error ", cmp_gfap[-1, "SE of difference"], ")", collapse = "; ")`. Read against those standard errors, the picture is this. The Gaussian with one `sigma`, the model of the earlier chapters, is clearly last, about `r round(abs(d_gfap("Gaussian, one sigma")[[1]]) / d_gfap("Gaussian, one sigma")[[2]], 1)` standard errors behind. The gamma is ahead of the lognormal by about `r round(abs(d_gfap("Lognormal")[[1]]) / d_gfap("Lognormal")[[2]], 1)` standard errors, which is a modest preference for it. And the gamma cannot be told apart from the gamma with a shape per day, nor from the Gaussian with a `sigma` per day (`r abs(d_gfap("Gaussian, sigma by day")[[1]])` behind, standard error `r d_gfap("Gaussian, sigma by day")[[2]]`). So the honest summary is that a model of the spread, in any of its forms, predicts better than one `sigma`, and that the data do not strongly decide between a spread tied to the mean and a spread of its own. What does discriminate is what each model *allows*. The Gaussians predict `r pct(share_neg["g1"], 1)` (one `sigma`) and `r pct(share_neg["g2"], 1)` (`sigma` per day) of new animals below zero, which an integrated density cannot be; the lognormal and the gamma predict none, by construction. And the predictive check of the standard deviation (the share of replicates at least as variable as the real day, @tbl-mvdr_gfap_ppc) says where each model is out of step.
+
+```{r}
+#| label: tbl-mvdr_gfap_ppc
+#| tbl-cap: Share of replicated datasets whose standard deviation of GFAP on a day is at least as large as the real one, for four of the models. Values near 0% or 100% mean that the real spread of that day is in a tail of what the model expects. The last row is the share of replicated animals with a negative GFAP.
+
+# Table: days in rows, models in columns, then the share of impossible negative values
+# (percentages are formatted as text, one decimal for the last row)
+ppc_tbl <- data.frame(Day = c(rownames(ppc_gfap), "Share below zero"),
+                      `Gaussian, one sigma` = c(pct(ppc_gfap[, "g1"]), pct(share_neg["g1"], 1)),
+                      `Gaussian, sigma by day` = c(pct(ppc_gfap[, "g2"]), pct(share_neg["g2"], 1)),
+                      Lognormal = c(pct(ppc_gfap[, "ln"]), pct(share_neg["ln"], 1)),
+                      Gamma = c(pct(ppc_gfap[, "ga"]), pct(share_neg["ga"], 1)),
+                      check.names = FALSE)
+gt(ppc_tbl)
+```
+
+Three lessons from @tbl-mvdr_gfap_ppc. The one-`sigma` Gaussian puts the two calm days at the very bottom of what it expects: `r pct(ppc_gfap["0", "g1"])` and `r pct(ppc_gfap["3", "g1"])` of its replicated days 0 and 3 were at least as variable as the real ones, because a spread of about `r round(sd_gfap_pooled)` is far too large for them, and it puts day 7 in the upper tail (`r pct(ppc_gfap["7", "g1"])`). The lognormal and the gamma, whose spread follows the mean, get the *order* of the days right without having a parameter for it, and are comfortable on days 0, 7, 14 and 30. Their trouble is day 3: GFAP at day 3 is tighter than a constant coefficient of variation allows (the CV of that day is `r fx(cv_day_gfap["3"], 2)` against `r fx(min(cv_day_gfap[c("0", "7", "14", "30")]), 2)` to `r fx(max(cv_day_gfap[c("0", "7", "14", "30")]), 2)` on the others), and `r pct(ppc_gfap["3", "ln"])` and `r pct(ppc_gfap["3", "ga"])` of their replicated day 3s are more variable than the real one. That is the gap that the `shape ~ DPI_f` and `sigma ~ DPI_f` versions of these families exist to close. And the Gaussian with a `sigma` per day gets every day right at the price of a parameter per day and of negative predictions in the early days. That is the trade: a family spends one number to say that the variance follows the mean; a distributional model spends one number per group to say that it does not; and for GFAP the data are in between, which is why the leave-one-out table cannot choose.
+
+### What each choice says about noise
+
+I do not think one of these is the right answer in general, so here is how I choose. Use a family that ties the variance to the mean (gamma, lognormal, and their relatives for counts) when the measurement is a positive quantity built from multiplicative or additive-positive contributions, when the CV is roughly constant in the data (@fig-mvdr_implied, panel B), and when you want predictions that respect the zero. It is the simpler statement: one number, with fewer parameters to estimate from few animals. Model the spread (a `sigma ~ ...` or equivalent) when the spread is itself a finding, when it does not scale with the mean (panel C), when the outcome can be negative or is bounded in a way that no family reflects, or when the groups differ in spread for a reason that has nothing to do with their means (a day on which animals diverge). The two are not exclusive: the gamma and the lognormal in @tbl-mvdr_gfap_loo with a `shape` or `sigma` per day are the middle path, a spread that follows the mean *and* may differ between days. The books I lean on say the same in their own terms. A family is a hypothesis about the noise around the mean, not about the mean itself, which lives in the linear predictor [@mcelreath2020; @gelman2020]. For strictly positive outcomes whose spread grows with their size they point to a gamma or a lognormal with a log link rather than a Gaussian on the original scale [@gelman2020; @inchausti2023]. And the relations between the parameters and the coefficient of variation that I used above (for the gamma $1/\sqrt{\text{shape}}$, for the lognormal $\sqrt{e^{\sigma^2} - 1}$) are properties of those distributions that any of them will give you.
+
+The precedent for a parameter other than `sigma` was already in the book. In @sec-beta-robust-regression, the beta model's precision `phi` got its own formula (`phi ~ surgery`), and the sham mice, tightly packed, and the ischemic mice, scattered, stopped having to share a precision. That was a distributional model. Any parameter of a family can have its own linear predictor, and @tbl-mvdr_params lists the ones that you will meet.
+
+| Family | Parameter | What it controls | Where the book used or uses it |
+|:-----------|:--------|:------------------------|:------------------------|
+| Gaussian | `sigma` | Absolute spread of the outcome | Tissue area, this chapter |
+| Student-t | `sigma`, `nu` | Scale, and how heavy the tails are | @sec-beta-robust-regression (`nu` for the tails); `sigma` by day in this chapter |
+| Lognormal | `sigma` | Relative spread (on the log scale) | GFAP, this chapter |
+| Gamma | `shape` | Relative spread: CV $= 1/\sqrt{\text{shape}}$ | GFAP, this chapter |
+| Beta | `phi` | Precision: how tightly proportions bunch around the mean | @sec-beta-robust-regression (`phi ~ surgery`) |
+| Negative binomial | `shape` | Overdispersion of counts beyond a Poisson | @sec-count-regression |
+| Zero-inflated families | `zi` | Probability of a structural zero | @sec-beta-robust-regression (`zi ~ genotype`), @sec-count-regression |
+
+: Parameters of a family that can have a linear predictor of their own in `brms` (a distributional model), with the places where the book uses them. {#tbl-mvdr_params}
+
+::: {.callout-tip title="Frequentist equivalent"}
+The AIC table of the `glmmTMB` tab ranks the six models by maximum likelihood, on the same outcome scale. It puts the one-`sigma` Gaussian last by a wide margin (AIC `r round(aic_tab["tmb_g_common", "AIC"], 1)`), the lognormal in the middle (`r round(aic_tab["tmb_ln", "AIC"], 1)`) and the Gaussian with a `sigma` per day first (`r round(aic_tab["tmb_g_free", "AIC"], 1)`), with the gamma (`r round(aic_tab["tmb_ga", "AIC"], 1)`) and the gamma with a shape per day (`r round(aic_tab["tmb_ga_free", "AIC"], 1)`) within about two points of it. That is not exactly the order of the leave-one-out table (there the gamma was first and the Gaussian with a `sigma` per day second), and the difference is the useful lesson: the models that model the spread are close to one another, and which of them wins depends on whether you count fitted likelihood with a penalty (AIC) or predictive accuracy for a held-out animal (LOO). `glmmTMB`'s `dispformula` is the frequentist twin of `brms`' `sigma ~ ...`, `shape ~ ...` and `phi ~ ...` (all of them are dispersion parameters in its language), which is why the same argument served the beta model, the Gaussian here and the gamma. Where the two lenses differ is, once more, in the interval for a variance from few animals: a Wald interval for a log standard deviation is symmetric on the log scale and uses a normal approximation that is crude with eight animals, whereas the posterior is skewed as the data say it should be.
+:::
+
+
+## Two markers, one model {#sec-mvdr-multivariate}
+
+Take the shoe size and the reading score of a thousand children between 5 and 12 years old, and the two correlate strongly. Nobody believes that big feet help you read. Age is behind both: older children have bigger feet and read better. Now take only the seven-year-olds and ask again. The correlation shrinks to almost nothing, because once age is held fixed, a child with larger feet than the other seven-year-olds is no better at reading. The first correlation was a statement about *children of all ages mixed together*, and the second is a statement about *children of one age*. They are different questions, and a paper that reports the first when it means the second has an error nobody can find in the model, because it is not in the model, it is in the question.
+
+GFAP and PDGFR-β are the shoe size and the reading score of this book. In @sec-eda-ggpairs and in the exploration part you saw that the two markers move together across the dataset, and I told you at the time that DPI was driving both, a confounder (@sec-eda-ggpairs and [the introduction to exploration](eda-intro.qmd)). Now we can ask the question properly: **once we account for the day, do the two markers still go together in an animal?** If the animal that is high on GFAP for its day is also high on PDGFR-β for its day, something at the level of the animal (the size of its lesion, the section that was cut, the staining of that batch) pushes both, and the two markers are not two independent experiments. If not, the markers respond to the injury each on its own.
+
+### The correlation everyone computes, and the one that remains
+
+I analyze both markers on the log scale. The reason is the one of the last section: both are positive integrated densities whose spread grows with their mean, so on the log scale the spread is much more stable (the standard deviation of log GFAP runs from `r fx(min(tapply(cell_data$lgfap, cell_data$DPI_f, sd)), 2)` to `r fx(max(tapply(cell_data$lgfap, cell_data$DPI_f, sd)), 2)` over the days, and that of log PDGFR-β from `r fx(min(tapply(cell_data$lpdgfr, cell_data$DPI_f, sd)), 2)` to `r fx(max(tapply(cell_data$lpdgfr, cell_data$DPI_f, sd)), 2)`), and a Gaussian is a defensible description. It is also the scale on which the lognormal model of the last section lives, so a difference of 0.69 between two means is a doubling. I keep a `sigma` per day for each marker, because the day-3 story differs between them, as we are about to see.
+
+```{r}
+# Raw correlation of the two (log) markers over all animals, and the correlation of what is left after each day's mean
+raw_r <- cor(cell_data$lgfap, cell_data$lpdgfr)
+cell_data$res_gfap <- cell_data$lgfap - ave(cell_data$lgfap, cell_data$DPI_f)
+cell_data$res_pdgfr <- cell_data$lpdgfr - ave(cell_data$lpdgfr, cell_data$DPI_f)
+res_r <- cor(cell_data$res_gfap, cell_data$res_pdgfr)
+```
+
+```{r}
+#| label: fig-mvdr_raw_cor
+#| fig-cap: "Log GFAP against log PDGFR-β integrated density in each of the 49 animals. A: the raw values, colored by day; the line is the fit across all animals. B: the same animals after subtracting the mean of their own day from each marker; the line is the fit through the leftovers. Circles are ischemic animals, triangles are shams."
+#| fig-alt: "Two scatter plots. Panel A: 49 points colored by day in five groups; the day 0 points are at the lower left, the days 7, 14 and 30 points at the upper right and the day 3 points at the lower middle; a straight line rises steeply across all of them. Panel B: the same animals centered on their own day, as a cloud around zero with a gently rising line, much flatter than in panel A."
+#| fig-width: 10
+#| fig-height: 4.6
+#| warning: false
+
+# Panel A: the raw scatter, day by color, with a line fitted across all animals
+pA <- ggplot(cell_data, aes(x = lgfap, y = lpdgfr)) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1) +
+  geom_point(aes(color = DPI_f, shape = Condition), size = 2.8, alpha = 0.9) +
+  scale_color_manual(values = col_day, name = "Day") +
+  scale_shape_manual(values = c(SHAM = 17, MCAO = 16), name = NULL) +
+  labs(x = "log GFAP integrated density", y = "log PDGFR-β integrated density") +
+  Plot_theme + legend_inside(0.18, 0.78) + theme(legend.text = element_text(size = 9), legend.title = element_text(size = 10))
+
+# Panel B: the leftovers after removing each day's mean, same colors
+pB <- ggplot(cell_data, aes(x = res_gfap, y = res_pdgfr)) +
+  geom_hline(yintercept = 0, color = "grey70") + geom_vline(xintercept = 0, color = "grey70") +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1) +
+  geom_point(aes(color = DPI_f, shape = Condition), size = 2.8, alpha = 0.9) +
+  scale_color_manual(values = col_day) +
+  scale_shape_manual(values = c(SHAM = 17, MCAO = 16)) +
+  labs(x = "log GFAP, minus its day's mean", y = "log PDGFR-β, minus its day's mean") +
+  Plot_theme + legend_none()
+
+pA + pB + plot_annotation(tag_levels = "A")
+```
+
+This is a plain scatter (`ggplot2::geom_point()`), once raw and once after subtracting each day's mean, because the argument is about *where the association lives*, and a single correlation coefficient in a table would hide the difference between the two panels. A bar plot with asterisks has no way to show a relationship between two measurements on the same animal at all. The design tip: when a third variable might drive both axes, color the points by it, and show the picture before and after you take it out.
+
+::: {.callout-tip title="How to read this figure"}
+**Panel A**: look at the colors before the line. The animals of each day form a cloud of their own, and the clouds are arranged from the lower left (day 0) to the upper right (days 7 to 30): the steep line passes through the *clouds*, and a good part of its slope comes from the days being in different places. **Panel B**: every cloud has been moved to the center, so only the differences between animals of the same day remain. If the markers still went together within a day, the leftovers would still tilt upward; the tilt that remains is the residual correlation. The mistake to avoid is reading the correlation of panel A as a statement about animals: it is a statement about days.
+:::
+
+The raw correlation of the two markers in @fig-mvdr_raw_cor (panel A) is `r fx(raw_r, 2)`. After the means of the days are taken out (panel B), it is `r fx(res_r, 2)`. About half of the association was the days. Whatever remains is a statement about animals, and the rest of the section is about getting it with an honest interval. The two numbers are the textbook picture of a confounder, a variable (here the day) that moves both outcomes and manufactures a correlation between them, and of what adjusting for it does [@huntingtonklein2021; @mcelreath2020].
+
+![Two dancers whose movements stay linked even after the music is taken out: the choreography (the day) explains much of what they do, and the residual correlation is how much their small deviations from it still move together.](images/multivariate-distributional-regression_two-dancers-linked.png){#fig-mvdr-dancers fig-align="center" width="85%" fig-alt="Watercolor sketch of two ballet dancers on an off-white stage, one in a teal dress on the left and one in an ochre dress on the right, reaching toward each other with a thin ochre thread joining their hands in a gentle curve, with a faint dashed vertical line between them marking the choreography."}
+
+### A model for two outcomes
+
+Think of two dancers on a stage. The music, which here is the day, sets the choreography that both follow, and much of what they do is explained by it. What the residual correlation asks is whether their *small deviations* from the choreography still move together, one leaning left when the other does. A [multivariate regression]{style="color:green; font-weight:bold;"} puts the two markers into one model as a *pair*. Each marker gets its own formula for its mean (and, if you want, for its spread), and the two leftovers of the same animal are allowed to be correlated: the model describes how the pair varies together, not only how each marker varies alone. The correlation between the leftovers is the [residual correlation]{style="color:green; font-weight:bold;"}, and it is exactly the quantity of panel B: the association that remains once the predictors of the model have been used. With $y_{1i}$ the log GFAP and $y_{2i}$ the log PDGFR-β of animal $i$, @eq-mvdr-mv is the model. @fig-mvdr-dancers is the picture to hold.
+
+$$
+\begin{aligned}
+\begin{pmatrix} y_{1i} \\ y_{2i} \end{pmatrix} &\sim \text{MVNormal}\!\left(\begin{pmatrix} \mu_{1i} \\ \mu_{2i} \end{pmatrix},\, \boldsymbol{\Sigma}_i\right), \qquad
+\boldsymbol{\Sigma}_i = \begin{pmatrix} \sigma_{1i} & 0 \\ 0 & \sigma_{2i} \end{pmatrix}
+\begin{pmatrix} 1 & \rho \\ \rho & 1 \end{pmatrix}
+\begin{pmatrix} \sigma_{1i} & 0 \\ 0 & \sigma_{2i} \end{pmatrix}, \\
+\mu_{ki} &= \alpha_k + \beta_{k,d[i]}, \qquad \log \sigma_{ki} = \gamma_k + \delta_{k,d[i]}, \qquad k = 1, 2, \\
+\rho &\sim \text{LKJ}(2).
+\end{aligned}
+$$ {#eq-mvdr-mv}
+
+The first line is the new idea: a two-dimensional normal distribution, in which the standard deviations of the two markers, $\sigma_{1i}$ and $\sigma_{2i}$, are the ones of the distributional models of the earlier sections (one per day, each marker its own), and $\rho$ is the correlation between them. The second line is the same pair of models as before, one per marker. The third line is the prior on $\rho$: the LKJ prior of @sec-multilevel-varying-slopes [@lewandowski2009; @mcelreath2020], with $\eta = 2$, which is mildly skeptical of correlations near $\pm 1$ and treats a correlation of zero as the most plausible before the data (it is the same prior, for the same kind of object; here it describes the leftovers of an animal and there the baseline and response of a mouse). In `brms`, the whole model is `bf(...) + bf(...) + set_rescor(TRUE)`: one `bf()` per outcome, added, and `set_rescor(TRUE)` is what asks for $\rho$ to be estimated (with `FALSE` the two models are fitted jointly but with the correlation fixed at zero).
+
+A word on what this model does and does not buy. The means of each marker, by day, are the same as in two separate models: the correlation does not change where the days sit. What the multivariate model adds is $\rho$ itself, with its uncertainty, and the ability to predict the *pair* of values of a new animal, which two separate models cannot do (they would predict the markers as if they were independent). The priors for the means and spreads are those I used for GFAP on the log scale: `Normal(5.5, 1.5)` for the intercepts (the logarithm of about 250), `Normal(0, 1.5)` for the differences between days and, for the spread on the log scale, `Normal(-1, 1)` for the intercept (a standard deviation of about 0.4 on the log scale, which is a 40% spread) and `Normal(0, 1)` for the differences between days.
+
+```{r}
+# Priors for each of the two outcomes (the resp argument names the outcome), and for the residual correlation
+prior_mv <- c(
+  prior(normal(5.5, 1.5), class = "Intercept", resp = "lgfap"),
+  prior(normal(5.5, 1.5), class = "Intercept", resp = "lpdgfr"),
+  prior(normal(0, 1.5), class = "b", resp = "lgfap"),
+  prior(normal(0, 1.5), class = "b", resp = "lpdgfr"),
+  prior(normal(-1, 1), class = "Intercept", dpar = "sigma", resp = "lgfap"),
+  prior(normal(-1, 1), class = "Intercept", dpar = "sigma", resp = "lpdgfr"),
+  prior(normal(0, 1), class = "b", dpar = "sigma", resp = "lgfap"),
+  prior(normal(0, 1), class = "b", dpar = "sigma", resp = "lpdgfr"),
+  prior(lkj(2), class = "rescor")
+)
+
+# Two outcomes, each with a mean and a spread per day, and a residual correlation between them
+bf_mv <- bf(lgfap ~ DPI_f, sigma ~ DPI_f) + bf(lpdgfr ~ DPI_f, sigma ~ DPI_f) + set_rescor(TRUE)
+fit_mv <- brm(bf_mv, data = cell_data, prior = prior_mv,
+              chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+              file = "models/multivariate-distributional-regression_fit14.rds", file_refit = "never")
+
+# The same model with the residual correlation fixed at zero (two separate models, fitted together)
+bf_mv0 <- bf(lgfap ~ DPI_f, sigma ~ DPI_f) + bf(lpdgfr ~ DPI_f, sigma ~ DPI_f) + set_rescor(FALSE)
+fit_mv0 <- brm(bf_mv0, data = cell_data, prior = prior_mv[prior_mv$class != "rescor", ],
+               chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+               file = "models/multivariate-distributional-regression_fit15.rds", file_refit = "never")
+```
+
+The frequentist counterpart of a multivariate regression is `lm()` with a matrix of outcomes, `lm(cbind(y1, y2) ~ x)`, which fits one regression per outcome and keeps their residual covariance together. Its limits are worth saying: it gives each marker a mean per day, and one common covariance matrix for all days, so there is no day-specific `sigma` (`nlme::gls()` can model the variance by day for one marker at a time, but then the correlation between markers is lost; I know of no mainstream function that does both). `car::Manova()` would add a joint test that the days differ for the two markers together, which is not the question of this section, so I leave it out; and `parsnip` has no engine for several outcomes at once. There is a further limit that does not bite here: `lm(cbind())` is Gaussian throughout, so it cannot put a count and a Gaussian marker in one model, which a multivariate `brms` model can.
+
+::: panel-tabset
+### brms
+
+```{r}
+# Means and spreads of both markers by day; the last line is the residual correlation
+summary(fit_mv)
+```
+
+### lm (multivariate)
+
+```{r}
+# One regression per marker on day, fitted together; the common residual covariance
+mlm <- lm(cbind(lgfap, lpdgfr) ~ DPI_f, data = cell_data)
+coef(mlm)
+
+# Residual correlation (partial correlation, given the day) with a Fisher-z interval
+res_cor_f <- cor(residuals(mlm))[1, 2]
+n_obs <- nrow(cell_data); k_pred <- 4
+fz <- atanh(res_cor_f) + c(-1, 0, 1) * qnorm(0.975) / sqrt(n_obs - k_pred - 3)
+round(setNames(tanh(fz), c("lower", "estimate", "upper")), 2)
+```
+:::
+
+```{r}
+#| include: false
+
+# Sampler checks that stop the render if a fit fails them
+chk_mv <- mcmc_check(list("Two markers, correlated" = fit_mv, "Two markers, rescor fixed at 0" = fit_mv0))
+stopifnot(all(chk_mv$ok))
+
+# Draws of the residual correlation, and the day means of the two markers in the two fits
+dr_mv <- as_draws_df(fit_mv)
+rho_draws <- dr_mv$rescor__lgfap__lpdgfr
+fix_mv <- fixef(fit_mv)[, "Estimate"]
+fix_mv0 <- fixef(fit_mv0)[, "Estimate"]
+mean_rows <- !grepl("^sigma", names(fix_mv))
+max_shift <- max(abs(fix_mv[mean_rows] - fix_mv0[mean_rows]))
+```
+
+Both fits pass the sampler checks (the table at the end of the chapter lists them). The residual correlation between log GFAP and log PDGFR-β in `brms` is `r qi(rho_draws, 2)`, against the raw `r fx(raw_r, 2)`. It is positive with a probability of `r pct_prob(mean(rho_draws > 0))`, and the model's evidence is for a moderate association, with an interval from barely above zero to more than half. The frequentist counterpart, `r fx(res_cor_f, 2)` with a Fisher-z interval of `r fx(tanh(fz[1]), 2)` to `r fx(tanh(fz[3]), 2)`, says the same. And the day means of the two markers moved by at most `r fx(max_shift, 2)` (on the log scale) between the correlated and the uncorrelated fits, as promised: the correlation does not change where the days sit.
+
+The correlation changes what the model predicts for the *pair*, and nothing else, and leave-one-out cross-validation can say so, because it can score the pair as a whole (the joint log score) or each marker alone. The two answer different questions: the joint score asks how well the model predicts the whole animal, both markers at once, and the per-marker score asks how well it predicts one marker. Report the one that matches your question.
+
+```{r}
+# Leave-one-out for the pair and for each marker alone, in the model with and without the residual correlation
+loo_mv <- loo(fit_mv)
+loo_mv0 <- loo(fit_mv0)
+loo_gf <- list(loo(fit_mv, resp = "lgfap"), loo(fit_mv0, resp = "lgfap"))
+loo_pd <- list(loo(fit_mv, resp = "lpdgfr"), loo(fit_mv0, resp = "lpdgfr"))
+
+# Difference in expected log predictive density (correlated minus uncorrelated) and its standard error
+loo_diff <- function(a, b) {
+  d <- a$pointwise[, "elpd_loo"] - b$pointwise[, "elpd_loo"]
+  c(diff = sum(d), se = sqrt(length(d) * var(d)))
+}
+dj <- loo_diff(loo_mv, loo_mv0)
+dg <- loo_diff(loo_gf[[1]], loo_gf[[2]])
+dp <- loo_diff(loo_pd[[1]], loo_pd[[2]])
+mv_loo <- data.frame(
+  Score = c("Both markers together (joint)", "log GFAP alone", "log PDGFR-β alone"),
+  `elpd difference` = round(c(dj["diff"], dg["diff"], dp["diff"]), 1),
+  `SE of difference` = round(c(dj["se"], dg["se"], dp["se"]), 1),
+  check.names = FALSE
+)
+```
+
+```{r}
+#| label: tbl-mvdr_loo_mv
+#| tbl-cap: Leave-one-out comparison of the model with a residual correlation against the same model with the correlation fixed at zero, scored for the pair of markers and for each marker alone. A positive difference favors the model with the correlation.
+
+# Show the three scores as a table
+gt(mv_loo)
+```
+
+@tbl-mvdr_loo_mv shows the pattern one would expect. For each marker alone the two models are the same (difference `r fx(mv_loo[2, 2], 1)` and `r fx(mv_loo[3, 2], 1)`, standard errors `r fx(mv_loo[2, 3], 1)` and `r fx(mv_loo[3, 3], 1)`), because the correlation does not enter the prediction of a single marker. For the pair, the model with the correlation is ahead by `r fx(mv_loo[1, 2], 1)` elpd units against a standard error of `r fx(mv_loo[1, 3], 1)`: about one standard error, in the right direction, and not more than that with 49 animals. Differences of this size are within the noise of the estimate itself, so I read them as a tie that leans one way, and I give more weight to the posterior of the correlation and to the joint predictive checks below, which ask directly about the thing the correlation is for [@vehtari2017]. A caution: each of these fits has `r sum(loo_mv$diagnostics$pareto_k > 0.7)` observations with a Pareto k above 0.7, as models with a spread per day often do, so the differences are approximate.
+
+```{r}
+# The correlation within each day, from a separate two-outcome model per day (intercepts only, so no day effect is estimated)
+prior_day <- c(
+  prior(normal(5.5, 1.5), class = "Intercept", resp = "lgfap"),
+  prior(normal(5.5, 1.5), class = "Intercept", resp = "lpdgfr"),
+  prior(exponential(2), class = "sigma", resp = "lgfap"),
+  prior(exponential(2), class = "sigma", resp = "lpdgfr"),
+  prior(lkj(2), class = "rescor")
+)
+# One fit per day: keep the animals of that day and estimate the correlation of the two markers
+rho_day <- lapply(seq_along(levels(cell_data$DPI_f)), function(i) {
+  k <- levels(cell_data$DPI_f)[i]
+  fit <- brm(bf(lgfap ~ 1) + bf(lpdgfr ~ 1) + set_rescor(TRUE), data = cell_data[cell_data$DPI_f == k, ],
+             prior = prior_day, chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+             file = paste0("models/multivariate-distributional-regression_fit", 15 + i, ".rds"), file_refit = "never")
+  # Keep the fit (for the sampler table) and the draws of the correlation
+  list(fit = fit, rho = as_draws_df(fit)$rescor__lgfap__lpdgfr)
+})
+names(rho_day) <- levels(cell_data$DPI_f)
+```
+
+```{r}
+#| include: false
+
+# Sampler checks of the five per-day fits (shown in the table at the end of the chapter)
+chk_day <- mcmc_check(setNames(lapply(rho_day, `[[`, "fit"), paste("Two markers, day", names(rho_day))))
+```
+
+```{r}
+#| label: fig-mvdr_rescor
+#| fig-cap: "Posterior of the residual correlation between log GFAP and log PDGFR-β (A), and the same correlation estimated separately within each day (B). In A the dashed curve is the LKJ(2) prior and the vertical line marks the raw correlation of all animals. In B the black line is the posterior median of the model with all days and the dashed line marks zero; the numbers are the animals per day. Dots are medians, thick and thin bars the 66% and 95% credible intervals."
+#| fig-alt: "Panel A: a half-eye of the correlation, centered near 0.3 with a 95% interval from about 0 to 0.55, with a dashed dome-shaped prior curve centered at zero and a vertical line at 0.58 to the right of the whole posterior. Panel B: six half-eyes in a row, one per day and one for the model with all days; the daily ones are very wide, reaching from about minus 0.6 to 0.95, with medians scattered between about minus 0.05 and 0.55, and the all-days one is narrower."
+#| fig-width: 11
+#| fig-height: 4.6
+#| warning: false
+
+# Panel A: the posterior of rho, the LKJ(2) prior (a Beta(2, 2) stretched to -1..1), and the raw correlation as a line
+r_grid <- seq(-0.999, 0.999, length.out = 400)
+prior_rho <- data.frame(r = r_grid, density = dbeta((r_grid + 1) / 2, 2, 2) / 2)
+pA <- ggplot(data.frame(rho = rho_draws), aes(x = rho)) +
+  stat_halfeye(.width = c(0.66, 0.95), point_interval = "median_qi", fill = "#56B4E9", alpha = 0.85) +
+  geom_line(data = prior_rho, aes(x = r, y = density * 0.9 / max(density)), linetype = "dashed", linewidth = 1, color = "grey30") +
+  geom_vline(xintercept = raw_r, color = "#D55E00", linewidth = 1.2) +
+  annotate("text", x = raw_r, y = 1.05, label = "raw", color = "#D55E00", hjust = -0.2, size = 4.5) +
+  coord_cartesian(xlim = c(-1, 1)) +
+  labs(x = "Residual correlation", y = NULL) +
+  Plot_theme + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.line.y = element_blank())
+
+# Panel B: per-day draws and the all-days draws in one long table, one half-eye each
+rho_long <- rbind(
+  do.call(rbind, lapply(names(rho_day), function(k) data.frame(group = paste0("Day ", k, "
+(n = ", n_day[k], ")"), rho = rho_day[[k]]$rho))),
+  data.frame(group = "All days
+(n = 49)", rho = rho_draws)
+)
+rho_long$group <- factor(rho_long$group, levels = unique(rho_long$group))
+pB <- ggplot(rho_long, aes(x = group, y = rho)) +
+  geom_hline(yintercept = median(rho_draws), color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey60") +
+  stat_halfeye(aes(fill = group), .width = c(0.66, 0.95), point_interval = "median_qi", alpha = 0.85) +
+  scale_fill_manual(values = c(unname(col_day), "grey50")) +
+  coord_cartesian(ylim = c(-1, 1)) +
+  labs(x = NULL, y = "Residual correlation") +
+  Plot_theme + legend_none() + theme(axis.text.x = element_text(size = 11))
+
+pA + pB + plot_layout(widths = c(1, 1.3)) + plot_annotation(tag_levels = "A")
+```
+
+The posterior of a correlation is drawn as a half-eye (`ggdist::stat_halfeye()`) for the reason it was in @sec-multilevel-varying-slopes: with 49 animals it is a wide distribution, and its shape, not a single number, is the result; the dashed prior next to it shows how much the data moved us. A table of correlation coefficients with asterisks would give a number and a verdict and would hide both the width and the prior.
+
+::: {.callout-tip title="How to read this figure"}
+**Panel A**: read the position of the blob (the size of the residual correlation), then its width (how well 49 animals pin it down), then compare it with the dashed prior (how far the data moved us from "probably near zero") and with the orange line (the correlation you would have reported without taking the day out). **Panel B**: the same correlation estimated within each day alone. Look at the width first: every one of those intervals is huge, because 7 to 12 animals cannot pin a correlation down. Then compare the medians with the black line: if they scatter around it without a pattern, there is no evidence that the correlation changes with the day. The mistake to avoid is to read the day with the highest median as "the day on which the markers are tied".
+:::
+
+```{r}
+#| include: false
+
+# Numbers quoted below
+rho_day_med <- sapply(rho_day, function(r) median(r$rho))
+rho_day_lo <- sapply(rho_day, function(r) quantile(r$rho, 0.025))
+rho_day_hi <- sapply(rho_day, function(r) quantile(r$rho, 0.975))
+```
+
+The first panel of @fig-mvdr_rescor is the answer to the question of this section: the residual correlation is `r qs(rho_draws, 2)`, a moderate positive association, clearly smaller than the raw `r fx(raw_r, 2)` and reasonably far from zero. It is not a mechanism. It says that, within a day, an animal that is higher than its day's average for GFAP tends to be higher for PDGFR-β as well, and the biology could be what you like: the extent of the lesion in the section that was cut, how close to the lesion the section lies, the staining batch, a shared response of astrocytes and pericytes to the same signals. The model cannot tell these apart. What it does say is that the two markers are not independent measurements, and that a result about one is partly a result about the other: if you test a treatment on GFAP and on PDGFR-β and find an effect on both, you have less than two pieces of evidence. And the opposite reading is available too. A residual correlation of zero would have meant that, once the day is known, the two markers wander independently, so each carries its own information about the animal; a correlation near 1 would have meant that one of them is redundant with the other, which is the *collinearity* of @sec-linear-regression-assumptions in a new guise (two thermometers in one beaker).
+
+### One correlation for all days is a choice
+
+The model estimates a single $\rho$ for all five days. If the markers were tied on one day and not on another, that single number would be an average that describes neither. The honest sensitivity analysis is panel B of @fig-mvdr_rescor: a separate two-outcome model for each day. And it is a lesson in how little a day of 7 to 12 animals says about a correlation: the day-by-day medians run from `r fx(min(rho_day_med), 2)` (day `r names(which.min(rho_day_med))`) to `r fx(max(rho_day_med), 2)` (day `r names(which.max(rho_day_med))`), and the intervals are each about `r fx(median(rho_day_hi - rho_day_lo), 1)` units wide on a scale that runs from -1 to 1. Of the five day-wise intervals, `r sum(rho_day_lo < median(rho_draws) & rho_day_hi > median(rho_draws))` contain the all-days median and `r sum(rho_day_lo > 0)` exclude zero: there is no day on which the data single out a different correlation, and no day on which they can rule out either a value of zero or a value of 0.7. If I suspected that the correlation changes with the day (say, tighter later, when a glial scar has formed), the answer is a larger study or a model with a correlation that depends on the day, which `brms` does not offer for the residuals of a multivariate model. Here, one $\rho$ for all days is the simplest description that these data cannot reject.
+
+::: {.callout-tip title="Frequentist equivalent"}
+`lm(cbind(...))` gives `r fx(res_cor_f, 2)` for the residual correlation, `brms` `r fx(median(rho_draws), 2)`, and the Fisher-z interval and the credible interval cover almost the same range. The two agree because the means have enough data and the correlation is moderate; with fewer animals or a correlation near 1, the Fisher-z interval would be in trouble at the boundary, while the posterior respects the limits of $[-1, 1]$ by construction. The structural difference is what each can *include*: the Bayesian model carries a `sigma` for each marker and day and a correlation at the same time; the frequentist function carries one covariance matrix for all days. That is the difference between the two tabs, and for these data it did not change the correlation.
+:::
+
+### Joint predictive checks
+
+A model of two outcomes can be asked about the pair. The check I want is the two-dimensional version of @sec-mcmc-model-checking: does the model make pairs that look like the pairs of the animals? I show two views in @fig-mvdr_joint. Panel A draws, for each day, the observed animals and 100 outlines from the model, each outline being the 95% ellipse that holds a new animal of that day for one posterior draw (the same device as the clouds of @sec-multilevel-varying-slopes). Panel B asks the question as a single number: the correlation of the two markers within a day, pooled over days, of the real animals against the same statistic in 2,000 datasets simulated from the model.
+
+```{r}
+# Ellipse that holds 95% of a bivariate normal cloud with standard deviations sd1, sd2 and correlation rho
+ell <- function(sd1, sd2, rho, level = 0.95, n = 100) {
+  t <- seq(0, 2 * pi, length.out = n)
+  r <- sqrt(qchisq(level, 2))
+  data.frame(x = r * sd1 * cos(t), y = r * sd2 * (rho * cos(t) + sqrt(1 - rho^2) * sin(t)))
+}
+
+# 100 posterior draws; for each day the center, the two spreads and the correlation of one draw
+set.seed(123)
+sel <- sample(nrow(dr_mv), 100)
+ell_df <- do.call(rbind, lapply(levels(cell_data$DPI_f), function(k) {
+  pre <- function(resp, what) if (k == "0") 0 else dr_mv[[paste0(what, resp, "_DPI_f", k)]]
+  do.call(rbind, lapply(seq_along(sel), function(j) {
+    i <- sel[j]
+    mu1 <- dr_mv$b_lgfap_Intercept[i] + if (k == "0") 0 else dr_mv[[paste0("b_lgfap_DPI_f", k)]][i]
+    mu2 <- dr_mv$b_lpdgfr_Intercept[i] + if (k == "0") 0 else dr_mv[[paste0("b_lpdgfr_DPI_f", k)]][i]
+    s1 <- exp(dr_mv$b_sigma_lgfap_Intercept[i] + if (k == "0") 0 else dr_mv[[paste0("b_sigma_lgfap_DPI_f", k)]][i])
+    s2 <- exp(dr_mv$b_sigma_lpdgfr_Intercept[i] + if (k == "0") 0 else dr_mv[[paste0("b_sigma_lpdgfr_DPI_f", k)]][i])
+    e <- ell(s1, s2, dr_mv$rescor__lgfap__lpdgfr[i])
+    data.frame(day = k, draw = j, x = mu1 + e$x, y = mu2 + e$y)
+  }))
+}))
+ell_df$day_lab <- factor(paste("Day", ell_df$day), levels = paste("Day", levels(cell_data$DPI_f)))
+cell_data$day_lab <- factor(paste("Day", cell_data$DPI_f), levels = levels(ell_df$day_lab))
+
+# Pooled within-day correlation, for the real data and for 2000 replicated datasets (draws x animals x markers)
+within_cor <- function(y1, y2, day) {
+  r1 <- y1 - ave(y1, day); r2 <- y2 - ave(y2, day)
+  sum(r1 * r2) / sqrt(sum(r1^2) * sum(r2^2))
+}
+yrep_mv <- posterior_predict(fit_mv, ndraws = 2000)
+stat_rep <- apply(yrep_mv, 1, function(m) within_cor(m[, 1], m[, 2], cell_data$DPI_f))
+stat_obs <- within_cor(cell_data$lgfap, cell_data$lpdgfr, cell_data$DPI_f)
+```
+
+```{r}
+#| label: fig-mvdr_joint
+#| fig-cap: "Joint predictive checks. A: observed animals (dots) in each day against 100 outlines of the 95% ellipse of a new animal, one outline per posterior draw. B: the correlation of the two markers within a day, pooled over days, in 2,000 replicated datasets (histogram) and in the real animals (line)."
+#| fig-alt: "Panel A: five small scatter plots, one per day, each with a few black dots and a bundle of faint blue ellipses around them. Day 0 has a small ellipse bundle at the lower left, days 7, 14 and 30 have larger ones at the upper right, and day 3 is in the middle. The dots lie inside the bundles. Panel B: a histogram of replicated correlations centered near 0.3 and from about minus 0.1 to 0.6, with a black vertical line at 0.34 inside the histogram."
+#| fig-width: 12
+#| fig-height: 4.6
+#| warning: false
+
+# Panel A: ellipses of new animals (one per draw), observed animals on top
+pA <- ggplot() +
+  geom_path(data = ell_df, aes(x = x, y = y, group = draw), color = "#56B4E9", alpha = 0.18) +
+  geom_point(data = cell_data, aes(x = lgfap, y = lpdgfr), size = 1.8, color = "black") +
+  facet_wrap(~day_lab, nrow = 1) +
+  labs(x = "log GFAP", y = "log PDGFR-β") +
+  Plot_theme + theme(strip.text = element_text(size = 11), axis.text = element_text(size = 10))
+
+# Panel B: replicated within-day correlation against the real one
+pB <- ggplot(data.frame(r = stat_rep), aes(x = r)) +
+  geom_histogram(bins = 40, fill = "#56B4E9", color = "white") +
+  geom_vline(xintercept = stat_obs, linewidth = 1.3) +
+  labs(x = "Pooled within-day correlation", y = "Replicated datasets") +
+  Plot_theme
+
+pA / pB + plot_layout(heights = c(1.2, 1)) + plot_annotation(tag_levels = "A")
+```
+
+The ellipses of panel A are the two-dimensional cousin of the density overlay of @sec-mcmc-model-checking: each faint outline is where one version of the model, one posterior draw, expects a new animal of that day to fall, and a good model has the real animals inside the bundle, not hugging one edge. I drew them with `ggplot2::geom_path()` instead of using `bayesplot::ppc_stat_2d()` because the question here is about the *joint* shape within each day, which a 2D plot of two summary statistics does not show.
+
+::: {.callout-tip title="How to read this figure"}
+**Panel A**: in each day, look at where the dots are inside the bundle of ellipses. A dot far outside the whole bundle is an animal the model considers very unlikely for that day; a day whose dots all fall in one half of the bundle is a day the model has the wrong center or spread for. Check the *tilt* of the bundle against the tilt of the dots. **Panel B**: the black line should be somewhere inside the histogram. If it sits in the far tail, the model's correlation is wrong for the data; if it is near the middle, the model reproduces the correlation. It is a check, not a proof: with 49 animals many correlations would pass.
+:::
+
+```{r}
+#| include: false
+
+# Share of replicates at least as correlated as the real data; spread of the replicated correlation
+p_rep_cor <- mean(stat_rep >= stat_obs)
+```
+
+Panel A shows the animals of every day inside the bundle of its ellipses, or at its edge (the sham with the lowest GFAP, and the day-30 animal with the lowest GFAP, are the two that come close to leaving it), and no day on which the bundle sits off the dots. The tilt of the bundles is the residual correlation; the dots follow it loosely, as a correlation of about `r fx(median(rho_draws), 1)` would. Panel B puts a number on it: the pooled within-day correlation of the real animals is `r fx(stat_obs, 2)`, and `r pct(p_rep_cor)` of the replicated datasets were at least that large. The model reproduces the association it was built to describe, which, as with the check of the spread, is not much of a test of a parameter the model estimates from those very data. What *would* have exposed a problem is a day on which the dots followed a different tilt, a marker on a different scale, or a single animal far from every cloud, and the figure shows none of these.
+
+What does the correlation buy in a result you could use? A bench translation: for a new animal at day 7, what is the chance that it is above the median of the day on PDGFR-β if it is above the median on GFAP?
+
+```{r}
+# New animals of day 7, a pair of log values each (2000 draws, one animal per draw)
+set.seed(123)
+new7 <- posterior_predict(fit_mv, newdata = data.frame(DPI_f = factor("7", levels = levels(cell_data$DPI_f))), ndraws = 4000)
+g <- new7[, 1, 1]; p <- new7[, 1, 2]
+
+# Probability of being above the day's median on PDGFR-beta, given above the median on GFAP
+p_above_given <- mean(p > median(p) & g > median(g)) / mean(g > median(g))
+```
+
+For a new animal at day 7, the probability of being above the median of its day on PDGFR-β is 50% by definition; given that the animal is above the median on GFAP, it is `r pct(p_above_given)`. With independent markers it would have stayed at 50%. That shift (`r round(100 * (p_above_given - 0.5))` percentage points) is what a residual correlation of this size means for a single animal, and it is a much more honest way to talk about a correlation of 0.3 than the adjectives "moderate" or "significant".
+
+
+## A variance with levels: do injured mice differ more? {#sec-mvdr-neun}
+
+There is one more place where the book left the variance as a single number, and it is subtler than the others because the variance in question is not the residual of an observation but the spread of an *effect between animals*. In @sec-multilevel-varying-slopes every mouse had its own left-minus-right contrast in NeuN-positive neuron density, and the model learned how much those contrasts differ from mouse to mouse: a standard deviation, $\tau_z$, shared by all days. I ended that discussion with a warning that I can now cash in. The naive mice of 0 D have had no ischemia, and still their left and right cortex differ a little (the method has an asymmetry of its own), by an amount that varies from mouse to mouse. A single $\tau_z$ for all days mixes two different things: the scatter of the asymmetry that every mouse carries, and the scatter of the *injury response* on top of it. **Do the injured mice differ more from each other in their response than the naive mice differ in their asymmetry?** That is a question about a variance that depends on the day, and about a variance that sits one level up from the observations.
+
+The data are the NeuN cortex regions of @sec-multilevel-varying-intercepts and @sec-multilevel-varying-slopes, prepared by the same rules, so I do not describe them again (@sec-neun-data has the description and the checks): cortex only, regions without a positive cell removed, the logarithm of the density as the outcome, 396 regions in 198 sections of 31 mice measured on one day each.
+
+```{r}
+# Read the file as it came, then derive mouse, day and section from the image name (as in the two previous chapters)
+neun_raw <- read.csv(here("project/AnalysisData/5x_NeuN_AnnotationsSummary.csv"), check.names = FALSE)
+parts <- strsplit(sub("\\.tif$", "", neun_raw$Image), "_")
+neun <- data.frame(
+  mouse = sapply(parts, `[`, 3),
+  dpi_days = as.integer(sub("D$", "", sapply(parts, `[`, 4))),
+  scene = sapply(parts, `[`, 5),
+  structure = neun_raw$Name,
+  class = neun_raw$Class,
+  positive = neun_raw[["Num Positive"]],
+  density = neun_raw[["Num Positive per mm^2"]]
+)
+
+# Same rules: cortex only, regions with no positive cell removed; log density as the outcome
+cortex <- neun[neun$structure == "CTX" & neun$positive > 0, ]
+cortex$hemi <- factor(sub(":.*$", "", cortex$class), levels = c("Right", "Left"))
+cortex$dpi <- factor(paste0(cortex$dpi_days, "D"), levels = c("0D", "5D", "15D", "30D"))
+cortex$section <- factor(paste(cortex$mouse, cortex$scene, sep = ":"))
+cortex$log_dens <- log(cortex$density)
+
+# The table must be the one of the previous chapters: 396 regions, 198 sections, 31 mice
+stopifnot(nrow(cortex) == 396, nlevels(cortex$section) == 198, length(unique(cortex$mouse)) == 31)
+
+# Left minus right log density in every section, then the average per mouse (as in the previous chapter)
+sec_w <- reshape(cortex[, c("mouse", "section", "dpi", "hemi", "log_dens")],
+                 idvar = c("mouse", "section", "dpi"), timevar = "hemi", direction = "wide")
+sec_w$diff <- sec_w$log_dens.Left - sec_w$log_dens.Right
+mouse_raw <- aggregate(diff ~ mouse + dpi, data = sec_w, FUN = mean)
+names(mouse_raw)[3] <- "contrast"
+
+# Mice per day, and the spread of their raw contrasts within each day
+n_mice_day <- table(mouse_raw$dpi)
+raw_sd_day <- tapply(mouse_raw$contrast, mouse_raw$dpi, sd)
+```
+
+@fig-mvdr_neun_raw shows what the data say before any model: the contrast of every mouse (the average over its sections of left minus right, on the log scale), by day, with a bar for the spread of the day.
+
+```{r}
+#| label: fig-mvdr_neun_raw
+#| fig-cap: "Left-minus-right difference of log NeuN density in each of the 31 mice (the average over its sections), by day after ischemia. Orange bars: mean plus and minus one standard deviation of the mice of that day. The number under each day is the number of mice. The dashed line marks no difference between hemispheres."
+#| fig-alt: "Four columns of points for 0, 5, 15 and 30 days. At 0 days five points sit around zero or slightly above it, with a mean near 0.1. At 5, 15 and 30 days the points are lower, with means near minus 0.4, minus 0.5 and minus 0.3, and are more spread out, especially at 15 days where they run from about minus 0.9 to minus 0.1. Orange bars are short at 0 days and longest at 15 days. A dashed horizontal line sits at zero."
+#| fig-width: 8
+#| fig-height: 4.4
+#| warning: false
+
+# Mean and SD of the mouse contrasts of each day, for the orange bars
+day_stats <- data.frame(dpi = levels(mouse_raw$dpi), x = 1:4,
+                        m = as.numeric(tapply(mouse_raw$contrast, mouse_raw$dpi, mean)),
+                        s = as.numeric(tapply(mouse_raw$contrast, mouse_raw$dpi, sd)))
+mouse_raw$x <- as.numeric(mouse_raw$dpi)
+
+# Every mouse as a point, the day's mean and SD as an orange bar
+ggplot() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  geom_linerange(data = day_stats, aes(x = x + 0.22, ymin = m - s, ymax = m + s), color = "#D55E00", linewidth = 2.2) +
+  geom_jitter(data = mouse_raw, aes(x = x, y = contrast), width = 0.08, height = 0, size = 2.6, color = "#0072B2", alpha = 0.8) +
+  geom_point(data = day_stats, aes(x = x + 0.22, y = m), shape = 18, size = 3.5) +
+  scale_x_continuous(breaks = 1:4, labels = paste0(levels(mouse_raw$dpi), "\n(n = ", as.integer(n_mice_day), ")")) +
+  labs(x = "Days after ischemia", y = "Left minus right (log density)") +
+  Plot_theme
+```
+
+I draw every mouse (`ggplot2::geom_jitter()`) and the spread as a separate bar beside it, for the same reason as in the first figure of the chapter: the claim is about a *spread of animals*, and it is only credible if you can count the animals. The naive group has `r n_mice_day["0D"]` mice, the injured groups `r n_mice_day["5D"]`, `r n_mice_day["15D"]` and `r n_mice_day["30D"]`.
+
+::: {.callout-tip title="How to read this figure"}
+Read each column as a small population of mice. The height of the cloud is the average contrast of the day (how much the left cortex lost), and the length of the orange bar is how much the mice of that day differ from each other. If the bars of the injured days were no longer than the one of the naive day, the response would be a shift that every mouse shares; longer bars mean that mice differ in how much they respond. Then look at how many points make each bar: five points give a very rough idea of a spread. The mistake to avoid is to read these bars as the model's answer: each mouse's contrast is itself an average of a few noisy sections, so these spreads include measurement noise on top of the real differences between mice, and the model will separate the two.
+:::
+
+The naive mice scatter with a standard deviation of `r fx(raw_sd_day["0D"], 2)` and the injured ones with `r fx(raw_sd_day["5D"], 2)`, `r fx(raw_sd_day["15D"], 2)` and `r fx(raw_sd_day["30D"], 2)`: the naive mice scatter least, the mice of 15 D most. But with five mice in the naive group and eight to ten in the others, and with noise inside every contrast, I would not stop here. The model does two things the raw numbers cannot: it removes the noise of the sections from each mouse's contrast, and it gives every spread an interval.
+
+### One spread per day
+
+Here is the model. It is the correlated varying-slope model of @sec-multilevel-varying-slopes, with one change: the pair of varying effects of mouse $k$, its baseline deviation $u_k$ and its response deviation $z_k$, no longer comes from one bivariate normal for all mice but from one *per day*, with its own two standard deviations and its own correlation. With $d[k]$ the day of mouse $k$:
+
+$$
+\begin{pmatrix} u_k \\ z_k \end{pmatrix} \sim \text{MVNormal}\!\left(\begin{pmatrix} 0 \\ 0 \end{pmatrix},\, \boldsymbol{\Sigma}_{d[k]}\right), \qquad
+\boldsymbol{\Sigma}_{d} = \begin{pmatrix} \tau_{u,d} & 0 \\ 0 & \tau_{z,d} \end{pmatrix}
+\begin{pmatrix} 1 & \rho_d \\ \rho_d & 1 \end{pmatrix}
+\begin{pmatrix} \tau_{u,d} & 0 \\ 0 & \tau_{z,d} \end{pmatrix},
+$$ {#eq-mvdr-neun}
+
+and the rest of the model (@eq-slopes-model) is unchanged. The new quantities are $\tau_{z,0}, \tau_{z,5}, \tau_{z,15}, \tau_{z,30}$: the spread of the hemisphere contrast among the mice *of each day*. In `brms` it is one term, `(1 + hemi | gr(mouse, by = dpi))`: `gr()` is the grouping function and its `by` argument says that the standard deviations and correlations of the varying effects are estimated separately for each level of `dpi`. This is the "variance with levels" of the title: a variance (here, of the response between animals) that has a structure of its own. I keep the priors of the previous chapter for each of the standard deviations (`exponential(3)`) and the LKJ(2) for each correlation, and the residual `sigma` and the section-level spread stay common to all days, since the question is only about the mice.
+
+A caution before the fit, which the books give and which this design makes pressing: a standard deviation for a subgroup that contains very few units is poorly determined, and five naive mice carry almost no information about a spread [@inchausti2023; @kruschke2015]. Two consequences follow. The standard deviations get a prior with positive support and fast decay, which the exponential is, and its rate deserves a sensitivity check (@sec-mvdr-sensitivity uses rates 1.5 and 6 around my 3; an `exponential(1)` would sit just outside the wide end). And the `gr(..., by = ...)` term is `brms` syntax [@brms; @burkner2018]; as far as I know the printed textbooks I rely on write such models in `lme4` or in Stan and do not use it.
+
+```{r}
+# Priors of the previous chapter: population level, residual spread, a standard deviation for every varying effect, an LKJ(2) correlation
+priors_slopes <- c(
+  prior(normal(6.7, 0.5), class = "Intercept"),
+  prior(normal(0, 0.5), class = "b"),
+  prior(exponential(3), class = "sigma"),
+  prior(exponential(3), class = "sd"),
+  prior(lkj(2), class = "cor")
+)
+
+# The model of the previous chapter: one spread of the mouse effects for all days
+fit_neun_common <- brm(
+  log_dens ~ dpi * hemi + (1 + hemi | mouse) + (1 | section),
+  data = cortex, prior = priors_slopes,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl, save_pars = save_pars(all = TRUE),
+  file = "models/multivariate-distributional-regression_fit21.rds", file_refit = "never"
+)
+
+# The model of this section: the spread of the mouse effects (and their correlation) for each day
+fit_neun_by <- brm(
+  log_dens ~ dpi * hemi + (1 + hemi | gr(mouse, by = dpi)) + (1 | section),
+  data = cortex, prior = priors_slopes,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl, save_pars = save_pars(all = TRUE),
+  file = "models/multivariate-distributional-regression_fit22.rds", file_refit = "never"
+)
+```
+
+The frequentist counterpart is the awkward part. `lme4` has no way to give a varying effect a different standard deviation per level of a group-level predictor. `glmmTMB` has: `diag(0 + dpi:left | mouse)` gives each day its own standard deviation of the hemisphere effect (uncorrelated with the mouse intercept, which stays common), so it is a simpler model than the Bayesian one. The third route is the one most people would take, one `lmer()` per day, which also lets the residual and section variances differ between days. I show the first two in the tabs and say what the third did.
+
+::: panel-tabset
+### brms
+
+```{r}
+# Spread and correlation of the mouse effects for each day
+summary(fit_neun_by)$random$mouse
+```
+
+### glmmTMB
+
+```{r}
+# One standard deviation of the hemisphere effect per day (uncorrelated with the mouse intercept)
+cortex$left <- as.numeric(cortex$hemi == "Left")
+neun_tmb <- glmmTMB(log_dens ~ dpi * hemi + (1 | mouse) + (1 | section) + diag(0 + dpi:left | mouse), data = cortex)
+summary(neun_tmb)$varcor
+```
+:::
+
+```{r}
+#| include: false
+
+# Sampler checks that stop the render if a fit fails them
+chk_neun <- mcmc_check(list("NeuN, common spread" = fit_neun_common, "NeuN, spread by day" = fit_neun_by))
+stopifnot(all(chk_neun$ok))
+
+# Draws of the day-specific spreads of the hemisphere effect, the intercept, and the common one
+dr_by <- as_draws_df(fit_neun_by)
+tau_z <- sapply(levels(cortex$dpi), function(k) dr_by[[paste0("sd_mouse__hemiLeft:dpi", k)]])
+tau_u <- sapply(levels(cortex$dpi), function(k) dr_by[[paste0("sd_mouse__Intercept:dpi", k)]])
+tau_common <- as_draws_df(fit_neun_common)$sd_mouse__hemiLeft
+
+# The one-lmer-per-day route: spread of the hemisphere effect and whether each fit is singular
+lmer_day <- lapply(levels(cortex$dpi), function(k) {
+  m <- lme4::lmer(log_dens ~ hemi + (1 + hemi | mouse) + (1 | section), data = cortex[cortex$dpi == k, ])
+  vc <- as.data.frame(lme4::VarCorr(m))
+  list(sd = vc$sdcor[vc$grp == "mouse" & vc$var1 == "hemiLeft" & is.na(vc$var2)], singular = lme4::isSingular(m))
+})
+lmer_sd <- setNames(sapply(lmer_day, `[[`, "sd"), levels(cortex$dpi))
+lmer_sing <- setNames(sapply(lmer_day, `[[`, "singular"), levels(cortex$dpi))
+```
+
+The sampler checks pass for both fits. The result is in @fig-mvdr_neun_sd: panel A shows the standard deviation of the hemisphere contrast among mice, $\tau_z$, for each day; panel B its ratio to the naive day, which is the quantity that answers the question.
+
+```{r}
+#| label: fig-mvdr_neun_sd
+#| fig-cap: "Spread of the hemisphere contrast among mice (the standard deviation of the varying effect) for each day (A), and its ratio to the spread among the naive mice at 0 D (B). In A the dashed line and band are the median and 95% interval of the single spread of the model of the previous chapter. Dots are medians, thick and thin bars the 66% and 95% credible intervals. Black crosses in A are the raw spreads of the mouse contrasts from the earlier figure."
+#| fig-alt: "Panel A: four half-eye densities of the standard deviation of the response for 0, 5, 15 and 30 days, all starting at zero and skewed to the right. The 0 D density is the widest relative to its location, centered near 0.1 with a 95% interval from about 0 to 0.4; the 15 D density is centered near 0.26 with an interval from 0.11 to 0.5; the 5 D and 30 D densities are in between. A dashed horizontal line and a grey band at about 0.17 mark the common spread. Panel B: three half-eyes of ratios on a logarithmic axis, wide, reaching from about 0.3 to more than 30 and centered at about 2, with intervals that include 1."
+#| fig-width: 11
+#| fig-height: 4.6
+#| warning: false
+
+# Long table of draws of tau_z by day, and the ratios to the naive day
+tz_long <- data.frame(dpi = factor(rep(levels(cortex$dpi), each = nrow(tau_z)), levels = levels(cortex$dpi)),
+                      tau = as.vector(tau_z), ratio = as.vector(tau_z / tau_z[, "0D"]))
+common_q <- quantile(tau_common, c(0.025, 0.5, 0.975))
+raw_df <- data.frame(dpi = factor(levels(cortex$dpi), levels = levels(cortex$dpi)), s = as.numeric(raw_sd_day))
+col_dpi <- c("0D" = "#000000", "5D" = "#E69F00", "15D" = "#D55E00", "30D" = "#0072B2")
+
+# Panel A: tau by day, with the common tau of the previous chapter as a band and the raw spreads as crosses
+pA <- ggplot(tz_long, aes(x = dpi, y = tau)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = common_q[1], ymax = common_q[3], fill = "grey80", alpha = 0.5) +
+  geom_hline(yintercept = common_q[2], linetype = "dashed", color = "grey30") +
+  stat_halfeye(aes(fill = dpi), .width = c(0.66, 0.95), point_interval = "median_qi", alpha = 0.85) +
+  geom_point(data = raw_df, aes(y = s), shape = 4, size = 3.4, stroke = 1.4) +
+  scale_fill_manual(values = col_dpi) +
+  coord_cartesian(ylim = c(0, 0.75)) +
+  labs(x = "Days after ischemia", y = "SD of the effect between mice") +
+  Plot_theme + legend_none()
+
+# Panel B: ratio of each injured day's spread to the spread of the naive mice, on a log axis
+pB <- ggplot(subset(tz_long, dpi != "0D"), aes(x = dpi, y = ratio)) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "grey40") +
+  stat_halfeye(aes(fill = dpi), .width = c(0.66, 0.95), point_interval = "median_qi", alpha = 0.85) +
+  scale_fill_manual(values = col_dpi) +
+  scale_y_log10(breaks = c(0.25, 0.5, 1, 2, 4, 8, 16, 32)) +
+  coord_cartesian(ylim = c(0.2, 40)) +
+  labs(x = "Days after ischemia", y = "Ratio of the SD to that at 0 D") +
+  Plot_theme + legend_none()
+
+pA + pB + plot_annotation(tag_levels = "A")
+```
+
+```{r}
+#| include: false
+
+# Numbers for the text: spreads, ratios and probabilities
+ratio15 <- tau_z[, "15D"] / tau_z[, "0D"]
+p15_gt0 <- mean(tau_z[, "15D"] > tau_z[, "0D"])
+p_inj_gt0 <- mean(rowMeans(tau_z[, c("5D", "15D", "30D")]) > tau_z[, "0D"])
+```
+
+Read panel A first. The spread of the hemisphere contrast among naive mice, $\tau_{z,0}$, is `r qi(tau_z[, "0D"], 2)`: not zero (the method's own asymmetry differs from mouse to mouse) and not well determined (five mice). Among the injured mice it is `r qi(tau_z[, "5D"], 2)` at 5 D, `r qi(tau_z[, "15D"], 2)` at 15 D and `r qi(tau_z[, "30D"], 2)` at 30 D. The mice of 15 D are the ones that differ most from each other in their response: the lower end of their interval, `r fx(quantile(tau_z[, "15D"], 0.025), 2)`, is above the naive median, and the ratio of 15 D to 0 D is `r qs(ratio15, 1)`. But panel B is where the caution is. The probability that the spread at 15 D exceeds that of the naive mice is `r pct(p15_gt0)`, and the probability that the average spread of the three injured days does is `r pct(p_inj_gt0)`: these favor "injured mice differ more", but the ratios' intervals reach below 1 and above 10, because a standard deviation estimated from five mice, and one estimated from eight, are known to within a very wide margin. The dashed band in panel A is what the model of the previous chapter said: one spread for all days, `r qi(tau_common, 2)`. It was a compromise, a little high for the naive mice and a little low for 15 D.
+
+So here is the answer I can give to the question that @sec-multilevel-varying-slopes asked. *Probably*: the response of the injured mice varies from mouse to mouse more than the naive asymmetry does, and the day with the most evidence is 15 D. The data are consistent with a ratio of about `r round(median(ratio15), 1)`, and they cannot exclude one near 1 (`r pct(1 - p15_gt0)` of the posterior lies below it) or one as large as `r round(quantile(ratio15, 0.975), -1)`. A ratio is a poor summary here, because its denominator, the spread of five naive mice, has posterior mass close to zero, and dividing by something near zero produces enormous numbers. As a difference the same result reads: the spread of the response at 15 D exceeds that of the naive mice by `r qs(tau_z[, "15D"] - tau_z[, "0D"], 2)` on the log scale (median and 95% interval), with a probability of `r pct(p15_gt0)` that the difference is positive. I would write it as a hypothesis worth a larger group of naive mice, not as a finding. The cheapest improvement is more animals at 0 D, since five naive mice is the weak link, and every ratio of the figure divides by what they say.
+
+::: {.callout-tip title="Frequentist equivalent"}
+`glmmTMB` with `diag(0 + dpi:left | mouse)` fits the same idea in one model and lands in the same place for the injured days (its standard deviations are `r paste(fx(attr(summary(neun_tmb)$varcor$cond$mouse.1, "stddev"), 2), collapse = ", ")` for 0, 5, 15 and 30 D), but it estimates the naive mice's spread at `r fx(attr(summary(neun_tmb)$varcor$cond$mouse.1, "stddev")[1], 2)`, essentially on the boundary at zero, where the Bayesian model, with five mice and a prior, says `r fx(median(tau_z[, "0D"]), 2)` with an interval from `r fx(quantile(tau_z[, "0D"], 0.025), 2)` to `r fx(quantile(tau_z[, "0D"], 0.975), 2)`. The one-`lmer()`-per-day route gives `r paste(fx(lmer_sd, 2), collapse = ", ")` and two of the four fits are singular (`r paste(names(lmer_sing)[lmer_sing], collapse = " and ")`): the model has more variance parameters than a day of 5 to 10 mice can support, and it says so by hitting the boundary. This is where the two lenses disagree most in the whole chapter. A maximum-likelihood fit has no way to say "I do not know this variance, but it is not exactly zero"; the posterior does, and a variance estimated from five groups is precisely the case where that matters. The point estimates of the three approaches are of the same order, and none of them can show that the days differ.
+:::
+
+### How much does the prior decide?
+
+With five mice, the prior on a standard deviation is not a detail. I refit the model of this section under three different priors for the standard deviations of the mouse effects, and that table is in @sec-mvdr-sensitivity, where it can be read next to the other prior choices of the chapter.
+
+
+## Does the prior carry the answer? {#sec-mvdr-sensitivity}
+
+Three times in this chapter I said that a variance estimated from few animals is the place where a prior matters most: the spread of day 3 from eight animals, the spread of the naive mice from five, and the correlation within a day. The check that keeps me honest is the one @sec-priors-regularization taught: refit under visibly different priors and see whether the conclusion moves. Three questions, three families of priors. For the spread of tissue area, the `Normal(0, s)` prior on the log-spread coefficients with a narrow (`s = 0.5`), the chosen (`s = 1`) and a wide (`s = 2`) width, the three of the prior figure. For the residual correlation, an LKJ with $\eta$ = 1 (flat), 2 (chosen) and 4 (skeptical). For the spread of the NeuN contrast among mice, an exponential prior on the standard deviations of the varying effects with rate 1.5 (wide), 3 (chosen) and 6 (narrow).
+
+```{r}
+# Tissue area: narrow and wide priors on the log-spread differences (the chosen one is fit3)
+prior_narrow <- c(prior_spread[prior_spread$dpar != "sigma" | prior_spread$class == "Intercept", ],
+                  prior(normal(0, 0.5), class = "b", dpar = "sigma"))
+prior_wide <- c(prior_spread[prior_spread$dpar != "sigma" | prior_spread$class == "Intercept", ],
+                prior(normal(0, 2), class = "b", dpar = "sigma"))
+fit_area_narrow <- brm(bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f), data = cell_data, prior = prior_narrow,
+                       chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                       file = "models/multivariate-distributional-regression_fit23.rds", file_refit = "never")
+fit_area_wide <- brm(bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f), data = cell_data, prior = prior_wide,
+                     chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                     file = "models/multivariate-distributional-regression_fit24.rds", file_refit = "never")
+
+# Residual correlation: LKJ(1) and LKJ(4) (the chosen LKJ(2) is fit14)
+fit_mv_lkj1 <- brm(bf_mv, data = cell_data, prior = c(prior_mv[prior_mv$class != "rescor", ], prior(lkj(1), class = "rescor")),
+                   chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                   file = "models/multivariate-distributional-regression_fit25.rds", file_refit = "never")
+fit_mv_lkj4 <- brm(bf_mv, data = cell_data, prior = c(prior_mv[prior_mv$class != "rescor", ], prior(lkj(4), class = "rescor")),
+                   chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                   file = "models/multivariate-distributional-regression_fit26.rds", file_refit = "never")
+
+# NeuN spread by day: a wider and a narrower exponential prior on the standard deviations (the chosen one is fit22)
+fit_neun_wide <- brm(log_dens ~ dpi * hemi + (1 + hemi | gr(mouse, by = dpi)) + (1 | section), data = cortex,
+                     prior = c(priors_slopes[priors_slopes$class != "sd", ], prior(exponential(1.5), class = "sd")),
+                     chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                     file = "models/multivariate-distributional-regression_fit27.rds", file_refit = "never")
+fit_neun_narrow <- brm(log_dens ~ dpi * hemi + (1 + hemi | gr(mouse, by = dpi)) + (1 | section), data = cortex,
+                       prior = c(priors_slopes[priors_slopes$class != "sd", ], prior(exponential(6), class = "sd")),
+                       chains = 4, cores = 4, seed = 123, iter = 4000, control = ctrl,
+                       file = "models/multivariate-distributional-regression_fit28.rds", file_refit = "never")
+```
+
+```{r}
+#| include: false
+
+# Sampler checks of the six sensitivity fits
+chk_sens <- mcmc_check(list("Tissue area, narrow prior" = fit_area_narrow, "Tissue area, wide prior" = fit_area_wide,
+                            "Two markers, LKJ(1)" = fit_mv_lkj1, "Two markers, LKJ(4)" = fit_mv_lkj4,
+                            "NeuN by day, exponential(1.5)" = fit_neun_wide, "NeuN by day, exponential(6)" = fit_neun_narrow))
+
+# The three quantities under each prior
+sd_narrow <- sd_from_draws(as_draws_df(fit_area_narrow))
+sd_wide <- sd_from_draws(as_draws_df(fit_area_wide))
+tz_from <- function(fit) {
+  d <- as_draws_df(fit)
+  d[["sd_mouse__hemiLeft:dpi15D"]] / d[["sd_mouse__hemiLeft:dpi0D"]]
+}
+tzd_from <- function(fit) {
+  d <- as_draws_df(fit)
+  d[["sd_mouse__hemiLeft:dpi15D"]] - d[["sd_mouse__hemiLeft:dpi0D"]]
+}
+sens <- rbind(
+  data.frame(Quantity = "Tissue area: SD at day 3 / SD at day 7", Prior = c("Normal(0, 0.5)", "Normal(0, 1) (chosen)", "Normal(0, 2)"),
+             Estimate = c(qs(sd_narrow[, "3"] / sd_narrow[, "7"], 1), qs(sd_area[, "3"] / sd_area[, "7"], 1), qs(sd_wide[, "3"] / sd_wide[, "7"], 1))),
+  data.frame(Quantity = "Residual correlation of log GFAP and log PDGFR-β", Prior = c("LKJ(1)", "LKJ(2) (chosen)", "LKJ(4)"),
+             Estimate = c(qs(as_draws_df(fit_mv_lkj1)$rescor__lgfap__lpdgfr, 2), qs(rho_draws, 2), qs(as_draws_df(fit_mv_lkj4)$rescor__lgfap__lpdgfr, 2))),
+  data.frame(Quantity = "NeuN: SD of the response at 15 D / SD at 0 D", Prior = c("Exponential(1.5)", "Exponential(3) (chosen)", "Exponential(6)"),
+             Estimate = c(qs(tz_from(fit_neun_wide), 1), qs(ratio15, 1), qs(tz_from(fit_neun_narrow), 1))),
+  data.frame(Quantity = "NeuN: SD of the response at 15 D minus SD at 0 D", Prior = c("Exponential(1.5)", "Exponential(3) (chosen)", "Exponential(6)"),
+             Estimate = c(qs(tzd_from(fit_neun_wide), 2), qs(tau_z[, "15D"] - tau_z[, "0D"], 2), qs(tzd_from(fit_neun_narrow), 2)))
+)
+```
+
+```{r}
+#| label: tbl-mvdr_sensitivity
+#| tbl-cap: Three results of the chapter under a narrower, the chosen and a wider prior (posterior median and 95% credible interval). The data and the model are the same in every row.
+
+# Show the twelve rows as a table
+gt(sens)
+```
+
+@tbl-mvdr_sensitivity is the table I would show a skeptical reviewer. For tissue area, the ratio of the spread of day 3 to the spread of day 7 is `r sens$Estimate[1]` under the narrow prior, `r sens$Estimate[2]` under the chosen one and `r sens$Estimate[3]` under the wide one: the order of magnitude is stable, and so is the finding that day 3 is the wide day, but the *size* of the ratio moves with the prior, as it should when each day is a handful of animals (a narrow prior shrinks every ratio toward 1, a wide one lets the data speak and the skew of the posterior grow). For the residual correlation, `r sens$Estimate[4]`, `r sens$Estimate[5]` and `r sens$Estimate[6]`: an LKJ(4) pulls toward zero and an LKJ(1) lets it reach higher, but all three keep the median near `r fx(median(rho_draws), 1)` and the conclusion (a moderate positive residual correlation, smaller than the raw one). For the NeuN spread, the ratio of the response at 15 D to that at 0 D is `r sens$Estimate[7]`, `r sens$Estimate[8]` and `r sens$Estimate[9]` under the three priors, and as a difference `r sens$Estimate[10]`, `r sens$Estimate[11]` and `r sens$Estimate[12]`. This is the row to read most carefully. The medians hardly move, which says the prior is not what produces the result, but the intervals are enormous for the ratio, because the denominator is estimated from five mice and can be close to zero, and for the difference they reach below zero under all three priors. The *direction* (injured mice at 15 D more variable than naive ones) is what the data lean toward under every prior, and its size is what five naive mice cannot pin down.
+
+A sentence for a paper, then, that is honest about all this: "The standard deviation of tissue area at day 3 was about two to three times that of day 7 under every prior we tried (posterior median `r qs(sd_narrow[, "3"] / sd_narrow[, "7"], 1)` to `r qs(sd_wide[, "3"] / sd_wide[, "7"], 1)`), but its magnitude is uncertain by a factor of about two because each day contains only 7 to 12 animals." I would write the second half of that sentence every time.
+
+## What the sampler said {#sec-mvdr-sampler}
+
+Every fitted model of this chapter was checked against the three conditions of @sec-mcmc-model-checking (Rhat below 1.01, effective sample sizes above 400, no divergent transitions), and @tbl-mvdr_sampler lists them. A note for the day that you fit a model with a `sigma` per group and a group has only two or three animals: the log link lets the model push a spread toward zero, the likelihood becomes very steep when the animals of a group nearly coincide, and the sampler can diverge in that corner. I did not meet divergences here, but if you do, in this order: raise `adapt_delta` (to 0.99), put a prior on the log-spread coefficients that keeps the spread away from zero and from infinity (the `Normal(0, 1)` of this chapter does that), and, if a group is too small to support a spread of its own, let it share the spread of a neighbor instead of insisting on one.
+
+```{r}
+#| label: tbl-mvdr_sampler
+#| tbl-cap: Sampler checks of the fitted models of the chapter. Rhat should be below 1.01, both effective sample sizes above 400, and divergences zero. The last column says whether all three conditions hold.
+
+# All sampler checks of the chapter in one table
+chk_all <- rbind(chk_area, chk_day3, chk_gfap, chk_mv, chk_day, chk_neun, chk_sens)
+chk_all$max_rhat <- round(chk_all$max_rhat, 3)
+chk_all$min_ess_bulk <- round(chk_all$min_ess_bulk)
+chk_all$min_ess_tail <- round(chk_all$min_ess_tail)
+names(chk_all) <- c("Model", "Largest Rhat", "Smallest bulk ESS", "Smallest tail ESS", "Divergences", "All conditions met")
+gt(chk_all)
+```
+
+```{r}
+#| include: false
+
+# The chapter must not render with a failing sampler
+stopifnot(all(chk_all[["All conditions met"]]))
+```
+
+## Reporting the results {#sec-mvdr-report}
+
+The two results of the chapter, in the form a paper would carry them. They go with the rest of the sentences that the planned appendix on reporting will collect.
+
+::: {.callout-note title="How to report it"}
+**Results (distributional model).** The spread of tissue area was not constant across days. In the model with a standard deviation for each day, the animals at day 3 had a standard deviation of `r qi(sd_area[, "3"], 1)` mm², against `r qi(sd_area[, "7"], 1)` mm² at day 7 and `r qi(sd_area[, "14"], 1)` mm² at day 14 (shams, day 0: `r qi(sd_area[, "0"], 1)` mm²). The standard deviation at day 3 was `r qi(r3_7, 1)` times that of day 7 (posterior probability that it was larger: `r pct_prob(mean(r3_7 > 1))`) and `r qi(r3, 1)` times that of the shams. Without the animal with the lowest tissue area on day 3, the ratio to day 7 was `r qi(sd_drop[, "3"] / sd_drop[, "7"], 1)`. The means and standard deviations of the five days were estimated from `r paste(as.integer(n_day), collapse = ", ")` animals.
+
+**Methods.** We modeled tissue area (mm²) with a Gaussian distribution whose mean and logarithm of the standard deviation each had a separate effect for each day (distributional regression in `brms`, `bf(Tissue_Area ~ DPI_f, sigma ~ DPI_f)`). Priors were Normal(14, 6) for the intercept, Normal(0, 5) for the mean differences between days (mm²), Normal(0, 1) for the log standard deviation of the shams and Normal(0, 1) for its differences between days. We fitted four chains of 4,000 iterations (2,000 warm-up); all Rhat were below 1.01, effective sample sizes above 400, and there were no divergent transitions. Compared with a model with a single standard deviation, leave-one-out cross-validation put the model with a standard deviation per day ahead by `r abs(cmp_area[cmp_area$Model == "One sigma", "elpd difference"])` elpd units (standard error `r cmp_area[cmp_area$Model == "One sigma", "SE of difference"]`), which does not separate them with 49 animals; the posterior predictive check of the standard deviation by day did. As sensitivity analyses we refitted the model with Student-t errors, without the lowest day-3 animal, and with narrower and wider priors on the log-spread differences.
+:::
+
+::: {.callout-note title="How to report it"}
+**Results (multivariate model).** After accounting for the day, log GFAP and log PDGFR-β integrated density were positively correlated across animals (residual correlation `r qi(rho_draws, 2)`, n = `r nrow(cell_data)` animals; posterior probability that the correlation is positive: `r pct_prob(mean(rho_draws > 0))`). Without accounting for the day, the correlation was `r fx(raw_r, 2)`. Estimated within each day alone (7 to 12 animals), the correlation was too uncertain to say whether it changes with the day (95% intervals of at least `r fx(min(rho_day_hi - rho_day_lo), 1)` units in width).
+
+**Methods.** We modeled the logarithm of GFAP and of PDGFR-β integrated density jointly with a bivariate Gaussian model (`brms`, `set_rescor(TRUE)`), with a mean and a logarithm of the standard deviation for each marker and day, and a single residual correlation with an LKJ(2) prior. Priors were Normal(5.5, 1.5) for the intercepts, Normal(0, 1.5) for the mean differences between days, Normal(-1, 1) for the log standard deviations of the first day and Normal(0, 1) for their differences. We fitted four chains of 4,000 iterations (2,000 warm-up), with all Rhat below 1.01, effective sample sizes above 400 and no divergent transitions. A posterior predictive check of the pooled within-day correlation and of the joint distribution of the pairs by day found no discrepancy, and the residual correlation was stable under LKJ(1) and LKJ(4) priors.
+:::
+
+## What to take with you, and what comes next {#sec-mvdr-close}
+
+Four things. First, the spread of an outcome is a quantity with a formula of its own: `bf(y ~ x, sigma ~ x)` in `brms`, `dispformula` in `glmmTMB`, `varIdent()` in `nlme`, read on the log scale as a ratio of standard deviations. Second, a variance estimated from a handful of animals is a wide and skewed distribution, and the honest summary of a day-by-day spread says so; the interval, not the point, is the result. Third, a family that ties the variance to the mean (gamma, lognormal) and a model that lets the spread be its own parameter are two different statements about noise, and the data of this chapter showed one outcome for each: GFAP, whose spread follows its mean, and tissue area, whose spread does not. And fourth, two measurements on the same animal are not two experiments: the correlation that remains after the model has used the day (here about `r fx(median(rho_draws), 1)`, against a raw `r fx(raw_r, 1)`) is the number that says how much one marker tells you about the other.
+
+What the chapter did *not* do is let the days talk to each other. Every day here had its own mean and its own spread, estimated as if the animals of day 3 and the animals of day 7 knew nothing about each other, which is a fair description of a design with different animals on each day and a poor one of an experiment that follows the same animals through time, or of a glial scar whose course over thirty days is a curve, not five unrelated numbers. That is the job of @sec-longitudinal-timeseries: models for the whole course of the scar and for animals measured repeatedly, where the correlation between observations close in time is part of the model, and where the spread over days can itself become a smooth function. And the values the microscope cannot see, the measurements below a detection limit or the animals with a missing section, are the subject of @sec-missing-data-measurement-error, where the variance of the *measurement* becomes one more thing to model.
