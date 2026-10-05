@@ -373,3 +373,95 @@
     Letting every single morning at the bakery have its own busyness, instead
     of assuming that busyness is the same all day.
   see_also: [overdispersion, varying intercept]
+
+- term: ordinal outcome
+  status: draft
+  definition: >
+    An outcome made of ordered categories (a deficit grade from 0 to 3, a
+    clinical item scored 0 to 4): we know that a higher grade is more, but not
+    that the step from one grade to the next is the same size everywhere.
+  analogy: >
+    The rungs of a ladder whose rungs are not evenly spaced: you know which
+    rung is higher, not how far apart two rungs are.
+  see_also: [cumulative logit model, threshold]
+
+- term: cumulative logit model
+  status: draft
+  definition: >
+    A regression for an ordinal outcome that supposes a hidden continuous
+    severity, shifted by the predictors, and cut by thresholds into the grades
+    that are observed. It models the probability of being at or below each
+    grade (also called the proportional odds model).
+  analogy: >
+    A rope that nobody can see, with knots at uneven distances: the rope is the
+    severity, each knot a cut, and the grade written down is the segment where
+    the animal sits.
+  see_also: [threshold, proportional odds assumption, latent scale]
+
+- term: threshold
+  status: draft
+  definition: >
+    In an ordinal model, a cut point on the hidden severity scale between two
+    neighboring grades. K grades need K minus 1 thresholds, and their spacing
+    is estimated from the data, not assumed to be equal.
+  analogy: >
+    A knot in the rope: where the severity stops being grade 2 and starts being
+    grade 3.
+  see_also: [cumulative logit model, ordinal outcome]
+
+- term: proportional odds assumption
+  status: draft
+  definition: >
+    The assumption of the cumulative logit model that a predictor shifts the
+    hidden severity by the same amount at every threshold, so that one
+    coefficient describes the effect on the odds of being above any cut.
+  analogy: >
+    Sliding the whole rope to the right: every knot moves by the same distance.
+  see_also: [cumulative logit model, category-specific effect]
+
+- term: category-specific effect
+  status: draft
+  definition: >
+    A coefficient allowed to differ from one threshold to the next (in brms,
+    cs()). It relaxes the proportional odds assumption for one predictor, at
+    the price of more parameters.
+  analogy: >
+    Letting each knot of the rope move by its own distance when the animal
+    changes group.
+  see_also: [proportional odds assumption]
+
+- term: categorical logit model
+  status: draft
+  definition: >
+    A regression for an outcome with several categories that have no order
+    (also called multinomial logit). Each category except a reference one gets
+    its own linear predictor, and the softmax turns the predictors into
+    probabilities that are positive and add up to one.
+  analogy: >
+    Three doors with no order among them: each has an attractiveness for the
+    person walking by, and the softmax turns the attractiveness into the
+    chance of choosing each door.
+  see_also: [reference category, independence of irrelevant alternatives]
+
+- term: reference category
+  status: draft
+  definition: >
+    The class of a categorical outcome whose linear predictor is fixed at zero,
+    so that the model is identified. Every other coefficient is a log-odds
+    against it, and changing it changes every coefficient.
+  analogy: >
+    The ground floor of a building: every other floor is described by how far
+    it is above it.
+  see_also: [categorical logit model]
+
+- term: independence of irrelevant alternatives
+  status: draft
+  definition: >
+    A property of the categorical logit model: the odds between two classes
+    depend only on those two classes, not on which other classes exist. It fails
+    when two classes are close substitutes.
+  analogy: >
+    Offering commuters a blue bus identical to the red one: the model would take
+    a third of each of the car, red bus and blue bus, though in reality the
+    two buses would just split the same riders.
+  see_also: [categorical logit model]

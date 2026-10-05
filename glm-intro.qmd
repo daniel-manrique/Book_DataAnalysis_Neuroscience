@@ -119,7 +119,8 @@ I drew the dashed zero line in every panel on purpose. In the first panel, the l
 | Successes out of a known number of trials | Binomial, beta-binomial | Logit | @sec-logistic-regression, @sec-beta-robust-regression |
 | A proportion strictly between 0 and 1 | Beta | Logit | @sec-beta-robust-regression |
 | A positive, skewed value with the odd extreme one (crossing time) | Student-t | Identity, on the log scale | @sec-beta-robust-regression |
-| Ordered categories (a deficit score) | Cumulative | Logit | Ordinal regression, later in the book |
+| Ordered categories (a deficit score) | Cumulative | Logit | @sec-ordinal-nominal-regression |
+| Unordered categories (a group, a choice) | Categorical | Softmax (multinomial logit) | @sec-ordinal-nominal-regression |
 
 : The families and links this book uses, and where each appears. {#tbl-glm_families}
 

@@ -317,7 +317,7 @@ Eight chapters follow, in an order that goes from the simplest use of the idea t
 
 **Next the families come back** (@sec-multilevel-glmm). Trials inside neurons inside patients, and the wire trials: the random intercept per neuron previewed in @sec-count-regression and the trial-level overdispersion of @sec-beta-robust-regression become proper models, and the question of whether the zeros and the overdispersion were really neurons and mice differing from each other gets its answer.
 
-**We then grade neurological deficit** (@sec-ordinal-nominal-regression). This one is not about independence. It fills the last row of @tbl-glm_families, the ordered categories, and it needs data we do not have yet, so it will be written when they are in hand.
+**We then grade neurological deficit** (@sec-ordinal-nominal-regression). This one is not about independence. It fills the last row of @tbl-glm_families, the ordered categories, with the neurological score of mice after ischemia and with the graded items of a neurologist's examination, and then goes on to categories that have no order at all.
 
 **After that we model two markers and their spread together** (@sec-multivariate-distributional-regression). The variance problem that @sec-linear-regression-assumptions and @sec-linear-regression-multiple left open and that [the introduction to GLMs](glm-intro.qmd#sec-glm-intro) pointed here, a single $\sigma$ that is too stingy for one day and too generous for another, becomes a model of $\sigma$ itself, and GFAP and PDGFR-β are modeled jointly.
 
