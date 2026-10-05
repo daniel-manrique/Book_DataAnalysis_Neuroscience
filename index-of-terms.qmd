@@ -23,6 +23,7 @@
 - **caterpillar plot** ([glossary](glossary.qmd#gl-caterpillar-plot)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-caterpillar-plot-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-caterpillar-plot-1)
 - **centering**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-centering-1)
 - **chains**: [MCMC and model checking](mcmc-model-checking.qmd#ix-chains-1)
+- **coefficient of variation** ([glossary](glossary.qmd#gl-coefficient-of-variation)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-coefficient-of-variation-1)
 - **collinear**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-collinear-1)
 - **complete pooling** ([glossary](glossary.qmd#gl-complete-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-complete-pooling-1)
 - **complete separation**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-complete-separation-1)
@@ -42,6 +43,7 @@
 - **design effect** ([glossary](glossary.qmd#gl-design-effect)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-design-effect-1) ([2](multilevel-intro.qmd#ix-design-effect-2))
 - **dispersion statistic**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-dispersion-statistic-1); [Counting cells and spikes](count-regression.qmd#ix-dispersion-statistic-1); [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-dispersion-statistic-1)
 - **distribution**: [EDA using graphics](eda-ggplot.qmd#ix-distribution-1) ([2](eda-ggplot.qmd#ix-distribution-2))
+- **distributional regression** ([glossary](glossary.qmd#gl-distributional-regression)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-distributional-regression-1)
 - **divergent transition**: [MCMC and model checking](mcmc-model-checking.qmd#ix-divergent-transition-1)
 - **divergent transitions**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-divergent-transitions-1)
 - **drawing the bayesian owl**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-drawing-the-bayesian-owl-1)
@@ -105,6 +107,7 @@
 - **model expansion** ([glossary](glossary.qmd#gl-model-expansion)): [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-model-expansion-1) ([2](linear-models-reflection.qmd#ix-model-expansion-2))
 - **multicollinearity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-multicollinearity-1)
 - **multilevel model** ([glossary](glossary.qmd#gl-multilevel-model)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-multilevel-model-1)
+- **multivariate regression** ([glossary](glossary.qmd#gl-multivariate-regression)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-multivariate-regression-1)
 
 ## N {.unnumbered .unlisted}
 
@@ -141,11 +144,13 @@
 - **raincloud plot**: [EDA using graphics](eda-ggplot.qmd#ix-raincloud-plot-1) ([2](eda-ggplot.qmd#ix-raincloud-plot-2))
 - **raincloud plots**: [EDA using graphics](eda-ggplot.qmd#ix-raincloud-plots-1)
 - **random intercept**: [Counting cells and spikes](count-regression.qmd#ix-random-intercept-1)
+- **ratio of standard deviations** ([glossary](glossary.qmd#gl-ratio-of-standard-deviations)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-ratio-of-standard-deviations-1)
 - **reallocation of credibility**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-reallocation-of-credibility-1)
 - **reference category** ([glossary](glossary.qmd#gl-reference-category)): [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-reference-category-1)
 - **regularization**: [Specifying priors and regularization](priors-regularization.qmd#ix-regularization-1)
 - **representativeness**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-representativeness-1)
 - **researcher degrees of freedom**: [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-researcher-degrees-of-freedom-1)
+- **residual correlation** ([glossary](glossary.qmd#gl-residual-correlation)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-residual-correlation-1)
 - **residuals**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-residuals-1)
 - **rhat**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-rhat-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-rhat-1)
 - **ridge regression**: [Specifying priors and regularization](priors-regularization.qmd#ix-ridge-regression-1)

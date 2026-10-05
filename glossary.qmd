@@ -38,6 +38,20 @@ A plot of the estimated intercept of every group, with its credible interval, or
 
 :::
 
+## Coefficient of Variation {#gl-coefficient-of-variation .unnumbered .unlisted}
+
+The standard deviation divided by the mean. A gamma or lognormal outcome has a constant coefficient of variation: its spread is a fixed fraction of its mean.
+
+*Think of it as:* The "accurate to 2%" on the label of a pipette, as against "accurate to 1 microlitre", which does not care how much you pipette.
+
+*See also:* [distributional regression](#gl-distributional-regression)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-coefficient-of-variation-1)
+
+:::
+
 ## Complete Pooling {#gl-complete-pooling .unnumbered .unlisted}
 
 Estimating one value for all groups, ignoring which group a row came from. It is the model of ordinary regression when groups exist but are not modeled.
@@ -133,6 +147,20 @@ The factor by which clustering inflates the variance of an average, $1 + (m-1)\r
 ::: {.content-visible when-format="html"}
 
 *Where it appears:* [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-design-effect-1) ([2](multilevel-intro.qmd#ix-design-effect-2))
+
+:::
+
+## Distributional Regression {#gl-distributional-regression .unnumbered .unlisted}
+
+A regression in which more than the mean of the outcome has a formula of its own: the spread (sigma), the precision of a beta, the shape of a gamma or the probability of a structural zero can each depend on predictors, usually on a log or logit scale.
+
+*Think of it as:* An incubator with two dials, one for the temperature you want and one for how much it is allowed to wobble. Each dial can follow its own rule.
+
+*See also:* [ratio of standard deviations](#gl-ratio-of-standard-deviations), [coefficient of variation](#gl-coefficient-of-variation)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-distributional-regression-1)
 
 :::
 
@@ -279,6 +307,20 @@ A model in which group-level quantities (each mouse's own baseline, each neuron'
 ::: {.content-visible when-format="html"}
 
 *Where it appears:* [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-multilevel-model-1)
+
+:::
+
+## Multivariate Regression {#gl-multivariate-regression .unnumbered .unlisted}
+
+A regression with two or more outcomes measured on the same unit, each with its own formula, fitted together so that the leftovers of the outcomes within a unit are allowed to be correlated.
+
+*Think of it as:* Two dancers who follow the same choreography: the model describes the choreography for each, and also whether their small deviations move together.
+
+*See also:* [residual correlation](#gl-residual-correlation)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-multivariate-regression-1)
 
 :::
 
@@ -446,6 +488,20 @@ Analyzing repeated measurements of the same experimental unit (cells, sections o
 
 :::
 
+## Ratio of Standard Deviations {#gl-ratio-of-standard-deviations .unnumbered .unlisted}
+
+The exponential of a coefficient of the log standard deviation in a distributional model: how many times more (or less) the animals of one group scatter than those of the reference group.
+
+*Think of it as:* Saying that one pipette is "twice as shaky" as another, instead of giving the difference of their errors in microlitres.
+
+*See also:* [distributional regression](#gl-distributional-regression), [coefficient of variation](#gl-coefficient-of-variation)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-ratio-of-standard-deviations-1)
+
+:::
+
 ## Reference Category {#gl-reference-category .unnumbered .unlisted}
 
 The class of a categorical outcome whose linear predictor is fixed at zero, so that the model is identified. Every other coefficient is a log-odds against it, and changing it changes every coefficient.
@@ -457,6 +513,20 @@ The class of a categorical outcome whose linear predictor is fixed at zero, so t
 ::: {.content-visible when-format="html"}
 
 *Where it appears:* [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-reference-category-1)
+
+:::
+
+## Residual Correlation {#gl-residual-correlation .unnumbered .unlisted}
+
+The correlation between the leftovers (residuals) of two outcomes after the predictors of the model have been used. It answers whether two markers still go together once the day, the condition or the dose is held fixed.
+
+*Think of it as:* Shoe size and reading score correlate across children of all ages and hardly at all among children of one age: the second is the residual correlation.
+
+*See also:* [multivariate regression](#gl-multivariate-regression), [correlated varying effects](#gl-correlated-varying-effects)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-residual-correlation-1)
 
 :::
 

@@ -465,3 +465,60 @@
     a third of each of the car, red bus and blue bus, though in reality the
     two buses would just split the same riders.
   see_also: [categorical logit model]
+
+- term: distributional regression
+  status: draft
+  definition: >
+    A regression in which more than the mean of the outcome has a formula of its
+    own: the spread (sigma), the precision of a beta, the shape of a gamma or the
+    probability of a structural zero can each depend on predictors, usually on a
+    log or logit scale.
+  analogy: >
+    An incubator with two dials, one for the temperature you want and one for
+    how much it is allowed to wobble. Each dial can follow its own rule.
+  see_also: [ratio of standard deviations, coefficient of variation]
+
+- term: ratio of standard deviations
+  status: draft
+  definition: >
+    The exponential of a coefficient of the log standard deviation in a
+    distributional model: how many times more (or less) the animals of one group
+    scatter than those of the reference group.
+  analogy: >
+    Saying that one pipette is "twice as shaky" as another, instead of giving the
+    difference of their errors in microlitres.
+  see_also: [distributional regression, coefficient of variation]
+
+- term: coefficient of variation
+  status: draft
+  definition: >
+    The standard deviation divided by the mean. A gamma or lognormal outcome
+    has a constant coefficient of variation: its spread is a fixed fraction of
+    its mean.
+  analogy: >
+    The "accurate to 2%" on the label of a pipette, as against "accurate to
+    1 microlitre", which does not care how much you pipette.
+  see_also: [distributional regression]
+
+- term: multivariate regression
+  status: draft
+  definition: >
+    A regression with two or more outcomes measured on the same unit, each with
+    its own formula, fitted together so that the leftovers of the outcomes
+    within a unit are allowed to be correlated.
+  analogy: >
+    Two dancers who follow the same choreography: the model describes the
+    choreography for each, and also whether their small deviations move
+    together.
+  see_also: [residual correlation]
+
+- term: residual correlation
+  status: draft
+  definition: >
+    The correlation between the leftovers (residuals) of two outcomes after the
+    predictors of the model have been used. It answers whether two markers still
+    go together once the day, the condition or the dose is held fixed.
+  analogy: >
+    Shoe size and reading score correlate across children of all ages and hardly
+    at all among children of one age: the second is the residual correlation.
+  see_also: [multivariate regression, correlated varying effects]
