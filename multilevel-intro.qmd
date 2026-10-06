@@ -321,7 +321,7 @@ Eight chapters follow, in an order that goes from the simplest use of the idea t
 
 **After that we model two markers and their spread together** (@sec-multivariate-distributional-regression). The variance problem that @sec-linear-regression-assumptions and @sec-linear-regression-multiple left open and that [the introduction to GLMs](glm-intro.qmd#sec-glm-intro) pointed here, a single $\sigma$ that is too stingy for one day and too generous for another, becomes a model of $\sigma$ itself, and GFAP and PDGFR-β are modeled jointly.
 
-**Then we follow the scar over thirty days** (@sec-longitudinal-timeseries). The full time course of the histology data and the open-field animals measured on six days: the serial flavor of dependence, where values close in time resemble each other, which the independence discussion named and set aside.
+**Then we follow the scar over thirty days** (@sec-longitudinal-timeseries). The full time course of the histology data and the open-field animals measured on six days: the dependence between the days of the same animal, which can be a trait of the animal or a memory of the previous session, and which the chapter checks before modeling; the independence discussion named it and set it aside.
 
 **Next we deal with values the microscope cannot see** (@sec-missing-data-measurement-error). Missing data, measurement error and censoring pick up the thread of @sec-eda-missing-data: imputation recast as parameter estimation, and limits of detection as part of the model.
 
