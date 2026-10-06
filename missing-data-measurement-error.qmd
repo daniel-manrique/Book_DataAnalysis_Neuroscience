@@ -5,4 +5,1589 @@ subtitle: Missing data, measurement error and censoring
 
 # Dealing with values the microscope cannot see {#sec-missing-data-measurement-error}
 
-<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->
+```{r}
+#| include: false
+
+library(ggplot2)
+library(here)
+library(brms)
+library(posterior)
+library(ggdist)
+library(patchwork)
+library(survival)
+library(lme4)
+library(glmmTMB)
+library(mice)
+
+# The book's shared plot theme (this also loads the legend helpers)
+Plot_theme <- source("functions/plot_theme.R")
+Plot_theme <- Plot_theme$value
+
+# Okabe-Ito colors: two genotypes, and the three ways an attempt on the wire can end
+col_geno <- c(WT = "#D55E00", KO = "#0072B2")
+col_end <- c("Crossed" = "#999999", "Reached the cap" = "#D55E00", "Fell" = "#000000")
+
+# Sampler settings for the multilevel fits
+ml_control <- list(adapt_delta = 0.95)
+
+# Median and 95% credible interval of a vector of draws, as text for the prose
+qi <- function(x, digits = 2) {
+  q <- unname(quantile(x, c(0.5, 0.025, 0.975), na.rm = TRUE))
+  sprintf("%s (95%% credible interval %s to %s)", round(q[1], digits), round(q[2], digits), round(q[3], digits))
+}
+
+# The same, in the short form "median [lower, upper]" for tables and tight sentences
+qs <- function(x, digits = 2) {
+  q <- unname(quantile(x, c(0.5, 0.025, 0.975), na.rm = TRUE))
+  sprintf(paste0("%.", digits, "f [%.", digits, "f, %.", digits, "f]"), q[1], q[2], q[3])
+}
+
+# Median and 95% limits of a vector of draws, as a one-row data frame for the forest plots
+qrow <- function(x, label, group = NA) {
+  q <- unname(quantile(x, c(0.5, 0.025, 0.975), na.rm = TRUE))
+  data.frame(label = label, group = group, med = q[1], lo = q[2], hi = q[3])
+}
+```
+
+```{r}
+#| label: prep-wire
+#| include: false
+
+# The hanging wire test: one row per mouse and day, three attempts per row (Klf4-KO and controls only)
+wire_raw <- read.csv(here("project/AnalysisData/Wire_TrainingSum.csv"))
+wire_raw <- wire_raw[wire_raw$Genotype %in% c("Klf4-KO", "WildType-Control"), ]
+
+# One row per attempt, with the same codes as in the earlier chapters
+attempts <- do.call(rbind, lapply(1:3, function(k) {
+  data.frame(
+    mouse = wire_raw$ReCode,
+    genotype = factor(ifelse(wire_raw$Genotype == "Klf4-KO", "KO", "WT"), levels = c("WT", "KO")),
+    day = wire_raw$Day,
+    attempt = k,
+    position = wire_raw[[paste0("Trial", k, "_Position")]],
+    wire = wire_raw[[paste0("Trial", k, "_Wire")]],
+    success = wire_raw[[paste0("Trial", k, "_Success")]]
+  )
+}))
+attempts$mouse <- factor(attempts$mouse)
+attempts$day_c <- attempts$day - 2
+attempts$attempt_c <- attempts$attempt - 2
+
+# How each attempt ended: the clock stops at 60 s (the cap), so a failure at 60 s is a timeout and a
+# failure before 60 s is a fall. The two crossings recorded at exactly 60 s are flagged, not changed
+attempts$end <- ifelse(attempts$success == 1, "Crossed", ifelse(attempts$wire >= 60, "Reached the cap", "Fell"))
+attempts$end <- factor(attempts$end, levels = c("Crossed", "Reached the cap", "Fell"))
+attempts$boundary <- attempts$success == 1 & attempts$wire >= 60
+
+# The counts that I verified by hand against the file
+stopifnot(nrow(attempts) == 567, sum(attempts$end != "Crossed") == 51, sum(attempts$end == "Reached the cap") == 45,
+          sum(attempts$end == "Fell") == 6, sum(attempts$boundary) == 2)
+n_att <- nrow(attempts)
+n_mice_wire <- nlevels(attempts$mouse)
+end_tab <- table(attempts$genotype, attempts$end)
+n_by_geno <- table(attempts$genotype)
+
+# The three mice with the most attempts that reached the cap
+cap_by_mouse <- sort(table(attempts$mouse[attempts$end == "Reached the cap"]), decreasing = TRUE)
+top3 <- names(cap_by_mouse)[1:3]
+```
+
+I have a spreadsheet row that I have looked at more often than I should. It is mouse `r top3[1]`, in the hanging wire test of @sec-beta-robust-regression, and `r cap_by_mouse[[1]]` of its nine attempts say the same thing: *60 seconds*. The next two mice on the list, `r top3[2]` and `r top3[3]`, have `r cap_by_mouse[[2]]` and `r cap_by_mouse[[3]]` of nine. Sixty seconds is not what those mice did. It is where the test stops: the experimenter takes the animal off the wire, the clock stops, and the row says 60. **How long would they have taken, if we had let them hang?** Nobody knows. What we know is that it was *more than 60*.
+
+In earlier chapters I did the sensible-looking thing with those attempts and told you, each time, that I was not proud of it: I dropped them. The chapter on behavior (@sec-beta-robust-regression) modeled the completed crossing times only, the chapter on varying slopes (@sec-multilevel-varying-slopes) did the same, and the chapter on multilevel GLMs (@sec-multilevel-glmm) repaired the independence problem and left this one standing. Each time I wrote that the principled repair was a censored model and that it was a topic for this chapter. This is the chapter, and the first half of it pays that debt.
+
+The second half is about values that are missing for other reasons. The chapters of this part set aside sections of brains that never made it into the file (@sec-multilevel-varying-intercepts), open-field sessions in which the tracker lost the mouse (@sec-longitudinal-timeseries), and a count whose error I mentioned and did not model (@sec-multivariate-distributional-regression). They are not the same problem as the 60-second cap, and I want to convince you that telling them apart is most of the work. @fig-mdme_attempts starts with the wire, because it is the case in which the missing values are on the page.
+
+```{r}
+#| label: fig-mdme_attempts
+#| fig-cap: "Every attempt of the 63 mice in the hanging wire test (567 attempts), by training day and genotype. Grey circles: the mouse crossed. Orange triangles: the attempt reached the 60-second cap, where the clock stops. Black crosses: the mouse fell before the cap. The dotted line is the cap. Points are jittered sideways within each day."
+#| fig-alt: "Two panels, wild type on the left and Klf4-KO on the right, with training days 1, 2 and 3 on the horizontal axis and time on the wire in seconds from 0 to 60 on the vertical axis. Most points are grey circles between about 5 and 45 seconds. A row of orange triangles sits exactly on the dotted line at 60 seconds, a few in the wild-type panel and many more in the Klf4-KO panel on every day. Six black crosses, all in the Klf4-KO panel, lie between 12 and 32 seconds."
+#| fig-width: 8
+#| fig-height: 4.6
+#| warning: false
+
+# Every attempt as a point; shape and color say how it ended, so the figure survives grayscale
+set.seed(7)
+ggplot(attempts, aes(x = day, y = wire, color = end, shape = end)) +
+  geom_hline(yintercept = 60, linetype = "dotted") +
+  geom_jitter(width = 0.22, height = 0, size = 1.9, alpha = 0.8) +
+  facet_wrap(~genotype, labeller = labeller(genotype = c(WT = "Control", KO = "Klf4-KO"))) +
+  scale_color_manual(values = col_end) +
+  scale_shape_manual(values = c("Crossed" = 16, "Reached the cap" = 17, "Fell" = 4)) +
+  scale_x_continuous(breaks = 1:3) +
+  labs(x = "Training day", y = "Time on the wire (s)", color = NULL, shape = NULL) +
+  Plot_theme +
+  legend_top()
+```
+
+I drew @fig-mdme_attempts with `ggplot2::geom_jitter()`, one mark per attempt, because with 567 attempts there is no reason to summarize before looking. A bar of mean crossing time per genotype, with asterisks, would be computed from the grey circles only (if you drop the rest) or would average the cap into the times as if the mice had really crossed at 60 (if you keep it), and in both cases it would hide the thing that is plainly visible here: a row of orange triangles that is a few marks long on the left and a crowd on the right, on every day. The design tip is to show *how each value ended*, not only its number, whenever a column mixes measurements with something else. Shape and color carry the same information, so it also reads in a grayscale print.
+
+::: {.callout-tip title="How to read this figure"}
+Read the grey circles first: that is the part of the experiment that produced a time. Then find the dotted line and count the orange triangles sitting on it; they are not times, they are the places where we stopped looking. Compare the two panels *by the length of the row of triangles*, not by where the circles are, and notice that the row is longer on the right on all three days. Last, find the black crosses: they are a different event (a fall), and they are not triangles that happen to be early. The mistake to avoid is to read the height of an orange triangle as a measurement.
+:::
+
+## Three ways of not having the number {#sec-mdme-kinds}
+
+There are, I think, three different reasons a number is not in your spreadsheet, and the habit I want you to leave with is asking *which one is it?* before touching any code. I picture them as three jars on a bench. In the first, the number is **absent**: the section was lost, the tracker lost the mouse, the animal did not survive the surgery. Something that could have been measured was not. In the second, the number is **hidden behind a limit**: the mouse was still hanging at 60 seconds, a western blot band is brighter than the film can record, a qPCR reaction did not cross the threshold. A measurement exists, and what we got back is only that it lies beyond a point. In the third, the number is **blurred**: the count of NeuN-positive cells in a region came from a microscope and a counting rule, and it carries a counting error that the spreadsheet does not show.
+
+![Three jars on a bench, labeled by their contents and not by words. In the first, a few loose pieces and an empty slot: a number that is not there. In the second, a ruler that disappears into fog: a number that is only known to be beyond a point. In the third, a line drawn twice with a shaky hand: a number that is there, with some smear around it.](images/missing-data-measurement-error_three-jars.png){#fig-mdme-jars fig-align="center" width="85%" fig-alt="Watercolor sketch of three glass jars with cork lids on a wooden shelf. The first holds teal and ochre jigsaw pieces with one white gap among them. The second holds a wooden ruler standing upright whose marks are clear in the lower half and fade into pale teal fog above. The third holds a sheet with a teal line and an ochre line drawn side by side with a soft ochre smudge between them."}
+
+@fig-mdme-jars is the map of the chapter: the first jar holds the number that is absent, the second the one hidden behind a limit and the third the one that is blurred, and the sections that follow take them in the order hidden, absent and blurred.
+
+The three jars need different handling, and treating them alike is the commonest mistake I know. An absent value should be handled by asking why it is absent and by using a model that does not need it (or by saying what you assumed about it). A hidden value should *stay in the model*, with what we know about it, which is that it is beyond the limit. A blurred value should be modeled with its blur, which for a count has a known size. @tbl-mdme_kinds puts the three side by side with the case in this book that stands for each.
+
+```{r}
+#| label: tbl-mdme_kinds
+#| tbl-cap: "Three ways of not having the number, what each assumes and what each costs, with the case of this chapter that stands for each one."
+
+# One row per kind of missing value; the last column says what the book did with each case
+kinds <- data.frame(
+  Kind = c("Absent", "Hidden behind a limit", "Blurred"),
+  `What we have` = c("Nothing for that unit (a section, a session, an animal)",
+                     "That the value is at least (or at most) a limit",
+                     "A value with a known amount of error"),
+  `Tempting shortcut` = c("Drop the unit, or fill it with the group mean",
+                          "Drop the unit, or replace it with the limit (or half the limit)",
+                          "Treat the value as exact"),
+  `What the shortcut costs` = c("Biased if the loss depends on the value; the lost units are not a random sample",
+                                "Biased: dropping removes the slowest; replacing invents a value at the limit",
+                                "Nothing if the error is small; attenuation and false precision if it is not"),
+  `Better` = c("A model that uses what exists, and a sensitivity analysis for what cannot be checked",
+               "A censored likelihood: the value contributes the probability of being beyond the limit",
+               "A model that carries the error (a known standard error, or a count model with an offset)"),
+  `Case in this chapter` = c("Open-field sessions, NeuN sections, one PDGFR-beta count",
+                             "Attempts that reached the 60 s cap",
+                             "NeuN counts"),
+  check.names = FALSE
+)
+knitr::kable(kinds)
+```
+
+Notice that the second row of @tbl-mdme_kinds is the one most scientists meet first and handle worst. A value below the limit of detection of an assay is replaced by half the limit, a time that reached the cap is entered as the cap, a band that saturated is entered at its maximum. Every one of those is a small act of invention, and the textbooks that this book follows are unanimous about it: dropping censored observations gives the wrong estimate, because what you drop is not a random subset, and substituting a constant creates a spike of identical values that shrinks the spread and distorts the slope [@mcelreath2020; @gelman2020]. A reader of @sec-eda-missing-data will recognize the structure; this chapter is where the idea meets its second and third kinds.
+
+## The mechanisms, on one page {#sec-mdme-mechanisms}
+
+The vocabulary for absent values is the one of @sec-eda-missing-data, and I do not repeat the simulation that showed what each mechanism does to an estimate. I only need the three letters to be at hand. @tbl-mdme_mechanisms puts them next to the real cases of this chapter, and then I use the table for the rest of the chapter.
+
+```{r}
+#| label: tbl-mdme_mechanisms
+#| tbl-cap: "The three missingness mechanisms of the earlier chapter, what a model that uses all the available data assumes under each, and the case of this chapter that I would place under it. The last column is a judgment from what I know of the experiments, not something the data can show."
+
+# Mechanisms, what a likelihood-based analysis of the available data assumes, and the examples
+mech <- data.frame(
+  Mechanism = c("Missing completely at random (MCAR)", "Missing at random (MAR)", "Missing not at random (MNAR)"),
+  `What it says` = c("The chance of being missing is unrelated to anything",
+                     "The chance depends only on what is in the model (group, day, earlier values)",
+                     "The chance depends on the missing value itself, after accounting for the model"),
+  `Can the data tell?` = c("Partly: it can reject it, not confirm it",
+                           "No: the missing values are the only evidence",
+                           "No"),
+  `A model with all the available data is` = c("Valid, and so is dropping rows (less efficient)",
+                                                "Valid for the mean; dropping rows is not",
+                                                "Biased; a model of the loss, or a sensitivity analysis, is needed"),
+  `Where I would put the cases here` = c("A section lost to a cutting accident",
+                                         "Mice that stop coming after a first session whose score is in the model",
+                                         "A tracker that loses the mouse because of what the mouse does"),
+  check.names = FALSE
+)
+knitr::kable(mech)
+```
+
+Two sentences of that table carry most of what follows. The first is that **no analysis can show you that data are missing at random**, because the evidence against it sits in the values you do not have. The second is that, nevertheless, you can make the assumption *explicit and test how much the conclusion depends on it*, which is what a sensitivity analysis is. I will do the first thing for the wire, where the mechanism is known (the cap is a rule, so we know exactly what is censored), and the second for the open field, where it is not.
+
+## Hidden behind a limit: the clock that stops at 60 seconds {#sec-mdme-wire}
+
+Imagine a marathon in which the officials switch off the clock at four hours. You are given the finishing times and asked for the average. The runners who were still on the course are not in the list of times, and the average of the ones who finished is a number that tells you how long the race takes *for those who finish in under four hours*. It is not wrong as an arithmetic mean. It is wrong as an answer to the question that you were asked, which was about the runners, and it is wrong in a predictable direction: the slowest runners are exactly the ones that were dropped.
+
+The wire is that marathon. @tbl-mdme_outcomes counts how the `r n_att` attempts ended, by genotype. `r end_tab["WT", "Reached the cap"]` of `r n_by_geno[["WT"]]` attempts of control mice reached the cap (`r round(100 * end_tab["WT", "Reached the cap"] / n_by_geno[["WT"]], 1)`%), against `r end_tab["KO", "Reached the cap"]` of `r n_by_geno[["KO"]]` of Klf4-KO mice (`r round(100 * end_tab["KO", "Reached the cap"] / n_by_geno[["KO"]], 1)`%), and the six falls are all in the knockouts.
+
+```{r}
+#| label: tbl-mdme_outcomes
+#| tbl-cap: "How the 567 attempts of the hanging wire test ended, by genotype. The two crossings recorded at exactly 60 seconds are counted among the crossings."
+
+# Counts and shares by genotype; the share not completed adds the cap and the falls
+out_df <- data.frame(
+  Genotype = c("Control", "Klf4-KO"),
+  Attempts = as.integer(n_by_geno),
+  Crossed = as.integer(end_tab[, "Crossed"]),
+  `Reached the cap` = as.integer(end_tab[, "Reached the cap"]),
+  Fell = as.integer(end_tab[, "Fell"]),
+  `Not completed (%)` = round(100 * (end_tab[, "Reached the cap"] + end_tab[, "Fell"]) / as.integer(n_by_geno), 1),
+  check.names = FALSE
+)
+knitr::kable(out_df)
+```
+
+I want the size of the problem in numbers before building anything. If I drop the failed attempts, I drop `r round(100 * (end_tab["WT", "Reached the cap"] + end_tab["WT", "Fell"]) / n_by_geno[["WT"]], 1)`% of the attempts of controls and `r round(100 * (end_tab["KO", "Reached the cap"] + end_tab["KO", "Fell"]) / n_by_geno[["KO"]], 1)`% of those of knockouts, which is `r round((end_tab["KO", "Reached the cap"] + end_tab["KO", "Fell"]) / n_by_geno[["KO"]] / ((end_tab["WT", "Reached the cap"] + end_tab["WT", "Fell"]) / n_by_geno[["WT"]]), 1)` times as many. The knockouts have the slowest mice, and they lose the most of their slowest attempts. A comparison of what is left compares a nearly complete set of control times with a trimmed set of knockout times, so it makes the knockouts look *less* different from controls than they are. The name for this, when the chance of being censored depends on the group or on the value, is [informative censoring]{style="color:green; font-weight:bold;"}. If the cap were an administrative accident that hit attempts at random (the experimenter had to leave at attempt 4), the censoring would be harmless to the comparison and the loss would only be a loss of information. Here the cap hits slowness, and slowness is what we are measuring [@harrell2015].
+
+The case of one mouse shows it without a model. Mouse `r top3[1]` has `r cap_by_mouse[[1]]` attempts at the cap and `r sum(attempts$mouse == top3[1] & attempts$end == "Crossed")` completed ones, at `r paste(attempts$wire[attempts$mouse == top3[1] & attempts$end == "Crossed"], collapse = " and ")` seconds. The average of its completed attempts is `r round(mean(attempts$wire[attempts$mouse == top3[1] & attempts$end == "Crossed"]), 1)` seconds, which describes a quick mouse. Its average over all nine attempts is *at least* `r round(mean(attempts$wire[attempts$mouse == top3[1]]), 1)` seconds, because every attempt at the cap would have been 60 or more. The first number is what dropping reports; the second is the truth with a floor under it. A [censored]{style="color:green; font-weight:bold;"} observation is exactly this: a measurement that we only know to be beyond a limit. When the limit is an upper one, as the 60-second cap, the observation is [right-censored]{style="color:green; font-weight:bold;"}; when it is a lower one, as a value below the detection limit of an assay, it is [left-censored]{style="color:green; font-weight:bold;"}. And a [truncated]{style="color:green; font-weight:bold;"} observation is a different thing: a unit that is never in the sample at all if its value is beyond the limit, so that we do not even know it existed. Censored units are in the data with a bound; truncated units are not [@harrell2015].
+
+![A wooden ruler that disappears into a bank of fog. We can read it up to the point where the fog begins, and after that we only know that the thing we are measuring is at least that long.](images/missing-data-measurement-error_ruler-into-fog.png){#fig-mdme-ruler fig-align="center" width="85%" fig-alt="Watercolor sketch of a long wooden ruler lying on an off-white table, with clear tick marks on the left that fade into a bank of pale teal fog on the right, where the ruler is only a faint outline. A small white mouse stands at the edge of the fog, looking up into it."}
+
+@fig-mdme-ruler is the whole idea of censoring in one picture: up to the fog the marks tell us how long the thing is, and beyond it we only know that it is at least that long.
+
+### Every attempt, accounted for {#sec-mdme-km}
+
+Before any model, I want a picture in which *no attempt is dropped and none is invented*. The question that fits the data is not "what was the time?" but "by second *t*, what share of the attempts had not yet been completed?". That is a [survival curve]{.ix ix="survival curve"} in the language of time-to-event analysis (the share still "surviving", here still on the wire at time *t*), estimated by the Kaplan-Meier method [@kaplan1958], and it handles a censored attempt in the only honest way: it stays in the denominator until the moment its clock stops, and leaves then. I use `survival::survfit()` [@survival] and draw the steps with `ggplot2::geom_step()` and a ribbon for the 95% confidence interval. A bar plot of mean times would give one number per genotype; this curve gives every second of the test, and it shows where the two groups separate and what is left at the end.
+
+```{r}
+#| label: fig-mdme_km
+#| fig-cap: "Share of attempts not yet completed at each second of the hanging wire test, by genotype (Kaplan-Meier estimate with 95% confidence interval). Every one of the 567 attempts is used: attempts that reach the cap stay in the denominator until 60 seconds, and the six falls (crosses) leave at the moment they fell. The dotted line is the cap."
+#| fig-alt: "Two descending step curves from 1 at time 0. The orange curve (control) falls steeply to about 0.28 at 20 seconds and to about 0.04 at 60 seconds. The blue curve (Klf4-KO) falls more slowly, to about 0.58 at 20 seconds, 0.32 at 30 seconds and 0.12 at 60 seconds. Both curves stay flat after 60 seconds, which is the cap, marked with a dotted vertical line. Six small black crosses sit on the blue curve between 12 and 32 seconds."
+#| fig-width: 7
+#| fig-height: 4.4
+#| warning: false
+
+# Time to cross: an attempt that crossed is an event; the rest leave the risk set when their clock stops
+km_dat <- attempts
+km_dat$time <- pmax(km_dat$wire, 0.5)
+km_dat$event <- as.numeric(km_dat$end == "Crossed")
+sf <- survfit(Surv(time, event) ~ genotype, data = km_dat)
+
+# Steps of each curve, with the starting point at time 0
+sf_df <- data.frame(time = sf$time, surv = sf$surv, lo = sf$lower, hi = sf$upper,
+                    genotype = rep(c("WT", "KO"), sf$strata))
+sf_df <- rbind(sf_df, data.frame(time = 0, surv = 1, lo = 1, hi = 1, genotype = c("WT", "KO")))
+
+# Height of the curve at the moment each fall happened (the crosses)
+fall_df <- attempts[attempts$end == "Fell", c("genotype", "wire")]
+fall_df$surv <- NA
+for (i in seq_len(nrow(fall_df))) {
+  s <- sf_df[sf_df$genotype == fall_df$genotype[i], ]
+  s <- s[order(s$time), ]
+  fall_df$surv[i] <- tail(s$surv[s$time <= fall_df$wire[i]], 1)
+}
+
+# Share still hanging when the clock stops, for the labels on the right
+end_surv <- sapply(c("WT", "KO"), function(g) min(sf_df$surv[sf_df$genotype == g]))
+
+# Curves, ribbons, direct labels, the cap, and the falls
+ggplot(sf_df, aes(x = time, y = surv, color = genotype, fill = genotype)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), stat = "identity", alpha = 0.15, colour = NA, outline.type = "full") +
+  geom_step(linewidth = 1) +
+  geom_vline(xintercept = 60, linetype = "dotted") +
+  geom_point(data = fall_df, aes(x = wire, y = surv), shape = 4, size = 3, stroke = 1.2, color = "black", inherit.aes = FALSE) +
+  annotate("text", x = 36, y = 0.50, label = "Klf4-KO", color = col_geno[["KO"]], fontface = "bold", size = 5, hjust = 0) +
+  annotate("text", x = 24, y = 0.12, label = "Control", color = col_geno[["WT"]], fontface = "bold", size = 5, hjust = 0) +
+  annotate("text", x = 59, y = 0.60, label = "cap", hjust = 1, size = 4.5) +
+  scale_color_manual(values = col_geno) +
+  scale_fill_manual(values = col_geno) +
+  scale_x_continuous(breaks = c(0, 15, 30, 45, 60)) +
+  coord_cartesian(xlim = c(0, 62)) +
+  labs(x = "Time on the wire (s)", y = "Share of attempts not yet completed") +
+  Plot_theme +
+  legend_none()
+```
+
+I read the picture in three steps, and this is how I would teach you to read any curve of this kind.
+
+::: {.callout-tip title="How to read this figure"}
+The vertical axis is the share of attempts still *not completed* at the second on the horizontal axis, so every curve starts at 1 and can only go down. First look at how fast each curve falls: a curve that falls early is a group that crosses quickly. Then look at the height of the curve at the dotted line. That height is the share of attempts that were still hanging when the clock stopped, which is the censored share, and here it is `r round(100 * end_surv[["WT"]], 1)`% for controls and `r round(100 * end_surv[["KO"]], 1)`% for knockouts. Last, notice that the curves are flat after 60: the test says nothing about what would have happened, so the flat part is not a prediction. The mistake to avoid is to read the plateau as "these mice never cross"; it says "we stopped looking".
+:::
+
+The two curves tell the story of the chapter before I fit anything. The knockouts' curve is above the controls' at every second, which is what a slower group looks like, and it ends at a plateau about `r round(end_surv[["KO"]] / end_surv[["WT"]], 1)` times as high. The model I build next is a way of putting that picture into one number (a ratio of typical crossing times) *without* throwing away the attempts that make the plateau.
+
+### Two things that are not censored times {#sec-mdme-falls}
+
+Two groups of attempts need a decision before the model, and I made the rule first and checked it in code, as I did with the impossible record in @sec-beta-robust-regression. The first group is the six **falls**. A mouse that falls at 12 seconds has not been stopped by the cap. It has had a different event, and what its "time to cross" would have been had it stayed on is a counterfactual that I do not know how to fill in; it is not "at least 12 seconds" in the way that a timeout is "at least 60", because falling may itself be related to how hard the crossing was. All six are in knockout mice, on days 1 to 3 (@tbl-mdme_falls).
+
+```{r}
+#| label: tbl-mdme_falls
+#| tbl-cap: "The six attempts that ended in a fall before the cap, and the two crossings recorded at exactly 60 seconds. Times in seconds; position is the time to get into position."
+
+# The two kinds of attempt that are not an ordinary crossing or a timeout
+odd <- attempts[attempts$end == "Fell" | attempts$boundary, c("mouse", "genotype", "day", "attempt", "position", "wire", "end")]
+odd$end <- ifelse(odd$end == "Fell", "Fell", "Crossed at exactly 60 s")
+names(odd) <- c("Mouse", "Genotype", "Day", "Attempt", "Position", "Time", "How it ended")
+knitr::kable(odd[order(odd$`How it ended`, odd$Mouse), ], row.names = FALSE)
+```
+
+My rule for the main analysis is therefore: **falls are not censored times, and they are left out of the model of the crossing time**; they are counted, reported (6 of 315 attempts of knockouts, none in controls), and shown with their own sensitivity analysis below, in which they are treated in the two ways that bracket the possibilities. The second group is the two crossings recorded at exactly 60 seconds. Daniel confirmed that these mice reached the platform in the last second, so they are real crossings and I keep them as exact times of 60 s; the cost of being wrong is small and I tested it, by refitting with both of them recoded as censored. They are the kind of boundary case that is only visible because I looked for values that sit on a limit.
+
+### The censored model {#sec-mdme-censmodel}
+
+The model is the Student-*t* of @sec-beta-robust-regression on the log of the time, with the varying intercept for each mouse of @sec-multilevel-glmm, and one change in the likelihood. For an attempt that was completed, the likelihood contribution is the height of the density at the observed log time, as always. For an attempt that reached the cap, I do not have a log time; what I have is that the log time was *larger than* $\log 60$, and the contribution is the probability of that, the area under the density beyond the cap (@eq-mdme-cens). The mouse that hit the cap contributes less than a mouse that crossed, because it tells us less, but it contributes in the right direction.
+
+$$
+L_i = \begin{cases}
+f\left(\log y_i \mid \mu_i, \sigma, \nu\right) & \text{if the attempt was completed}\\[4pt]
+1 - F\left(\log 60 \mid \mu_i, \sigma, \nu\right) & \text{if it reached the cap}
+\end{cases}
+$$ {#eq-mdme-cens}
+
+with $f$ and $F$ the density and the cumulative distribution function of the Student-*t* and $\mu_i$ the linear predictor of @sec-multilevel-glmm: genotype, day and attempt, plus a level for the mouse. In `brms` the only change is the left side of the formula: `log_wire | cens(cens)`, where `cens` says for each row whether the value is exact (`"none"`) or a lower bound (`"right"`). The priors are those of @sec-multilevel-glmm (`Normal(3, 0.7)` for the intercept on the log scale, `Normal(0, 0.5)` for coefficients, `Exponential(2)` for the scale, `Gamma(2, 0.1)` for the degrees of freedom and `Exponential(3)` for the spread between mice), so that the *only* thing that changes is what I do with the censored attempts. I fit that model and the alternatives that I want to compare it with: the Gaussian of the first chapter on behavior (completed attempts, independent), the Student-*t* with a level for mouse on completed attempts only (the model of @sec-multilevel-glmm), and the Student-*t* in which the capped attempts are entered as exact times of 60 seconds (the replacement that I warned you about).
+
+```{r}
+#| label: prep-wire-fits
+#| include: false
+
+# Data for each analysis. Completed attempts: log time. Censored: reached the cap, log(60) is a lower bound.
+# Falls are excluded from the main data (their own sensitivity analysis follows)
+wire_done <- attempts[attempts$end == "Crossed" & attempts$wire > 0, ]
+wire_done$log_wire <- log(wire_done$wire)
+
+wire_all <- attempts[attempts$end != "Fell", ]
+wire_all$log_wire <- log(wire_all$wire)
+wire_all$cens <- ifelse(wire_all$end == "Reached the cap", "right", "none")
+
+# Replacement: the capped attempts entered as exact times of 60 seconds
+wire_subst <- wire_all
+wire_subst$cens <- "none"
+
+# Falls censored at the moment they fell (a fall as "we stopped watching"), and falls treated as if
+# they had reached the cap (the bracketing worst case)
+wire_fall_t <- attempts
+wire_fall_t$log_wire <- log(pmax(wire_fall_t$wire, 0.5))
+wire_fall_t$cens <- ifelse(wire_fall_t$end == "Crossed", "none", "right")
+wire_fall_cap <- wire_fall_t
+wire_fall_cap$log_wire[wire_fall_cap$end == "Fell"] <- log(60)
+
+# The two crossings at exactly 60 s recoded as censored
+wire_bound <- wire_all
+wire_bound$cens[wire_bound$boundary] <- "right"
+
+# Priors: those of the multilevel chapter, so that only the treatment of the capped attempts changes
+prior_gauss <- c(prior(normal(3, 0.7), class = "Intercept"), prior(normal(0, 0.5), class = "b"),
+                 prior(exponential(2), class = "sigma"))
+prior_t <- c(prior_gauss, prior(gamma(2, 0.1), class = "nu"))
+prior_t_ml <- c(prior_t, prior(exponential(3), class = "sd"))
+prior_t_ml_narrow <- c(prior(normal(3, 0.7), class = "Intercept"), prior(normal(0, 0.25), class = "b"),
+                       prior(exponential(2), class = "sigma"), prior(gamma(2, 0.2), class = "nu"),
+                       prior(exponential(6), class = "sd"))
+prior_t_ml_wide <- c(prior(normal(3, 0.7), class = "Intercept"), prior(normal(0, 1), class = "b"),
+                     prior(exponential(2), class = "sigma"), prior(gamma(2, 0.05), class = "nu"),
+                     prior(exponential(1), class = "sd"))
+# Logistic model for "not completed": as in the multilevel chapter (log-odds)
+prior_logit <- c(prior(normal(-2, 1.5), class = "Intercept"), prior(normal(0, 1.5), class = "b"),
+                 prior(exponential(0.5), class = "sd"))
+```
+
+```{r}
+#| label: fit-wire-cens
+
+# 1. Gaussian on completed attempts, attempts treated as independent
+fit_w1 <- brm(
+  log_wire ~ genotype + day_c + attempt_c,
+  data = wire_done, family = gaussian(), prior = prior_gauss,
+  chains = 4, cores = 4, seed = 123, refresh = 0,
+  file = "models/missing-data-measurement-error_fit1.rds", file_refit = "never"
+)
+
+# 2. Student-t with a level for each mouse, completed attempts only (the model of the multilevel chapter)
+fit_w2 <- brm(
+  log_wire ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_done, family = student(), prior = prior_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit2.rds", file_refit = "never"
+)
+
+# 3. The same, with the capped attempts entered as exact times of 60 seconds
+fit_w3 <- brm(
+  log_wire ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_subst, family = student(), prior = prior_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit3.rds", file_refit = "never"
+)
+
+# 4. The censored model: capped attempts contribute the probability of being beyond 60 seconds
+fit_w4 <- brm(
+  log_wire | cens(cens) ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_all, family = student(), prior = prior_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit4.rds", file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+# Population effects, spread between mice, residual scale and degrees of freedom of the censored model
+summary(fit_w4)
+```
+
+### survival
+
+```{r}
+# The frequentist counterpart: a censored lognormal model with standard errors that allow for the mouse
+sr_dat <- wire_all
+sr_dat$event <- as.numeric(sr_dat$cens == "none")
+survreg_w <- survreg(Surv(wire, event) ~ genotype + day_c + attempt_c + cluster(mouse),
+                     data = sr_dat, dist = "lognormal")
+summary(survreg_w)
+```
+:::
+
+The coefficients are on the log scale, so I read them as ratios. `genotypeKO` is the log of the ratio of the *typical* (median) crossing time of a knockout mouse to that of a control mouse at the same day and attempt, and `day_c` is the log of the ratio for one more day of training. Before reading them I check the sampler: the censored fit has a maximum R-hat of `r round(max(summarise_draws(as_draws_df(fit_w4), "rhat")$rhat, na.rm = TRUE), 3)` and its smallest effective sample size is `r round(min(summarise_draws(as_draws_df(fit_w4), "ess_bulk", "ess_tail")[, 2:3], na.rm = TRUE))`; the full table is in @sec-mdme-checks.
+
+```{r}
+#| label: draws-wire
+#| include: false
+
+# Posterior draws of the four models and the maximum-likelihood estimate of the frequentist one
+dr_w <- lapply(list(w1 = fit_w1, w2 = fit_w2, w3 = fit_w3, w4 = fit_w4), as_draws_df)
+sr_b <- coef(survreg_w)["genotypeKO"]
+sr_se <- sqrt(diag(vcov(survreg_w)))["genotypeKO"]
+ratio_ko <- exp(dr_w$w4$b_genotypeKO)
+ratio_day <- exp(dr_w$w4$b_day_c)
+```
+
+### Dropping, replacing, censoring {#sec-mdme-compare}
+
+@fig-mdme_wire_forest puts the three treatments of the capped attempts side by side, and then adds the sensitivity analyses that I describe below. The effect is the ratio of the typical crossing time of a knockout mouse to that of a control mouse. I drew it as a forest of intervals on adjacent rows, as in @sec-multilevel-glmm, because what I want you to see is the *position* of the estimates, not their significance: a bar chart of three coefficients with stars would tell you that all three "are significant" and nothing about the fact that two of them are biased.
+
+```{r}
+#| label: fit-wire-sens
+
+# 5. Falls censored at the moment they fell (cause-specific view)
+fit_w5 <- brm(
+  log_wire | cens(cens) ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_fall_t, family = student(), prior = prior_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit5.rds", file_refit = "never"
+)
+
+# 6. Falls treated as if they had reached the cap (worst case for the knockouts)
+fit_w6 <- brm(
+  log_wire | cens(cens) ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_fall_cap, family = student(), prior = prior_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit6.rds", file_refit = "never"
+)
+
+# 7. The two crossings at exactly 60 s recoded as censored
+fit_w7 <- brm(
+  log_wire | cens(cens) ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_bound, family = student(), prior = prior_t_ml,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit7.rds", file_refit = "never"
+)
+
+# 8 and 9. Prior sensitivity of the censored model: a narrower and a wider set of priors
+fit_w8 <- brm(
+  log_wire | cens(cens) ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_all, family = student(), prior = prior_t_ml_narrow,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit8.rds", file_refit = "never"
+)
+fit_w9 <- brm(
+  log_wire | cens(cens) ~ genotype + day_c + attempt_c + (1 | mouse),
+  data = wire_all, family = student(), prior = prior_t_ml_wide,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit9.rds", file_refit = "never"
+)
+```
+
+```{r}
+#| label: fig-mdme_wire_forest
+#| fig-cap: "Ratio of the typical crossing time of Klf4-KO mice to that of control mice, under different treatments of the attempts that did not produce a time. Points are posterior medians (the frequentist estimate in the last row); bars are 95% intervals. The dotted line is a ratio of 1 (no difference). The top three rows differ only in what is done with the 45 attempts that reached the cap; the next three are sensitivity analyses of the censored model."
+#| fig-alt: "A forest plot with eight rows and a logarithmic horizontal axis from 1 to 1.8. The first two rows, a Gaussian model and a Student-t model on completed attempts, have points at about 1.28, with intervals from about 1.18 to 1.39 (Gaussian, attempts independent) and from about 1.08 to 1.51 (Student-t with mouse levels). The third row, with the capped attempts entered as 60 seconds, is at about 1.40. The fourth row, the censored model, is at about 1.44 with an interval from about 1.13 to 1.80. Three sensitivity rows (falls censored at the moment of the fall, falls treated as reaching the cap, the two 60-second crossings as censored) lie at about 1.43 to 1.46, and the last row, the frequentist survival model, is at about 1.41."
+#| fig-width: 8
+#| fig-height: 4.6
+#| warning: false
+
+# Ratios and intervals of the genotype effect under each treatment
+dr_w$w5 <- as_draws_df(fit_w5); dr_w$w6 <- as_draws_df(fit_w6); dr_w$w7 <- as_draws_df(fit_w7)
+forest_w <- rbind(
+  qrow(exp(dr_w$w1$b_genotypeKO), "Gaussian, completed only, independent", "Drop"),
+  qrow(exp(dr_w$w2$b_genotypeKO), "Student-t + mouse levels, completed only", "Drop"),
+  qrow(exp(dr_w$w3$b_genotypeKO), "Student-t, cap entered as 60 s", "Replace"),
+  qrow(exp(dr_w$w4$b_genotypeKO), "Censored Student-t (main model)", "Censor"),
+  qrow(exp(dr_w$w5$b_genotypeKO), "Censored, falls censored when they fell", "Sensitivity"),
+  qrow(exp(dr_w$w6$b_genotypeKO), "Censored, falls as reaching the cap", "Sensitivity"),
+  qrow(exp(dr_w$w7$b_genotypeKO), "Censored, two 60 s crossings censored", "Sensitivity")
+)
+forest_w <- rbind(forest_w, data.frame(label = "survreg (lognormal, robust SE)", group = "Frequentist",
+                                       med = exp(sr_b), lo = exp(sr_b - 1.96 * sr_se), hi = exp(sr_b + 1.96 * sr_se)))
+forest_w$label <- factor(forest_w$label, levels = rev(forest_w$label))
+forest_w$group <- factor(forest_w$group, levels = c("Drop", "Replace", "Censor", "Sensitivity", "Frequentist"))
+
+# Points with 95% intervals on a ratio scale, one row per analysis
+ggplot(forest_w, aes(x = med, y = label, xmin = lo, xmax = hi, color = group, shape = group)) +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  geom_pointrange(size = 0.55, linewidth = 0.9) +
+  scale_x_log10(breaks = c(1, 1.25, 1.5, 2)) +
+  scale_color_manual(values = c("Drop" = "#999999", "Replace" = "#E69F00", "Censor" = "#0072B2",
+                                "Sensitivity" = "#56B4E9", "Frequentist" = "#000000")) +
+  scale_shape_manual(values = c("Drop" = 16, "Replace" = 15, "Censor" = 17, "Sensitivity" = 17, "Frequentist" = 18)) +
+  labs(x = "Ratio of typical times, KO to control (log scale)", y = NULL, color = NULL, shape = NULL) +
+  Plot_theme +
+  legend_none() +
+  theme(axis.text.y = element_text(size = 11))
+```
+
+@fig-mdme_wire_forest has one message and one caution. The message: **dropping the capped attempts makes the knockout delay look smaller** (a ratio of `r qs(exp(dr_w$w1$b_genotypeKO), 2)` with the Gaussian of the chapter on behavior and `r qs(exp(dr_w$w2$b_genotypeKO), 2)` with the Student-*t* on completed attempts with a level for each mouse), the replacement gets closer (`r qs(exp(dr_w$w3$b_genotypeKO), 2)`), since a 60 is at least a lower bound of the truth, but it invents a value and gives it the weight of a measurement, and the censored model says `r qs(ratio_ko, 2)`: the typical crossing of a knockout takes `r round(100 * (median(ratio_ko) - 1))`% longer than that of a control, not `r round(100 * (median(exp(dr_w$w2$b_genotypeKO)) - 1))`%. The direction is the one I predicted from @tbl-mdme_outcomes. The caution is about *how much*: the censored interval is wider than the interval of the models that dropped attempts, and it should be, because it admits that `r sum(wire_all$cens == "right")` of the attempts told us only a bound. A narrower interval from a model that discards the hardest attempts is not a better result; it is a more confident answer to an easier question.
+
+Three sensitivity analyses sit below the main row. The two about the falls bracket what a fall could mean: if a fall is just "we stopped watching" the ratio is `r qs(exp(dr_w$w5$b_genotypeKO), 2)`, and if a fall is as bad as reaching the cap (every mouse that fell would have hung on until the end) it is `r qs(exp(dr_w$w6$b_genotypeKO), 2)`. Six attempts out of `r n_att` do not decide the conclusion, and the figure says so. Recoding the two crossings at exactly 60 seconds as censored gives `r qs(exp(dr_w$w7$b_genotypeKO), 2)`. And the frequentist estimate from `survival::survreg()` is `r round(exp(sr_b), 2)` (95% confidence interval `r round(exp(sr_b - 1.96 * sr_se), 2)` to `r round(exp(sr_b + 1.96 * sr_se), 2)`).
+
+::: {.callout-tip title="Frequentist equivalent"}
+`survreg()` fits the censored model by maximum likelihood, with a lognormal distribution for the time (a Gaussian on the log scale) instead of the Student-*t*, and with standard errors that allow for the clustering of attempts within mice (`cluster(mouse)`). That is not the same model as the `brms` one: it has no varying intercept, so the mouse-to-mouse variation enters only through the standard error, and its tails are those of a Gaussian. The agreement of the point estimate with the censored `brms` model (`r round(exp(sr_b), 2)` against `r round(median(ratio_ko), 2)`) is the reassuring part: the censored likelihood is doing the work, in both. Where they differ is in the width of the interval and in how they treat mice: `brms` estimates the spread between mice and shrinks each mouse toward its genotype; `survreg()` ignores that structure and corrects the standard error afterwards. `parsnip`, which the book used for the simple models, has no engine for a censored regression with a varying intercept, and `survreg()` in `survival` does not support random effects (I tried a Gaussian frailty term and it is refused). A Cox model with a random intercept exists in the `coxme` package, but it answers a different question (a ratio of hazards, not of times) and belongs to the appendix on time-to-event models (@sec-appendix-next), which I do not enter.
+:::
+
+### The other view: the probability of not completing {#sec-mdme-logit}
+
+Everything so far is about *how long* a crossing takes. The other question the data can answer is *whether* it happens, and it is the one that does not need any assumption about the values behind the cap. I model the probability that an attempt is not completed (reaches the cap or falls) with the logistic model with a varying intercept of @sec-multilevel-glmm, and I report it two ways, as an odds ratio for a typical mouse and as the average difference in probability over the mice we studied (@sec-glmm-marginal).
+
+```{r}
+#| label: fit-wire-logit
+
+# Not completed (cap or fall) as a yes/no, with a level for each mouse
+attempts$failed <- 1 - attempts$success
+fit_w10 <- brm(
+  failed ~ genotype + day_c + (1 | mouse),
+  data = attempts, family = bernoulli(), prior = prior_logit,
+  chains = 4, cores = 4, seed = 123, iter = 4000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit10.rds", file_refit = "never"
+)
+dr_l <- as_draws_df(fit_w10)
+
+# Average predictive comparison: every attempt as if by a knockout and as if by a control
+nd_ko <- attempts; nd_ko$genotype <- factor("KO", levels = c("WT", "KO"))
+nd_wt <- attempts; nd_wt$genotype <- factor("WT", levels = c("WT", "KO"))
+p_ko <- rowMeans(posterior_epred(fit_w10, newdata = nd_ko))
+p_wt <- rowMeans(posterior_epred(fit_w10, newdata = nd_wt))
+```
+
+For a typical mouse the odds of not completing an attempt are `r qs(exp(dr_l$b_genotypeKO), 1)` times as large in knockouts as in controls; averaged over the mice of the experiment, the probability of not completing an attempt is `r qs(100 * p_ko, 1)`% for knockouts against `r qs(100 * p_wt, 1)`% for controls, a difference of `r qs(100 * (p_ko - p_wt), 1)` percentage points. This view and the censored model agree about the direction and about the group that is in trouble, and they do so for different reasons: the logistic model uses only whether the attempt ended at all, and the censored model uses *also* how close to the cap the completed attempts were. Reporting both is not redundancy. A reader who distrusts the tail assumption of the censored model can fall back on the probability, and a reader who wants the time can have it.
+
+### Does the censored model reproduce the cap? {#sec-mdme-ppc}
+
+A model for a limit should, at the least, reproduce *how often the limit is reached*. I check it by simulating, from the censored model, a new time for every attempt and counting how often the simulated time is above 60 seconds, by genotype and day, against the observed share of attempts at the cap (@fig-mdme_wire_ppc). It is the predictive check of @sec-mcmc-model-checking, with a statistic chosen for the problem: the share beyond the cap, because the cap is exactly what this chapter is about.
+
+```{r}
+#| label: fig-mdme_wire_ppc
+#| fig-cap: "Share of attempts that reached the cap, by genotype and day: observed (black points) and expected under the censored model (blue points and lines are the median and 95% interval of the simulated share). Mice are those of the experiment, so the check is on the fitted mice."
+#| fig-alt: "Six groups of points along days 1, 2 and 3 in two panels, control on the left and Klf4-KO on the right. Black points show the observed share of attempts at the cap, about 1 to 6% in controls and about 10 to 15% in knockouts. Blue points with vertical lines show the model's expected share, close to the black points in every group, with intervals that contain them."
+#| fig-width: 7.5
+#| fig-height: 3.8
+#| warning: false
+
+# Simulate a new log time for every analyzed attempt and flag the ones beyond the cap
+set.seed(11)
+yrep <- posterior_predict(fit_w4, ndraws = 500)
+beyond <- yrep > log(60)
+grp <- interaction(wire_all$genotype, wire_all$day, drop = TRUE)
+pp_df <- do.call(rbind, lapply(levels(grp), function(g) {
+  idx <- which(grp == g)
+  share <- rowMeans(beyond[, idx, drop = FALSE])
+  data.frame(genotype = wire_all$genotype[idx[1]], day = wire_all$day[idx[1]],
+             obs = mean(wire_all$end[idx] == "Reached the cap"),
+             med = median(share), lo = quantile(share, 0.025), hi = quantile(share, 0.975))
+}))
+
+# Observed share against the model's band
+ggplot(pp_df, aes(x = day)) +
+  geom_pointrange(aes(y = med, ymin = lo, ymax = hi), color = "#0072B2", size = 0.5) +
+  geom_point(aes(y = obs), color = "black", size = 2.6, shape = 15) +
+  facet_wrap(~genotype, labeller = labeller(genotype = c(WT = "Control", KO = "Klf4-KO"))) +
+  scale_x_continuous(breaks = 1:3) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  labs(x = "Training day", y = "Share of attempts beyond 60 s") +
+  Plot_theme
+```
+
+The black squares of @fig-mdme_wire_ppc sit inside the bands for `r sum(pp_df$obs >= pp_df$lo & pp_df$obs <= pp_df$hi)` of the `r nrow(pp_df)` groups, and above the median of the band in `r sum(pp_df$obs > pp_df$med)` of them: the model reproduces the share at the cap on day 1, but it **under-predicts it on days 2 and 3**, most clearly for the knockouts on day 3 (observed `r round(100 * pp_df$obs[pp_df$genotype == "KO" & pp_df$day == 3])`%, expected `r round(100 * pp_df$med[pp_df$genotype == "KO" & pp_df$day == 3])`%). The reason is visible in @fig-mdme_attempts: the crossing times fall by about a fifth per day, and the model carries that practice effect into the tail, so that it expects fewer attempts at the cap as the days go by, whereas the share of attempts at the cap in the knockouts hardly moves (`r paste0(round(100 * pp_df$obs[pp_df$genotype == "KO"]), "%", collapse = ", ")` on days 1 to 3). Mice that reach the cap do not seem to be simply slow versions of mice that cross: for some attempts something else is going on, and a single distribution of times describes that only approximately. I do not think this undoes the comparison of typical times, which is dominated by the 516 crossings, but it is a limit of the model and I would say so in a paper; it is also the reason for reporting the probability of not completing an attempt next to the ratio of times, as above. The check cannot say anything about the shape of the tail beyond 60 seconds, since there are no data beyond 60. That part is an assumption, and the table of prior sensitivity in @sec-mdme-checks is where I look at how much it matters.
+
+::: {.callout-note title="How to report it"}
+**Results.** Of `r n_att` attempts by `r n_mice_wire` mice, `r end_tab["WT", "Reached the cap"]` of `r n_by_geno[["WT"]]` attempts of control mice and `r end_tab["KO", "Reached the cap"]` of `r n_by_geno[["KO"]]` of Klf4-KO mice reached the 60-second limit of the test, and 6 attempts, all by knockouts, ended in a fall. Treating the limit as a right-censored time, the typical crossing time of Klf4-KO mice was `r qs(ratio_ko, 2)` times that of controls (posterior median and 95% credible interval; a posterior probability above `r floor(100 * mean(ratio_ko > 1))`% that the ratio exceeds 1), against `r qs(exp(dr_w$w2$b_genotypeKO), 2)` when the capped attempts were omitted. Each day of training reduced crossing times by a factor of `r qs(ratio_day, 2)`. The probability of not completing an attempt was `r qs(100 * p_ko, 1)`% in knockouts and `r qs(100 * p_wt, 1)`% in controls, and it did not fall with training in knockouts, which the time model does not reproduce.
+
+**Methods.** The log of the time on the wire was modeled with a Student-*t* likelihood, with genotype, day and attempt as predictors and a varying intercept for each mouse. Attempts that reached the 60-second limit were treated as right-censored at 60 s; falls (6 attempts) were excluded from the time model and analyzed in sensitivity analyses in which they were censored at the time of the fall or treated as reaching the limit. The model was fitted in `brms` (four chains of 3,000 iterations; R-hat below 1.01 and effective sample sizes above 400 for all parameters). The estimate assumes that the log times beyond 60 s follow the same Student-*t* distribution as the observed ones; the model under-predicted the share of attempts at the limit on days 2 and 3.
+:::
+
+## Absent: sessions and sections that are not there {#sec-mdme-absent}
+
+The wire was the easy case, in one sense: the mechanism is a rule that I can read in the lab manual, so I know exactly which values are censored and by how much. The absent values of the rest of this part are harder, because nobody wrote a rule for them. A tracker loses a mouse; a section is damaged on the cryostat; an animal does not wake up from the surgery. For each of them I can ask three questions, and the order matters: *what is missing, why do I think it is missing, and what would change my mind?*
+
+### The open-field sessions that the tracker lost {#sec-mdme-of}
+
+The open-field data are those of @sec-beta-robust-regression and @sec-longitudinal-timeseries, and I do not reopen any of their decisions: the animal is identified by the `Animal` column, animals whose treatment label changes between days are left out, the outcome is the share of the *tracked* time spent in the center, and a session needs at least 270 of its 300 seconds tracked. The rule of 270 seconds was inherited, not chosen, and the chapter on longitudinal models refit the model without it and said that the conclusion did not depend on where the line was drawn. Here I want to look at *what the rule removed*.
+
+```{r}
+#| label: data-openfield
+
+# Read the open-field summary as it came (column names contain spaces and colons)
+of_raw <- read.csv(here("project/AnalysisData/OpenField_Summary.csv"), check.names = FALSE)
+
+# One row per animal and test day; times in seconds. The animal is identified by Animal, not by ReCode
+of <- data.frame(
+  animal = sub("^0+", "", sub("^M", "", of_raw$Animal)),
+  label = of_raw$Treatment,
+  dpi = of_raw$DPI,
+  center = of_raw[["Center : time"]],
+  arena = of_raw[["Arena : time"]],
+  borders = of_raw[["Borders : time"]]
+)
+of$tracked <- of$center + of$arena + of$borders
+
+# Animals whose treatment label changes between days are excluded, as in the earlier chapters
+labels_per <- tapply(of$label, of$animal, function(z) length(unique(z)))
+bad_animals <- names(which(labels_per > 1))
+groups4 <- c("WildType", "WT-Sham", "Klf4-KO", "KO-Sham")
+of4 <- of[!(of$animal %in% bad_animals) & of$label %in% groups4 & of$tracked > 0, ]
+
+# The four groups of the earlier chapters; the share of tracked time in the center; short = under 270 s
+of4$genotype <- factor(ifelse(grepl("KO", of4$label), "KO", "WT"), levels = c("WT", "KO"))
+of4$surgery <- factor(ifelse(grepl("Sham", of4$label), "sham", "ischemia"), levels = c("sham", "ischemia"))
+of4$group <- factor(paste(of4$genotype, of4$surgery), levels = c("WT sham", "WT ischemia", "KO sham", "KO ischemia"))
+of4$share <- of4$center / of4$tracked
+of4$short <- of4$tracked < 270
+of4$dpi_f <- factor(of4$dpi)
+of4$animal <- factor(of4$animal)
+
+# The counts of the earlier chapters: 48 animals, 38 of them with a session on day 1 that meets the rule
+stopifnot(length(unique(of4$animal)) == 48, sum(of4$dpi == 1 & !of4$short) == 38)
+n_of_an <- nlevels(of4$animal)
+n_of_sess <- nrow(of4)
+n_short <- sum(of4$short)
+n_absent <- 6 * n_of_an - n_of_sess
+d1 <- of4[of4$dpi == 1, ]
+```
+
+There are `r n_of_an` animals in the four groups, `r 6 * n_of_an` possible sessions (six days each) and `r n_of_sess` sessions in the file: `r n_absent` are absent altogether, and of the ones that exist, `r n_short` have fewer than 270 tracked seconds (@fig-lt_missing of @sec-longitudinal-timeseries draws the grid). The rule drops those `r n_short`. Day 1 is the day that matters, because it is the one day on which the ischemic animals differ from the shams, and it is also the day with the most lost sessions: `r sum(d1$short)` of `r nrow(d1)`. Whether those sessions are a random sample of day-1 sessions is a question the data can partly answer, because *the lost sessions were not lost entirely*: the tracker followed the mouse for some of the five minutes, and the share of that tracked time in the center is in the file.
+
+```{r}
+#| label: fig-mdme_of_lost
+#| fig-cap: "Day 1 of the open field. Left: the share of tracked time in the center for every session, by group; filled circles are sessions with at least 270 tracked seconds (kept by the rule) and open triangles are sessions with less. Right: the same share against the seconds tracked, for all days and groups (log scale for the share; sessions with no time in the center are not shown)."
+#| fig-alt: "Left panel: four groups on the horizontal axis (control sham, control ischemia, Klf4-KO sham, Klf4-KO ischemia) and the share of time in the center on the vertical axis from 0 to 0.95. Filled circles in the two ischemia groups spread from near zero to 0.93, with a median around 0.1 to 0.2. Open triangles for sessions that were lost sit low, mostly under 0.15. Right panel: share of tracked time in the center on a logarithmic axis against tracked seconds from 0 to 300; the open triangles with fewer than 270 tracked seconds lie in the lower part of the cloud."
+#| fig-width: 9
+#| fig-height: 4.4
+#| warning: false
+
+# Left: every day-1 session; the lost ones are drawn open and labeled with the seconds that were tracked
+set.seed(5)
+pA <- ggplot(d1, aes(x = group, y = share, shape = short, color = short)) +
+  geom_jitter(width = 0.18, height = 0, size = 2.2, alpha = 0.85) +
+  scale_shape_manual(values = c("FALSE" = 16, "TRUE" = 2), labels = c("FALSE" = "270 s or more (kept)", "TRUE" = "under 270 s (lost)")) +
+  scale_color_manual(values = c("FALSE" = "#0072B2", "TRUE" = "#D55E00"), labels = c("FALSE" = "270 s or more (kept)", "TRUE" = "under 270 s (lost)")) +
+  scale_x_discrete(labels = c("WT sham" = "Control\nsham", "WT ischemia" = "Control\nischemia", "KO sham" = "KO\nsham", "KO ischemia" = "KO\nischemia")) +
+  labs(x = NULL, y = "Share of tracked time in the center", shape = NULL, color = NULL) +
+  Plot_theme + legend_inside(0.5, 0.9) + theme(axis.text.x = element_text(size = 12))
+
+# Right: all sessions, share against the seconds tracked
+pB <- ggplot(of4[of4$share > 0, ], aes(x = tracked, y = share, shape = short, color = short)) +
+  geom_point(size = 1.8, alpha = 0.7) +
+  scale_shape_manual(values = c("FALSE" = 16, "TRUE" = 2)) +
+  scale_color_manual(values = c("FALSE" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_y_log10() +
+  labs(x = "Seconds tracked", y = "Share in the center (log scale)") +
+  Plot_theme + legend_none()
+pA + pB + plot_layout(widths = c(1.2, 1))
+```
+
+I drew every session as a point, as in the rest of the book, and I marked the lost ones with a different shape *and* a different color so that the contrast survives a grayscale print (@fig-mdme_of_lost). A table of mean share by group, kept and lost, would give you six numbers and hide that the lost sessions are few and that their shares are all low.
+
+::: {.callout-tip title="How to read this figure"}
+On the left, compare the open triangles with the filled circles *within the same group*. If the lost sessions were a random sample of the sessions of their group, the triangles would be scattered among the circles; if they sit apart, the loss is related to the outcome. On the right, look at whether the triangles (under 270 seconds) lie in a different part of the cloud from the circles. The mistake to avoid is to conclude "the data are missing at random" because the groups look similar: the comparison that matters is *within* a group.
+:::
+
+The lost sessions sit low. Among the ischemic animals of day 1 the mean center share of the kept sessions is `r round(100 * mean(d1$share[d1$surgery == "ischemia" & !d1$short]), 1)`%, and that of the lost ones is `r round(100 * mean(d1$share[d1$surgery == "ischemia" & d1$short]), 1)`% (`r sum(d1$surgery == "ischemia" & d1$short)` sessions). Eight sessions is a small number and the comparison is crude, but it points in one direction, and the direction matters: a rule that removes the sessions with a *low* center share, from the day on which the ischemic animals have a *high* one, inflates the day-1 jump. That is not a missing-at-random loss. What the data cannot say is why: whether the tracker loses a mouse that presses against a wall (where it is not in the center, and is hard to follow), or one that moves little, or something unrelated. I asked, and the answer is that nobody is sure. So I treat the mechanism as unknown, and I do two things: a model that uses the sessions that were only partly seen, and a sensitivity analysis for the part that was not seen.
+
+#### Mice that stop coming {#sec-mdme-dropout}
+
+There is a second kind of absence in the open-field file, and it is the one that I find more worrying. Some animals have no session after day 1, or after day 15: `r sum(tapply(of4$dpi, of4$animal, max) < 22)` of the `r n_of_an` animals. The reason, as far as I know, is that mice die after the surgery, which means that these are not sessions the tracker lost but animals that the experiment lost. The question that makes it a statistical problem is whether the mice that leave are a random sample of the mice, and @tbl-mdme_dropout shows what I can check: where they were on day 1, the last session that they did, among the ischemic animals.
+
+```{r}
+#| label: tbl-mdme_dropout
+#| tbl-cap: "Animals with no session on day 22 (the last day), their last session in the file and their share of tracked time in the center on day 1, with the rank of that share among the ischemic animals of day 1 (1 is the highest of the 37)."
+
+# Last session of every animal, and where its day-1 share sits among the ischemic animals
+last_day <- tapply(of4$dpi, of4$animal, max)
+leavers <- names(last_day)[last_day < 22]
+isch1 <- d1[d1$surgery == "ischemia", ]
+isch1$rank <- rank(-isch1$share, ties.method = "min")
+drop_tab <- merge(data.frame(animal = leavers, last = as.integer(last_day[leavers])),
+                  isch1[, c("animal", "group", "share", "rank")], by = "animal", all.x = TRUE)
+drop_tab$share <- round(drop_tab$share, 3)
+names(drop_tab) <- c("Animal", "Last session (day)", "Group", "Day-1 center share", "Rank among 37 ischemic animals")
+knitr::kable(drop_tab[order(drop_tab$`Last session (day)`), ], row.names = FALSE)
+```
+
+The animals that leave after day 1 have day-1 shares at ranks `r paste(sort(drop_tab$"Rank among 37 ischemic animals"[drop_tab$"Last session (day)" == 1]), collapse = ", ")` of `r nrow(isch1)`, all in the top third. Three animals prove nothing, and I will not make a story of them. But the pattern points to a mechanism that I can name: the mice that leave are among those that spent the most time in the center on day 1, a behavior that, in this experiment, goes with a more severe injury. If that is so, the mice that remain are *less affected than the ones that started*, and any statement about the later days that is based only on the mice that remain describes survivors. Here is the part that I find useful: this kind of loss is **missing at random** for a model that contains the day-1 value of each animal, because the loss depends on a number that the model has seen. A model with a level for each animal (@sec-longitudinal-timeseries) uses every session that exists and is valid for the mean under that assumption, while a complete-case analysis that keeps only the animals that have all six sessions is not [@gelman2020; @harrell2015]. The assumption is not testable (maybe the mice died of something the model does not know), but this one is at least a *reasonable* one, and an analysis that makes it explicit is better than one that makes it silently.
+
+#### A sensitivity analysis for what nobody can see {#sec-mdme-tipping}
+
+For the sessions that the tracker lost I cannot assume anything I can check, so I do the other thing the books recommend: I make the assumption a number and move the number. This is a [tipping-point analysis]{style="color:green; font-weight:bold;"}, a form of delta adjustment [@gelman2020; @harrell2015]: assume that the lost sessions differ from the kept ones by an amount $\delta$ on the log-odds scale of the center share, recompute the conclusion for each $\delta$, and look for the $\delta$ at which the conclusion changes (tips). It is the analogue of asking a reviewer "how wrong would my assumption have to be for you to stop believing this?", and the answer is the thing to report.
+
+The conclusion that I test is the jump of day 1: the difference in the mean share of time in the center between ischemic and sham animals, averaged over the two genotypes. I fit it on the kept sessions of day 1 with a zero-inflated beta likelihood, as in the earlier chapters, and a precision for each group, because the sham animals are far less variable than the ischemic ones. Then I add the lost sessions *back by assumption*. If a share $\pi_g$ of the day-1 sessions of group $g$ is lost, and the lost ones have a mean center share $\mu_g^{lost}$ whose log-odds differ from the kept ones by $\delta$, the mean of the whole group is a weighted average (@eq-mdme-delta). With $\delta = 0$ the lost sessions are like the kept ones (missing at random within the group); a negative $\delta$ says that the tracker lost mice that spent less time in the center.
+
+$$
+\mu_g(\delta) = (1 - \pi_g)\,\mu_g^{kept} + \pi_g\,\text{logit}^{-1}\!\left(\text{logit}(\mu_g^{kept}) + \delta\right)
+$$ {#eq-mdme-delta}
+
+```{r}
+#| label: fit-openfield
+
+# Priors on the logit mean of each group and on the log precision of each group
+prior_of <- c(prior(normal(-2.5, 1.5), class = "b"), prior(normal(1.5, 1), class = "b", dpar = "phi"))
+
+# 11. Day 1, sessions that meet the 270 s rule (the inherited analysis)
+fit_o1 <- brm(
+  bf(share ~ 0 + group, phi ~ 0 + group, zi ~ 1),
+  data = d1[!d1$short, ], family = zero_inflated_beta(), prior = prior_of,
+  chains = 4, cores = 4, seed = 123, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit11.rds", file_refit = "never"
+)
+
+# 12. Day 1, every session with some tracked time (the lost ones enter with what was seen of them)
+fit_o2 <- brm(
+  bf(share ~ 0 + group, phi ~ 0 + group, zi ~ 1),
+  data = d1, family = zero_inflated_beta(), prior = prior_of,
+  chains = 4, cores = 4, seed = 123, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit12.rds", file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+# Group means on the logit scale, group precisions on the log scale, and the zero-inflation probability
+summary(fit_o1)
+```
+
+### glmmTMB
+
+```{r}
+# The same model by maximum likelihood (a precision for each group; no varying terms: one session per animal)
+tmb_o1 <- glmmTMB(share ~ 0 + group, dispformula = ~ 0 + group, ziformula = ~ 1,
+                  family = beta_family(), data = d1[!d1$short, ])
+summary(tmb_o1)
+```
+:::
+
+```{r}
+#| label: tipping
+
+# Posterior of the four group means (the zero-inflated mean) on the kept sessions, and on all sessions
+nd_g <- data.frame(group = factor(levels(d1$group), levels = levels(d1$group)))
+m_kept <- posterior_epred(fit_o1, newdata = nd_g)
+m_all <- posterior_epred(fit_o2, newdata = nd_g)
+
+# Share of the day-1 sessions that were lost, by group
+pi_lost <- as.numeric(tapply(d1$short, d1$group, mean))
+
+# The group means after adding the lost sessions with a shift delta on the logit scale (equation above)
+adj_means <- function(m, delta) {
+  out <- m
+  for (j in seq_len(ncol(m))) out[, j] <- (1 - pi_lost[j]) * m[, j] + pi_lost[j] * plogis(qlogis(m[, j]) + delta)
+  out
+}
+
+# The conclusion: mean share of ischemic animals minus that of shams (percentage points), over genotypes
+jump_fun <- function(m) 100 * (rowMeans(m[, c(2, 4)]) - rowMeans(m[, c(1, 3)]))
+
+# A grid of deltas; -Inf is the extreme in which every lost session had no time in the center at all
+delta_grid <- c(-Inf, seq(-6, 3, by = 0.5))
+tip_df <- do.call(rbind, lapply(delta_grid, function(d) {
+  q <- quantile(jump_fun(adj_means(m_kept, d)), c(0.5, 0.025, 0.975, 0.25, 0.75))
+  data.frame(delta = d, med = q[1], lo = q[2], hi = q[3], lo50 = q[4], hi50 = q[5])
+}))
+
+# What the partly tracked sessions themselves suggest: the log-odds difference between lost and kept
+# sessions among the ischemic animals
+isch_d1 <- d1[d1$surgery == "ischemia", ]
+delta_obs <- qlogis(mean(isch_d1$share[isch_d1$short])) - qlogis(mean(isch_d1$share[!isch_d1$short]))
+
+# The jump with no adjustment, with the lost sessions added as seen (all sessions), and at the extreme
+jump_kept <- jump_fun(m_kept)
+jump_all <- jump_fun(m_all)
+jump_extreme <- jump_fun(adj_means(m_kept, -Inf))
+jump_obs <- jump_fun(adj_means(m_kept, delta_obs))
+```
+
+@fig-mdme_tipping shows the result. On the kept sessions, the ischemic animals spend `r qs(jump_kept, 1)` percentage points more of the tracked time in the center on day 1 than the shams do. If I add the lost sessions with the shift that the partly tracked sessions themselves suggest ($\delta =$ `r round(delta_obs, 1)`) the jump is `r qs(jump_obs, 1)`; if every lost session had no time in the center at all, the most extreme case that I can imagine, it is `r qs(jump_extreme, 1)`. And the model that simply uses the lost sessions with what was seen of them, no assumption about the unseen seconds, gives `r qs(jump_all, 1)`.
+
+```{r}
+#| label: fig-mdme_tipping
+#| fig-cap: "Tipping-point analysis of the day-1 jump in the center share (ischemic minus sham, percentage points). The horizontal axis is delta, the shift on the logit scale that the lost sessions are assumed to have relative to the kept ones; delta = 0 means the lost sessions are like the kept ones. The line is the posterior median and the bands the 50% and 95% intervals. The leftmost value stands for a delta of minus infinity: every lost session with no time in the center. The dotted vertical lines mark delta = 0 and the shift suggested by the partly tracked sessions; the horizontal dashed line marks no difference."
+#| fig-alt: "A line on a plane with delta on the horizontal axis from minus infinity to 3 and the jump in percentage points on the vertical axis from 0 to 30. The line is flat at about 11 percentage points from minus infinity to about minus 3, rises to about 14.5 at delta zero and to about 20 at delta 2. Two shaded bands around it (50% and 95%) stay above the dashed horizontal line at zero everywhere; the lower limit of the 95% band is about 4.5. Two dotted vertical lines mark delta equal to zero and delta equal to minus 1.6."
+#| fig-width: 7.5
+#| fig-height: 4.2
+#| warning: false
+
+# Place the minus-infinity case at the left edge of the axis, and mark the two reference values
+tip_plot <- tip_df
+tip_plot$x <- ifelse(is.infinite(tip_plot$delta), -8, tip_plot$delta)
+ggplot(tip_plot, aes(x = x)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), fill = "#0072B2", alpha = 0.15) +
+  geom_ribbon(aes(ymin = lo50, ymax = hi50), fill = "#0072B2", alpha = 0.25) +
+  geom_line(aes(y = med), color = "#0072B2", linewidth = 1.1) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_vline(xintercept = c(0, delta_obs), linetype = "dotted") +
+  annotate("text", x = 0.1, y = 29, label = "lost = kept", hjust = 0, size = 4) +
+  annotate("text", x = delta_obs - 0.1, y = 29, label = "as the partial\nsessions suggest", hjust = 1, size = 4) +
+  scale_x_continuous(breaks = c(-8, -6, -4, -2, 0, 2), labels = c("-Inf", "-6", "-4", "-2", "0", "2")) +
+  labs(x = "Delta: shift in the log-odds of the lost sessions",
+       y = "Jump on day 1 (percentage points)") +
+  Plot_theme
+```
+
+::: {.callout-tip title="How to read this figure"}
+The horizontal axis is an assumption, not a measurement: how different the sessions that the tracker lost were from the ones it kept, with 0 meaning "not different" and negative values meaning "they spent less time in the center". The vertical axis is the conclusion. Read the line from the 0 to the left, which is the direction that the data suggest, and ask whether the band ever touches the dashed line at zero. If it does, the position of that crossing is the *tipping point*, and the question to ask is whether such an assumption is plausible. If the band never touches it, the conclusion does not depend on the assumption, within the range that you drew. The mistake to avoid is to read the figure as saying that the assumption is true: it says how much it would have to be false for the answer to change.
+:::
+
+The conclusion about the jump does not tip. The lower limit of the interval stays above zero across the whole range, down to the extreme case in which every lost session had no time in the center, and the reason is arithmetic that you can check by hand (@eq-mdme-delta): only `r round(100 * mean(pi_lost[c(2, 4)]), 0)`% of the ischemic sessions of day 1 were lost, so even if every one of them had a center share of zero, the mean of the ischemic groups could fall by at most that share of what it was. What *does* change is the size of the jump, from `r round(median(jump_kept), 1)` percentage points to `r round(median(jump_extreme), 1)` at the extreme, which says that the inherited rule makes the jump look larger than it is, in the direction that @fig-mdme_of_lost suggested, but not by enough to reverse it. That is the form that a result about missing data should take: not "the data are missing at random", which I cannot know, but "the conclusion holds for every shift I can think of, and the size depends on it as follows".
+
+::: {.callout-tip title="Frequentist equivalent"}
+`glmmTMB` (@brooks2017) fits the same zero-inflated beta by maximum likelihood, and the group means that it reports agree with the posterior medians of `brms`, as they should with a day-1 sample of 38 animals and weak priors. What the frequentist fit cannot do is the next step: a tipping-point analysis is a calculation on the *estimated* means, so I can run it on the maximum-likelihood estimates as well, but there is no distribution of the jump to carry the uncertainty through unless I resample (bootstrap) the animals. The Bayesian fit gives that distribution for free, which is the practical reason why the book keeps `brms` first in a sensitivity analysis. A frequentist counterpart of the *reasoning* is a pattern-mixture model fitted by hand, which is the equation above; the textbooks present it as the standard way to examine data that are missing not at random [@harrell2015].
+:::
+
+::: {.callout-note title="How to report it"}
+**Results.** On day 1, ischemic mice spent `r qs(jump_kept, 1)` percentage points more of the tracked time in the center of the open field than sham-operated mice (posterior median and 95% credible interval, sessions with at least 270 s tracked). `r sum(d1$short)` of the `r nrow(d1)` day-1 sessions had less than 270 s tracked and were excluded; their share of time in the center, in the part that was seen, was lower than that of the retained sessions. In a tipping-point analysis, the 95% interval of the difference excluded zero for every shift in the log-odds of the center share of the excluded sessions between minus infinity (no time in the center) and `r max(delta_grid)`; the difference was `r qs(jump_obs, 1)` percentage points with the shift suggested by the partially tracked sessions (`r round(delta_obs, 1)`) and `r qs(jump_extreme, 1)` in the extreme case.
+
+**Methods.** The share of the tracked time in the center was modeled with a zero-inflated beta likelihood, with a mean and a precision for each of four groups (genotype by surgery) in `brms` (four chains of 2,000 iterations; R-hat below 1.01 and effective sample sizes above 400 for all parameters). Excluded sessions were added to the group means by assumption, with a shift $\delta$ on the logit scale (pattern-mixture; equation above). Loss of sessions after day 1 (`r length(leavers)` animals, attributed to postoperative mortality) was not modeled.
+:::
+
+### The NeuN sections {#sec-mdme-neun-sections}
+
+The other absent values of this part are the brain sections of @sec-multilevel-varying-intercepts. I told you then that sections go missing when the tissue is damaged or badly cut, that this can be related to the injury, and that I would come back. The question I asked Daniel was *why* some mice have fewer sections, and the answer is that sections are lost when the brain is in poor condition, which may be related to specific days after ischemia in which the tissue is more fragile. That is a mechanism, and it makes a prediction: the missing sections should concentrate in ischemic mice, on the fragile days. @fig-mdme_sections tests it on the file.
+
+```{r}
+#| label: prep-neun
+#| include: false
+
+# The NeuN file of the first multilevel chapter, rebuilt from the raw data (all structures)
+neun_raw <- read.csv(here("project/AnalysisData/5x_NeuN_AnnotationsSummary.csv"), check.names = FALSE)
+area_col <- grep("^Area", names(neun_raw), value = TRUE)
+neun <- data.frame(image = neun_raw$Image, structure = neun_raw$Name, class = neun_raw$Class,
+                   detections = neun_raw[["Num Detections"]], positive = neun_raw[["Num Positive"]],
+                   area_um2 = neun_raw[[area_col]])
+parts <- strsplit(sub("\\.tif$", "", neun$image), "_")
+neun$mouse <- sapply(parts, `[`, 3)
+neun$dpi_days <- as.integer(sub("D$", "", sapply(parts, `[`, 4)))
+neun$scene_n <- as.integer(sub("Scene", "", sapply(parts, `[`, 5)))
+neun$hemi <- factor(sub(":.*$", "", neun$class), levels = c("Right", "Left"))
+neun$section <- paste(neun$mouse, neun$scene_n, sep = ":")
+neun$dpi <- factor(paste0(neun$dpi_days, "D"), levels = c("0D", "5D", "15D", "30D"))
+neun$area_mm2 <- neun$area_um2 / 1e6
+neun$structure <- factor(neun$structure, levels = c("CTX", "CNU", "IB", "MB", "fiber tracts"))
+neun$mouse <- factor(neun$mouse)
+neun$section <- factor(neun$section)
+stopifnot(nrow(neun) == 1484, nlevels(neun$mouse) == 31)
+
+# Cortex, as in the earlier chapters, with the log of the density
+cortex <- neun[neun$structure == "CTX", ]
+cortex$log_dens <- log(cortex$positive / cortex$area_mm2)
+
+# For each mouse and each of the seven scenes: was the section measured, and if not, did the series
+# end there (no later section exists) or was it lost inside the series?
+mice_df <- unique(neun[, c("mouse", "dpi")])
+sec_grid <- expand.grid(mouse = mice_df$mouse, scene_n = 1:7)
+sec_grid$dpi <- mice_df$dpi[match(sec_grid$mouse, mice_df$mouse)]
+have <- paste(neun$mouse, neun$scene_n)
+sec_grid$present <- paste(sec_grid$mouse, sec_grid$scene_n) %in% have
+last_scene <- tapply(neun$scene_n, neun$mouse, max)
+sec_grid$status <- ifelse(sec_grid$present, "Measured",
+                          ifelse(sec_grid$scene_n > last_scene[as.character(sec_grid$mouse)],
+                                 "Series ends before it", "Lost inside the series"))
+sec_grid$status <- factor(sec_grid$status, levels = c("Measured", "Series ends before it", "Lost inside the series"))
+n_lost_in <- sum(sec_grid$status == "Lost inside the series")
+mice_lost <- as.character(unique(sec_grid$mouse[sec_grid$status == "Lost inside the series"]))
+n_end <- sum(sec_grid$status == "Series ends before it")
+```
+
+```{r}
+#| label: fig-mdme_sections
+#| fig-cap: "The sections of the NeuN experiment: one row per mouse and one column per section (1 anterior, 7 posterior), by day after ischemia. Filled circles: the section is in the file. Open circles: the section is not in the file because the series of that mouse ends earlier. Crosses: the section is missing inside the series (a gap between sections that exist)."
+#| fig-alt: "A grid with 31 mouse rows grouped into four panels (0, 5, 15 and 30 days) and seven columns. Nearly every cell is a filled circle. Open circles appear in column 7 for 15 mice, in all four panels, including four of the five mice of day 0. Four crosses appear inside the series, in three mice from days 5 and 15: one in column 6, two in columns 4 and 5, and one in column 5."
+#| fig-width: 6.5
+#| fig-height: 8
+#| warning: false
+
+# One mark per mouse and section; shape and color agree so that the figure survives grayscale
+sg <- sec_grid[order(sec_grid$dpi, sec_grid$mouse), ]
+sg$mouse <- factor(sg$mouse, levels = rev(unique(sg$mouse)))
+n_by_d <- table(mice_df$dpi)
+sg$panel <- factor(paste0(sg$dpi, " (", n_by_d[as.character(sg$dpi)], " mice)"),
+                   levels = paste0(names(n_by_d), " (", n_by_d, " mice)"))
+ggplot(sg, aes(x = scene_n, y = mouse, shape = status, color = status)) +
+  geom_point(size = 2.6, stroke = 1) +
+  scale_shape_manual(values = c("Measured" = 16, "Series ends before it" = 1, "Lost inside the series" = 4)) +
+  scale_color_manual(values = c("Measured" = "black", "Series ends before it" = "grey55", "Lost inside the series" = "#D55E00")) +
+  scale_x_continuous(breaks = 1:7) +
+  facet_grid(panel ~ ., scales = "free_y", space = "free_y") +
+  labs(x = "Section (1 = anterior, 7 = posterior)", y = "Mouse", shape = NULL, color = NULL) +
+  Plot_theme +
+  theme(axis.text.y = element_text(size = 8), strip.text = element_text(size = 10)) +
+  legend_top()
+```
+
+I took the figure of @sec-multilevel-varying-intercepts and made one change, which is the point of this section: a missing section is not one thing. `r n_end` sections are missing at the *end* of the series, section 7 of mice whose last section is the sixth (@fig-mdme_sections, open circles). They are found in all four panels, including four of the five mice of day 0, which had no ischemia, so whatever makes the series stop at six sections is not the injury. It looks like a matter of how far back the series was cut. Only `r n_lost_in` sections are missing *inside* a series, in `r length(mice_lost)` mice (`r paste(mice_lost, collapse = ", ")`), and these are the ones that fit the story of damaged tissue: all of them are from ischemic days (5 and 15), and one of them (M16) also has a region in section 6 with a large area and no detected cell at all, which looks more like a failure of the detection than like an empty region. I report that as what it is: `r length(mice_lost)` mice out of 31 with a plausible loss related to the tissue, and a larger and probably harmless loss of the last section.
+
+Regions inside a section can also be absent, and these are not accidents of cutting but of anatomy. The cerebral nuclei (CNU) are not in the most posterior section, the interbrain (IB) is not in the first one and barely in the second, and the midbrain (MB) appears only from the fifth section on (@fig-mdme_structures). That is a [structural zero]{.ix ix="structural zero"}: a region that cannot be there, and that is not a measurement of "no cells". Entering it as a zero count would be a mistake of the same family as the `Td79` total that I describe below.
+
+```{r}
+#| label: fig-mdme_structures
+#| fig-cap: "Share of sections in which each structure was annotated, by section number (1 anterior, 7 posterior). The number in each tile is how many sections had the structure. Empty tiles are structurally absent: the structure is not in that part of the brain."
+#| fig-alt: "A tile map with five structures on the vertical axis (cortex, cerebral nuclei, interbrain, midbrain, fiber tracts) and seven sections on the horizontal axis. Cortex and fiber tracts are present in nearly every section, from 31 in section 1 to 16 in section 7. Cerebral nuclei are present in 21 of 31 sections in section 1, in sections 2 to 6, and in none of section 7. Interbrain is absent from section 1, present in 6 sections of section 2 and in nearly all from section 3. Midbrain is absent from sections 1 to 4, present in one section of section 5, in 21 of 30 of section 6 and in all 16 of section 7."
+#| fig-width: 7
+#| fig-height: 3.6
+#| warning: false
+
+# How many sections have each structure, out of the sections that exist for that scene number
+sec_unique <- unique(neun[, c("section", "scene_n")])
+n_sec_scene <- table(sec_unique$scene_n)
+st_tab <- as.data.frame(table(unique(neun[, c("section", "scene_n", "structure")])[, c("scene_n", "structure")]))
+names(st_tab) <- c("scene_n", "structure", "n")
+st_tab$total <- as.integer(n_sec_scene[as.character(st_tab$scene_n)])
+st_tab$share <- st_tab$n / st_tab$total
+st_tab$scene_n <- as.integer(as.character(st_tab$scene_n))
+st_tab$structure <- factor(st_tab$structure, levels = rev(levels(neun$structure)))
+
+# Tile map: the fill is the share of sections, the label the number of sections
+ggplot(st_tab, aes(x = scene_n, y = structure, fill = share)) +
+  geom_tile(color = "white", linewidth = 0.8) +
+  geom_text(aes(label = ifelse(n == 0, "", n)), size = 3.6, color = "black") +
+  scale_fill_gradient(low = "white", high = "#56B4E9", limits = c(0, 1), labels = scales::label_percent(),
+                      name = "Share of sections") +
+  scale_x_continuous(breaks = 1:7) +
+  labs(x = "Section (1 = anterior, 7 = posterior)", y = NULL) +
+  Plot_theme + legend_right() +
+  theme(axis.text.y = element_text(size = 12))
+```
+
+Last, a different thing again: the five rows of the file with no positive cell. They are shown in @tbl-mdme_zero_rows, and they are three different things that happen to share a zero.
+
+```{r}
+#| label: tbl-mdme_zero_rows
+#| tbl-cap: "The five annotated regions with no NeuN-positive cell, with their detections, area and what I think each one is."
+
+# The zero rows, their size, and my reading of each
+zr <- neun[neun$positive == 0, c("mouse", "dpi", "scene_n", "hemi", "structure", "detections", "positive", "area_mm2")]
+zr$area_mm2 <- round(zr$area_mm2, 3)
+zr$reading <- ifelse(zr$detections > 0, "A sliver with only negative cells",
+              ifelse(zr$area_mm2 > 1, "No cell of any kind in a large region: probably a failed detection, not an empty region",
+                     "A sliver of the structure at the edge of the section: too small to contain a cell"))
+names(zr) <- c("Mouse", "DPI", "Section", "Hemisphere", "Structure", "Detections", "Positive", "Area (mm2)", "Reading")
+knitr::kable(zr, row.names = FALSE)
+```
+
+None of the five is a count of zero that means "this region has no neurons". Two are slivers of the midbrain at the edge of a section, with an area of about a thousandth of a square millimeter, where a count of zero is what an area that small should give; one is a sliver of the cerebral nuclei with some negative cells and no positive ones; and two, the left and right cerebral nuclei of the same section of mouse M16, have a large area and not a single detection, which is where I would go and look at the images. The habit is the one of @sec-eda-data-quality: a zero is a claim, and it has to be checked before it enters a model.
+
+What should be done with the sections that are missing? The honest answer is that the multilevel model of @sec-multilevel-varying-intercepts already does most of it. It uses every section that exists, it does not need the same number from each mouse, and a mouse with fewer sections is a mouse about which we know a little less. What I can add is a sensitivity analysis for the one comparison that matters, the ratio of the density of NeuN-positive cells in the left (injured) cortex to that of the right, by day after ischemia: fit it on all sections, fit it on the sections that all mice share (the first six), and fit it without the `r length(mice_lost)` mice that lost sections inside the series.
+
+```{r}
+#| label: fit-neun-sections
+
+# Priors on the log density (cells per mm2): intercept around 850 cells, coefficients and spreads as before
+prior_neun <- c(prior(normal(6.7, 0.5), class = "Intercept"), prior(normal(0, 0.5), class = "b"),
+                prior(exponential(3), class = "sd"), prior(exponential(3), class = "sigma"))
+f_neun <- log_dens ~ hemi * dpi + (1 | mouse) + (1 | section)
+
+# 13. All sections
+fit_s1 <- brm(f_neun, data = cortex, prior = prior_neun, chains = 4, cores = 4, seed = 123,
+              iter = 3000, control = ml_control, refresh = 0,
+              file = "models/missing-data-measurement-error_fit13.rds", file_refit = "never")
+
+# 14. Only sections 1 to 6, which every mouse has
+fit_s2 <- brm(f_neun, data = cortex[cortex$scene_n <= 6, ], prior = prior_neun, chains = 4, cores = 4, seed = 123,
+              iter = 3000, control = ml_control, refresh = 0,
+              file = "models/missing-data-measurement-error_fit14.rds", file_refit = "never")
+
+# 15. Without the mice that lost sections inside the series
+fit_s3 <- brm(f_neun, data = cortex[!(cortex$mouse %in% mice_lost), ], prior = prior_neun, chains = 4, cores = 4,
+              seed = 123, iter = 3000, control = ml_control, refresh = 0,
+              file = "models/missing-data-measurement-error_fit15.rds", file_refit = "never")
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+# Population effects and spreads of the model on all sections
+summary(fit_s1)
+```
+
+### lme4
+
+```{r}
+# The same model by restricted maximum likelihood
+lmer_s1 <- lmer(log_dens ~ hemi * dpi + (1 | mouse) + (1 | section), data = cortex)
+summary(lmer_s1)
+```
+:::
+
+```{r}
+#| label: fig-mdme_neun_sens
+#| fig-cap: "Ratio of the density of NeuN-positive cells in the left cortex to that in the right cortex, by day after ischemia, under three ways of handling the missing sections. Points are posterior medians and bars 95% credible intervals. A ratio of 1 (dotted line) means no difference between hemispheres."
+#| fig-alt: "Four rows (0, 5, 15 and 30 days after ischemia) and, in each, three points with horizontal intervals on a logarithmic axis from about 0.5 to 1.3. At day 0 the ratio is about 1.1. At 5 days it is about 0.75, at 15 days about 0.65 and at 30 days about 0.8. The three analyses (all sections, sections 1 to 6, without the two mice with lost sections) give almost the same point and interval in every row."
+#| fig-width: 7.5
+#| fig-height: 4
+#| warning: false
+
+# Left to right log-ratio at each day: the hemisphere coefficient plus the interaction of that day
+lr_draws <- function(fit) {
+  d <- as_draws_df(fit)
+  data.frame(`0D` = d$b_hemiLeft, `5D` = d$b_hemiLeft + d$`b_hemiLeft:dpi5D`,
+             `15D` = d$b_hemiLeft + d$`b_hemiLeft:dpi15D`, `30D` = d$b_hemiLeft + d$`b_hemiLeft:dpi30D`,
+             check.names = FALSE)
+}
+lr_all <- lr_draws(fit_s1); lr_six <- lr_draws(fit_s2); lr_out <- lr_draws(fit_s3)
+sens_neun <- do.call(rbind, lapply(names(lr_all), function(dd) rbind(
+  qrow(exp(lr_all[[dd]]), "All sections", dd),
+  qrow(exp(lr_six[[dd]]), "Sections 1 to 6 only", dd),
+  qrow(exp(lr_out[[dd]]), "Without mice with lost sections", dd))))
+sens_neun$group <- factor(sens_neun$group, levels = rev(names(lr_all)))
+sens_neun$label <- factor(sens_neun$label, levels = c("All sections", "Sections 1 to 6 only", "Without mice with lost sections"))
+
+# Three analyses per day, dodged vertically
+ggplot(sens_neun, aes(x = med, y = group, xmin = lo, xmax = hi, color = label, shape = label)) +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  geom_pointrange(position = position_dodge(width = 0.6), size = 0.5, linewidth = 0.8) +
+  scale_x_log10(breaks = c(0.5, 0.7, 1, 1.3)) +
+  scale_color_manual(values = c("All sections" = "#000000", "Sections 1 to 6 only" = "#E69F00", "Without mice with lost sections" = "#0072B2")) +
+  scale_shape_manual(values = c(16, 15, 17)) +
+  labs(x = "Left to right density ratio (log scale)", y = "Days after ischemia", color = NULL, shape = NULL) +
+  Plot_theme + legend_top() + guides(color = guide_legend(nrow = 2))
+```
+
+@fig-mdme_neun_sens reads like the earlier forest: look at the *position* of the three points in each row, not at whether the interval touches 1. In every row the three analyses agree to within a small fraction of the width of their intervals, so the conclusion of @sec-multilevel-varying-intercepts about how much the injured cortex loses does not depend on whether the missing sections are in or out. At 15 days the ratio is `r qs(exp(lr_all[["15D"]]), 2)` with all the sections, `r qs(exp(lr_six[["15D"]]), 2)` with sections 1 to 6 and `r qs(exp(lr_out[["15D"]]), 2)` without the `r length(mice_lost)` mice. That is the result that I can honestly give: the loss of sections is not a threat to this comparison, as far as I can examine it, and what I cannot examine (that the sections lost inside the series were the most damaged ones, so the density would have been lower still) would make the loss *larger*, not smaller. The direction of the bias is known, and it works against the effect that we report.
+
+::: {.callout-tip title="Frequentist equivalent"}
+`lme4` fits the same two varying intercepts by restricted maximum likelihood and gives the same fixed effects to the second decimal, since a Gaussian model with `r nlevels(cortex$mouse)` mice and `r nlevels(cortex$section)` sections has enough data for the likelihood to dominate the weak priors. The model of the sections as a whole has the same property as the open-field model: both treat the sections that exist as informative about the ones that do not, which is the missing-at-random assumption written in a likelihood. If it were wrong, neither would warn you.
+:::
+
+## Blurred: a count has an error bar that the spreadsheet does not show {#sec-mdme-blurred}
+
+The third jar is the one that scientists forget to open, because nothing in the file says it is there. A NeuN density is a count of positive cells divided by the area of a region, and a count made by a microscope and a counting rule is a *sample* of the cells in the tissue: if I could cut the same section again and count again, I would not get the same number. The [counting error]{style="color:green; font-weight:bold;"} of a count is known, to a good approximation, and that is what makes it a clean case of [measurement error]{style="color:green; font-weight:bold;"}: for a Poisson count of $n$ cells the standard deviation is $\sqrt{n}$, so the *relative* error is $1/\sqrt{n}$. A thousand cells give an error of about 3%; a hundred give 10%; ten give 32%. The question is not whether it exists, but *whether it is big enough to matter*, and the way to answer it is to put it next to the spread that you care about.
+
+I do that in @fig-mdme_counting for every structure of the NeuN experiment. For each section I plot the relative counting error of its count (`1 / sqrt(count)`) and next to it, as a black bar, the standard deviation of the log density between sections of the same day and hemisphere, which is the biological and technical variation that the model of @sec-multilevel-varying-intercepts is about. Both are on the same scale (a proportion of the density), so a point below the bar is a count whose error is smaller than the spread between sections.
+
+```{r}
+#| label: prep-error
+#| include: false
+
+# Sections with at least one positive cell: log density, counting error of the log density (1 / sqrt(count))
+nz <- neun[neun$positive > 0, ]
+nz$log_dens <- log(nz$positive / nz$area_mm2)
+nz$sei <- 1 / sqrt(nz$positive)
+n_zero_rows <- sum(neun$positive == 0)
+
+# Spread of the log density between sections, after removing the mean of each day and hemisphere
+spread_by <- sapply(levels(nz$structure), function(s) {
+  z <- nz[nz$structure == s, ]
+  sd(resid(lm(log_dens ~ interaction(dpi, hemi), data = z)))
+})
+```
+
+```{r}
+#| label: fig-mdme_counting
+#| fig-cap: "Relative counting error of the NeuN count of every section (points; 1 divided by the square root of the count, logarithmic axis) by structure, against the spread of the log density between sections of the same day and hemisphere (black bars). The error of a count is small everywhere, and smallest in the cortex, where counts are in the thousands."
+#| fig-alt: "Five columns (cortex, cerebral nuclei, interbrain, midbrain, fiber tracts) and a logarithmic vertical axis from 0.5 to 100 percent. In each column, a cloud of grey points sits between about 0.7 and 25 percent, with a median near 1 percent for cortex and about 3.5 percent for fiber tracts. A black horizontal bar in each column sits much higher, between about 30 and 65 percent. A few points in the cerebral nuclei and fiber tracts rise above 10 percent, and one reaches about 25 percent."
+#| fig-width: 7.5
+#| fig-height: 4.4
+#| warning: false
+
+# Counting error of every section as a point, and the spread between sections as a bar
+bar_df <- data.frame(structure = factor(names(spread_by), levels = levels(nz$structure)), spread = as.numeric(spread_by))
+set.seed(3)
+ggplot(nz, aes(x = structure, y = sei)) +
+  geom_jitter(width = 0.2, height = 0, size = 0.9, alpha = 0.35, color = "#0072B2") +
+  geom_errorbar(data = bar_df, aes(y = spread, ymin = spread, ymax = spread), width = 0.6, linewidth = 1.4) +
+  scale_y_log10(labels = function(x) paste0(round(100 * x, 1), "%"), breaks = c(0.01, 0.03, 0.1, 0.3)) +
+  labs(x = NULL, y = "Relative counting error (points)\nand spread between sections (bars)") +
+  Plot_theme +
+  theme(axis.text.x = element_text(size = 12))
+```
+
+The picture is drawn with `ggplot2::geom_jitter()` so that every one of the `r nrow(nz)` regions (a structure in one hemisphere of one section) is visible, because the interesting thing is the *tail*: the median section has a tiny error, and a few have a large one. A table of mean errors per structure would give you the first and hide the second.
+
+::: {.callout-tip title="How to read this figure"}
+Read it in two steps. First compare each cloud of points with the bar in its own column: if the cloud is far below the bar, the counting error is small next to the variation between sections and a model that treats the count as exact loses almost nothing. Second look for the points that climb toward the bar: those are the sections with few cells, the ones where the count is the weakest evidence. The mistake to avoid is to read a small counting error as a statement that the *density* is precise: it says that the count is a good sample of the tissue that was counted, and nothing about whether the section is typical of the animal.
+:::
+
+The result is a finding, not a failure: **in this experiment the counting error is small next to the biology.** In the cortex the median relative error is `r round(100 * median(nz$sei[nz$structure == "CTX"]), 1)`% against a spread between sections of `r round(100 * spread_by[["CTX"]])`%, and even in the structures with the smallest counts, the fiber tracts, the median error is `r round(100 * median(nz$sei[nz$structure == "fiber tracts"]), 1)`% against a spread of `r round(100 * spread_by[["fiber tracts"]])`%. In variance terms, which is what a model sees, the counting error accounts for about `r round(100 * mean(nz$sei[nz$structure == "CTX"]^2) / spread_by[["CTX"]]^2, 1)`% of the variance of the cortex and `r round(100 * mean(nz$sei[nz$structure == "fiber tracts"]^2) / spread_by[["fiber tracts"]]^2, 1)`% of that of the fiber tracts. A rule that I find useful is to compare the average of $1/n$ with the variance of the log density you are modeling: when the first is below a few percent of the second, the error does not matter for the mean. The books agree on the principle: the rate is a latent quantity, and treating a ratio of counts as if it were known matters when counts are small or when the exposure (here, the area) varies a lot between units, and it can be ignored when the biological variation is much larger than the counting noise [@mcelreath2020].
+
+```{r}
+#| label: tbl-mdme_error_share
+#| tbl-cap: "Counting error against the spread between sections, by structure: number of sections, median count, median relative error, spread of the log density (standard deviation), share of its variance that the counting error accounts for, and number of sections with fewer than 100 cells."
+
+# One row per structure
+err_tab <- do.call(rbind, lapply(levels(nz$structure), function(s) {
+  z <- nz[nz$structure == s, ]
+  data.frame(Structure = s, Sections = nrow(z), `Median count` = round(median(z$positive)),
+             `Median error (%)` = round(100 * median(z$sei), 1),
+             `Spread (SD of log density)` = round(spread_by[[s]], 2),
+             `Variance due to counting (%)` = round(100 * mean(z$sei^2) / spread_by[[s]]^2, 1),
+             `Sections under 100 cells` = sum(z$positive < 100), check.names = FALSE)
+}))
+knitr::kable(err_tab)
+```
+
+Where does the counting error matter, then? Where there are few cells. The fiber tracts, the cerebral nuclei, the interbrain and the midbrain have `r sum(nz$positive < 100 & nz$structure != "CTX")` regions with fewer than 100 positive cells (@tbl-mdme_error_share), with relative errors of 10% or more, and the smallest regions are slivers at the edge of a section. In those, a model that treats the density as exact gives a count of 20 the same weight as a count of 2,000, which is the problem that the books name: a ratio of counts is a rate with a precision that depends on the denominator [@mcelreath2020]. There are two ways to give the model what it needs, and I show both on the fiber tracts, which are the structure with the most small counts.
+
+The first is to keep the log density as the outcome and tell the model *how precisely each one is known*. In `brms` the term `se(sei, sigma = TRUE)` on the left of the formula says that each observation has a known standard error `sei`, here $1/\sqrt{n}$, on the log scale, and that there is, in addition, a residual spread `sigma` to be estimated (the variation between sections that is *not* the counting error). The second is to model the counts themselves, with the log of the area as an offset and a negative binomial likelihood, which is what @sec-count-regression and @sec-multilevel-glmm did: a count model carries the Poisson error automatically, because the variance of a count is part of its distribution, and a region with zero cells stays in (there are five in the cerebral nuclei and the midbrain, none in the fiber tracts), which the log density cannot do.
+
+```{r}
+#| label: fit-error
+
+# Fiber tracts: the structure with the smallest counts
+ft <- nz[nz$structure == "fiber tracts", ]
+ft_all <- neun[neun$structure == "fiber tracts", ]
+mu0 <- round(median(ft$log_dens), 1)
+prior_ft <- c(prior_string(paste0("normal(", mu0, ", 1)"), class = "Intercept"), prior(normal(0, 0.5), class = "b"),
+              prior(exponential(3), class = "sd"), prior(exponential(3), class = "sigma"))
+prior_ft_nb <- c(prior_string(paste0("normal(", mu0, ", 1)"), class = "Intercept"), prior(normal(0, 0.5), class = "b"),
+                 prior(inv_gamma(0.4, 0.3), class = "shape"), prior(exponential(3), class = "sd"))
+
+# 16. The log density as if it were exact
+fit_e1 <- brm(
+  log_dens ~ hemi * dpi + (1 | mouse) + (1 | section),
+  data = ft, prior = prior_ft, chains = 4, cores = 4, seed = 123, iter = 6000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit16.rds", file_refit = "never"
+)
+
+# 17. The same, with the known counting error of each section (an extra spread sigma is still estimated)
+fit_e2 <- brm(
+  log_dens | se(sei, sigma = TRUE) ~ hemi * dpi + (1 | mouse) + (1 | section),
+  data = ft, prior = prior_ft, chains = 4, cores = 4, seed = 123, iter = 6000, control = list(adapt_delta = 0.99), refresh = 0,
+  file = "models/missing-data-measurement-error_fit17.rds", file_refit = "never"
+)
+
+# 18. The counts with the log of the area as an offset (the Poisson error is part of the distribution)
+fit_e3 <- brm(
+  positive ~ hemi * dpi + offset(log(area_mm2)) + (1 | mouse) + (1 | section),
+  data = ft_all, family = negbinomial(), prior = prior_ft_nb,
+  chains = 4, cores = 4, seed = 123, iter = 3000, control = ml_control, refresh = 0,
+  file = "models/missing-data-measurement-error_fit18.rds", file_refit = "never"
+)
+```
+
+::: panel-tabset
+### brms: se()
+
+```{r}
+# Population effects, spreads and the extra residual scale (sigma) of the model with known counting error
+summary(fit_e2)
+```
+
+### brms: count model
+
+```{r}
+# The count model with the area as an offset
+summary(fit_e3)
+```
+
+### lme4 and glmmTMB
+
+```{r}
+# Frequentist counterparts: the log density without the error term, and the count model with the offset
+lmer_e1 <- lmer(log_dens ~ hemi * dpi + (1 | mouse) + (1 | section), data = ft)
+tmb_e3 <- glmmTMB(positive ~ hemi * dpi + offset(log(area_mm2)) + (1 | mouse) + (1 | section),
+                  family = nbinom2(), data = ft_all)
+summary(tmb_e3)
+```
+:::
+
+The first thing I look at is `sigma`. In the plain model `sigma` is `r qs(as_draws_df(fit_e1)$sigma, 2)` and it absorbs everything between sections, the counting error included. In the model with `se()` the extra spread is `r qs(as_draws_df(fit_e2)$sigma, 2)`: it is smaller, since the part that is the known counting error was subtracted from it, and the difference is the share of the variance that I could attribute to the measurement. It is a small difference, as the figure promised, and the effects of interest should not move. @fig-mdme_se_compare shows the ratio of the density of the left fiber tracts to that of the right, by day, under the three models.
+
+```{r}
+#| label: fig-mdme_se_compare
+#| fig-cap: "Ratio of the density of NeuN-positive cells in the left fiber tracts to that in the right, by day after ischemia, under three models: the log density as if it were exact, the log density with the known counting error of each section (se), and the counts with an area offset (negative binomial). Points are posterior medians and bars 95% credible intervals."
+#| fig-alt: "Four rows (0, 5, 15 and 30 days) with three points each on a logarithmic horizontal axis from about 0.6 to 1.6. The three models give nearly the same point and interval in every row. The ratios are close to 1 at all days, with intervals that cross 1 in most rows."
+#| fig-width: 7.5
+#| fig-height: 4
+#| warning: false
+
+# Left to right log-ratio by day, for each of the three models
+lr3 <- list(`Log density, as if exact` = lr_draws(fit_e1), `Log density with se()` = lr_draws(fit_e2),
+            `Counts with area offset` = lr_draws(fit_e3))
+se_df <- do.call(rbind, lapply(names(lr3), function(m) do.call(rbind, lapply(names(lr3[[m]]), function(dd) qrow(exp(lr3[[m]][[dd]]), m, dd)))))
+se_df$group <- factor(se_df$group, levels = rev(c("0D", "5D", "15D", "30D")))
+se_df$label <- factor(se_df$label, levels = names(lr3))
+
+# Three models per day, dodged vertically
+ggplot(se_df, aes(x = med, y = group, xmin = lo, xmax = hi, color = label, shape = label)) +
+  geom_vline(xintercept = 1, linetype = "dotted") +
+  geom_pointrange(position = position_dodge(width = 0.6), size = 0.5, linewidth = 0.8) +
+  scale_x_log10() +
+  scale_color_manual(values = c("#000000", "#E69F00", "#0072B2")) +
+  scale_shape_manual(values = c(16, 15, 17)) +
+  labs(x = "Left to right density ratio (log scale)", y = "Days after ischemia", color = NULL, shape = NULL) +
+  Plot_theme + legend_top() + guides(color = guide_legend(nrow = 3))
+```
+
+In @fig-mdme_se_compare the three models agree. At 15 days the ratio is `r qs(exp(lr3[[1]][["15D"]]), 2)` as if exact, `r qs(exp(lr3[[2]][["15D"]]), 2)` with the counting error and `r qs(exp(lr3[[3]][["15D"]]), 2)` with the count model. I did not expect more, and I do not want to pretend that I did: the counting error is `r round(100 * mean(ft$sei^2) / spread_by[["fiber tracts"]]^2, 1)`% of the variance of the fiber tracts, and a model that is correct about 1% of the variance cannot change the answer by much. The measurement-error model is *not* wrong here; it is a more complete description that, in this experiment, does not change the conclusion. It would change it if the counts were much smaller (a region of a few dozen cells in every section), or if the area varied by orders of magnitude between the units being compared (a count of 20 in a sliver is not comparable to a count of 20 in a full region), and the way to know is the comparison of @fig-mdme_counting, which is cheap.
+
+::: {.callout-tip title="Frequentist equivalent"}
+`lme4` has no way of declaring a known variance for each observation, so the frequentist version of the `se()` model is not available there. The tool that exists is the meta-analytic one, `metafor::rma.mv()`, which takes the sampling variances of each observation and estimates the rest; it is not installed in this project and I did not run it. What the frequentist route does have is the count model: `glmmTMB` with a negative binomial and an offset fits the same model as the third `brms` fit (above) and gives the same left to right ratios, since the offset carries the denominator and the negative binomial carries the sampling error. That is also the practical advice that I would give: when the outcome is a count over an area, the count model with an offset is the simplest way to take the counting error seriously.
+:::
+
+#### The distribution of the measurement error is also a model {#sec-mdme-sigma}
+
+The chapter on distributional regression promised that the variance of the *measurement* would become one more thing to model (@sec-multivariate-distributional-regression), and the `se()` term is where that promise is kept. The known counting error enters as a fixed part of the variance, and the extra spread, the one that is *not* counting error, can have a formula of its own. The biological question is natural: is the injured hemisphere more variable than the intact one, after taking the counting error out?
+
+```{r}
+#| label: fit-error-sigma
+
+# 19. The extra spread (not the counting error) is allowed to differ between hemispheres
+fit_e4 <- brm(
+  bf(log_dens | se(sei, sigma = TRUE) ~ hemi * dpi + (1 | mouse) + (1 | section), sigma ~ hemi),
+  data = ft, prior = c(prior_ft[prior_ft$class != "sigma", ], prior(normal(-1, 1), class = "Intercept", dpar = "sigma"),
+                       prior(normal(0, 0.5), class = "b", dpar = "sigma")),
+  chains = 4, cores = 4, seed = 123, iter = 6000, control = list(adapt_delta = 0.99), refresh = 0,
+  file = "models/missing-data-measurement-error_fit19.rds", file_refit = "never"
+)
+dr_e4 <- as_draws_df(fit_e4)
+sd_ratio <- exp(dr_e4$b_sigma_hemiLeft)
+```
+
+The extra spread of the left fiber tracts is `r qs(sd_ratio, 2)` times that of the right (posterior median and 95% credible interval), with a posterior probability of `r round(mean(sd_ratio > 1), 2)` that it is larger. I would not build anything on that number, but the *form* of the model is what I want you to keep: a known measurement variance that is subtracted by the model, plus a spread that is estimated and can be modeled, which is the decomposition that a reader of a methods section wants and almost never gets.
+
+### An error in a predictor is a different problem {#sec-mdme-me}
+
+What I have described is measurement error in an *outcome*, and the books are clear that it is the benign case: noise in $y$ folds into the residual, it widens the intervals and it does not bias the slope [@gelman2020; @mcelreath2020]. Noise in a *predictor* is not benign, because it pulls the slope toward zero (attenuation): if you regress a response on a noisy version of $x$, a part of the variation of $x_{obs}$ is noise that has nothing to do with the response, and the slope is diluted by the share of the variance of $x_{obs}$ that is true signal (the *reliability*). In `brms` the term is `me(x, sdx)`, which declares a latent true $x$ with the observed one distributed around it with the known standard deviation `sdx`.
+
+I have a real case in the data that I already know, and I run it in order to see what happens, not to find an effect. In `cell_data` the number of PDGFR-β+ cells (`Pdgfrb_Pos`) is a count, with a Poisson counting error, and the question can be: *at the same day, do animals with more PDGFR-β+ cells have a higher GFAP integrated density?* The predictor is the count (on the log scale, with an error of $1/\sqrt{n}$) and the outcome is the log of the GFAP integrated density.
+
+```{r}
+#| label: fit-me
+
+# The histology table: one row per animal (49 animals); log of the PDGFR-beta+ count and its counting error
+cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+cell_data$DPI_f <- factor(cell_data$DPI)
+cell_data$log_gfap <- log(cell_data$Gfap_IntDen)
+cell_data$log_pos <- log(cell_data$Pdgfrb_Pos)
+cell_data$sd_log_pos <- 1 / sqrt(cell_data$Pdgfrb_Pos)
+
+# Reliability of the log count at the same day: share of its variance that is not counting error
+res_lp <- resid(lm(log_pos ~ DPI_f, data = cell_data))
+reliab <- 1 - mean(cell_data$sd_log_pos^2) / var(res_lp)
+
+# 20. The slope of log GFAP on the log count, as if the count were exact
+fit_x1 <- brm(
+  log_gfap ~ DPI_f + log_pos,
+  data = cell_data, prior = c(prior(normal(0, 2), class = "b"), prior(normal(6, 3), class = "Intercept"),
+                              prior(exponential(1), class = "sigma")),
+  chains = 4, cores = 4, seed = 123, refresh = 0,
+  file = "models/missing-data-measurement-error_fit20.rds", file_refit = "never"
+)
+
+# 21. The same, with the counting error of the predictor: me() declares a latent true log count
+fit_x2 <- brm(
+  log_gfap ~ DPI_f + me(log_pos, sd_log_pos),
+  data = cell_data, prior = c(prior(normal(0, 2), class = "b"), prior(normal(6, 3), class = "Intercept"),
+                              prior(exponential(1), class = "sigma")),
+  chains = 4, cores = 4, seed = 123, iter = 8000, control = list(adapt_delta = 0.99, max_treedepth = 12), refresh = 0,
+  file = "models/missing-data-measurement-error_fit21.rds", file_refit = "never"
+)
+slope_x1 <- as_draws_df(fit_x1)$b_log_pos
+slope_x2 <- as_draws_df(fit_x2)$bsp_melog_possd_log_pos
+```
+
+::: panel-tabset
+### brms: me()
+
+```{r}
+# The slope is the bsp_ coefficient of the me() term
+summary(fit_x2)
+```
+
+### lm
+
+```{r}
+# The frequentist version without the error (ordinary least squares)
+summary(lm(log_gfap ~ DPI_f + log_pos, data = cell_data))
+```
+:::
+
+The reliability of the log count at the same day is `r round(reliab, 3)`: `r round(100 * (1 - reliab), 1)`% of its variance is counting error. With that figure an attenuation of about `r round(100 * (1 - reliab), 1)`% is what the theory expects, and what the models say is a slope of `r qs(slope_x1, 2)` when the count is treated as exact and `r qs(slope_x2, 2)` with `me()`. They agree, and for the same reason as before: the animals differ in their counts by far more than the counting error of any one of them. A predictor measured with a reliability of 0.99 is, for practical purposes, measured without error, and the exercise is useful because it tells you *when you may stop worrying*. If the reliability were 0.6, as can happen with a subjective score or with an assay run once on a noisy plate, the same exercise would say that the slope that you see is a part of the one that exists.
+
+::: {.callout-tip title="Frequentist equivalent"}
+The frequentist tools for an error in a predictor are regression calibration and SIMEX, in the packages `mecor` and `simex`. Neither is installed in this project, so I did not run them, and I will not describe their output. Both take the same ingredient as `me()`, the variance of the measurement error, and correct the slope by the reliability. The Bayesian version differs in that it propagates the uncertainty of the correction into the interval, instead of applying it afterwards.
+:::
+
+### Values below a limit of detection, which I can explain but not demonstrate {#sec-mdme-lod}
+
+The first-class case of a hidden value on the *low* side is a measurement below the limit of detection of an assay: an ELISA concentration below the lowest standard, a band too faint on the film, a qPCR reaction whose Ct is "undetermined". The practice that I see most often is to replace the value by half the limit (or by the limit divided by $\sqrt{2}$) and carry on. The books that this one follows are of one voice against it: it creates a spike of identical values that did not exist, shrinks the spread, and distorts the slopes and the correlations [@mcelreath2020; @gelman2020]. The alternative is the one that you already know from the wire: a [left-censored]{.ix ix="left-censored"} observation is a value that is *at most* the limit, and it contributes to the likelihood the probability of being below it, $F(\text{limit}\mid\mu,\sigma)$. In `brms` the only change is the left side of the formula, and `cens = "left"`.
+
+I have no real dataset with detection limits in this book, and I do not simulate one; the chunk below shows the syntax and is **not run**. It is an illustration with invented names (`conc`, `lod`, `below`), nothing more.
+
+```{r}
+#| label: lod-illustration
+#| eval: false
+
+# ILLUSTRATION, NOT RUN: a concentration with a detection limit (invented column names).
+# For each row, `conc` is the measured value, or the limit itself when the value was below it;
+# `below` is "left" when the value was below the limit and "none" otherwise
+brm(
+  log(conc) | cens(below) ~ group + (1 | animal),
+  data = elisa, family = gaussian(),
+  prior = c(prior(normal(0, 2), class = "b"), prior(exponential(1), class = "sigma"))
+)
+```
+
+## An NA, a zero and a value below detection {#sec-mdme-td79}
+
+I left for the end a case that I find the best teaching example in the book, because it is a single animal. In @sec-eda-missing-data I met animal `Td79` (three days after ischemia) because its `Pdgfrb_Neg` is missing, and I showed that its `Pdgfrb_Total` equals its `Pdgfrb_Pos` (398), which means that whoever computed the total treated the missing count as zero. There are two more things in that row. Its `PdgfrbLow_Intensity` is exactly 0, the only zero of that column. And the value that is missing is a *count of negative cells*, which is something that can be zero.
+
+```{r}
+#| label: td79-rules
+
+# The rule that the file obeys everywhere else: positives plus negatives equal the total
+chk_neg <- cell_data[!is.na(cell_data$Pdgfrb_Neg), ]
+rule_holds <- all(chk_neg$Pdgfrb_Pos + chk_neg$Pdgfrb_Neg == chk_neg$Pdgfrb_Total)
+
+# A DECISION, CONFIRMED AS A WORKING READING BY DANIEL: the negatives are the total minus the positives,
+# which is zero for Td79 (it has no PDGFR-beta-negative cells)
+cell_data$neg_rec <- cell_data$Pdgfrb_Total - cell_data$Pdgfrb_Pos
+cell_data$neg_100 <- cell_data$Pdgfrb_Neg / 100
+cell_data$neg_rec_100 <- cell_data$neg_rec / 100
+td <- cell_data[cell_data$MouseID == "Td79", ]
+stopifnot(rule_holds, td$neg_rec == 0, sum(is.na(cell_data$Pdgfrb_Neg)) == 1)
+others_d3 <- cell_data[cell_data$DPI == 3 & cell_data$MouseID != "Td79", ]
+```
+
+The rule `Pos + Neg = Total` holds in all of the `r nrow(chk_neg)` animals with a recorded `Pdgfrb_Neg`. For `Td79`, applying it backwards gives `Pdgfrb_Neg` equal to `r td$neg_rec`, which is a very specific claim: *this animal has no PDGFR-β-negative cells in the section*. I asked, and the answer is that it may very well be the case. I take it as a working reading, not as a fact, and I say why it is not obviously safe: the other `r nrow(others_d3)` animals of the same day have between `r min(others_d3$Pdgfrb_Neg)` and `r max(others_d3$Pdgfrb_Neg)` negative cells, and no animal in the whole file has fewer than `r min(chk_neg$Pdgfrb_Neg)`. A section with 398 positive cells and none negative would be an unusual section, and it is worth checking on the image. Under that reading, the `NA` is not missing at all: it is a *structural* value that can be reconstructed from the other columns, and nobody should impute it. Under the other reading (the negatives were not counted, and the total is wrong), it is a missing count, and the imputation of @sec-eda-missing-data is the right treatment. The data cannot tell the two apart; the images can.
+
+Then there is the intensity. `PdgfrbLow_Intensity` is `r td$PdgfrbLow_Intensity` for `Td79`, and it is the only zero in a column whose other values go from `r round(min(cell_data$PdgfrbLow_Intensity[cell_data$PdgfrbLow_Intensity > 0]), 1)` to `r round(max(cell_data$PdgfrbLow_Intensity), 1)`. It is tempting to read it as a measurement below a detection limit (a very faint signal), and it is not: the column is the intensity of the "low" class of PDGFR-β, and if that class has no cells there is nothing to measure. A zero here is not a faint value. It is, at best, a sum over an empty set, and at worst an undefined mean, written as zero by a script that did not know what else to write. The column tracks the number of negative cells closely (a correlation of `r round(cor(cell_data$PdgfrbLow_Intensity, cell_data$Pdgfrb_Neg, use = "complete.obs"), 2)`), which suggests that it accumulates over the cells of the class, but I cannot tell from the file whether it is a sum or a mean. If it is a mean, the zero should be an `NA`. @tbl-mdme_three shows the three things next to each other.
+
+```{r}
+#| label: tbl-mdme_three
+#| tbl-cap: "An NA, a zero and a value below detection are three different things. The first two are the two values of animal Td79; the third is the case of the left-censored value that the chapter explains and does not demonstrate."
+
+# What each of the three is, how to recognize it, and what to do
+three <- data.frame(
+  Value = c("NA in Pdgfrb_Neg", "0 in PdgfrbLow_Intensity", "Below the detection limit"),
+  `What it says` = c("The count was not recorded, or it is a zero that was left blank",
+                     "The class has no cells; the intensity is a sum over nothing, or an undefined mean",
+                     "A measurement exists and is at most the limit"),
+  `How to recognize it` = c("A rule the file obeys everywhere else (Pos + Neg = Total) reconstructs it",
+                            "It sits at a count of zero in the column it depends on; it is the only zero in a column of positives",
+                            "It is reported as the limit, as zero, or as a flag by the instrument"),
+  `What to do` = c("Reconstruct it if the rule holds, and check the image; impute only if it cannot be reconstructed",
+                   "Treat as undefined (NA) if the column is a mean; keep as zero if it is a sum; do not treat as a limit",
+                   "Censor it at the limit; never replace it with half of the limit"),
+  check.names = FALSE
+)
+knitr::kable(three)
+```
+
+I want to test whether the decision matters on a model that the book has already shown. The model of @sec-eda-missing-data asks whether the count of negative cells says something about the count of positive ones, at the same day, and it handled `Td79` four ways: dropping it, imputing it inside the model with `mi()`, multiple imputation with `mice`, and plugging in extreme values. Now there is a fifth, which is to set it to its reconstructed value of zero. The models and priors are those of that chapter, so I read the first two from its cache and fit the others here.
+
+```{r}
+#| label: fit-td79
+
+# The cached fits of the earlier chapter: complete cases (fit1) and the joint model with mi() (fit2)
+fit_cc <- readRDS("models/eda-missing-data_fit1.rds")
+fit_mi <- readRDS("models/eda-missing-data_fit2.rds")
+
+# 22. The reconstructed value: Td79 has zero negative cells (same model and default priors as the earlier chapter)
+cell_data$log_pos <- log(cell_data$Pdgfrb_Pos)
+fit_t1 <- brm(
+  log_pos ~ DPI_f + neg_rec_100,
+  data = cell_data, seed = 123, refresh = 0,
+  file = "models/missing-data-measurement-error_fit22.rds", file_refit = "never"
+)
+
+# Multiple imputation of the earlier chapter (20 completed datasets, normal model, Rubin's rules)
+imp <- mice(cell_data[, c("log_pos", "DPI_f", "neg_100")], m = 20, method = c("", "", "norm"), seed = 123, printFlag = FALSE)
+pooled <- summary(pool(with(imp, lm(log_pos ~ DPI_f + neg_100))), conf.int = TRUE)
+b_mice <- pooled[pooled$term == "neg_100", ]
+
+# The reconstructed value in a frequentist fit
+lm_rec <- lm(log_pos ~ DPI_f + neg_rec_100, data = cell_data)
+b_lm <- c(coef(lm_rec)["neg_rec_100"], confint(lm_rec)["neg_rec_100", ])
+```
+
+::: panel-tabset
+### brms
+
+```{r}
+# Reconstructed value (Td79 has zero negative cells)
+summary(fit_t1)
+```
+
+### lm
+
+```{r}
+# The same by least squares
+summary(lm_rec)
+```
+
+### mice
+
+```{r}
+# The multiple-imputation alternative, pooled with Rubin's rules
+pooled
+```
+:::
+
+```{r}
+#| label: fig-mdme_td79
+#| fig-cap: "Coefficient for the number of negative cells (per 100 cells, on the log scale of the PDGFR-beta-positive count) under four treatments of animal Td79: dropped, imputed inside the model with mi(), multiple imputation with mice, and reconstructed as zero (total minus positive). Points are posterior medians or estimates and bars are 95% intervals."
+#| fig-alt: "A forest plot with four rows. All four points sit close to 0.04 to 0.06 per 100 negative cells, and all four intervals cross zero, from about minus 0.03 to about 0.13. The reconstructed row has a slightly different position and a slightly narrower interval than the dropped row."
+#| fig-width: 7.5
+#| fig-height: 3.2
+#| warning: false
+
+# Coefficient of the negative count under each treatment
+cf <- function(fit, nm) fixef(fit)[nm, c("Estimate", "Q2.5", "Q97.5")]
+td_df <- rbind(
+  data.frame(label = "Dropped (complete cases)", t(cf(fit_cc, "neg_100"))),
+  data.frame(label = "Imputed inside the model, mi()", t(cf(fit_mi, grep("mineg_100", rownames(fixef(fit_mi)), value = TRUE)))),
+  data.frame(label = "Multiple imputation, mice", Estimate = b_mice$estimate, Q2.5 = b_mice$`2.5 %`, Q97.5 = b_mice$`97.5 %`),
+  data.frame(label = "Reconstructed as zero (total minus positive)", t(cf(fit_t1, "neg_rec_100")))
+)
+td_df$label <- factor(td_df$label, levels = rev(td_df$label))
+
+# Interval plot, one row per treatment
+ggplot(td_df, aes(x = Estimate, y = label, xmin = Q2.5, xmax = Q97.5)) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_pointrange(size = 0.55, linewidth = 0.9, color = "#0072B2") +
+  labs(x = "Coefficient per 100 negative cells (log scale)", y = NULL) +
+  Plot_theme +
+  theme(axis.text.y = element_text(size = 11))
+```
+
+In @fig-mdme_td79 the four treatments give the same answer, `r round(td_df$Estimate[4], 3)` with the reconstructed value against `r round(td_df$Estimate[1], 3)` dropping the animal, which is what one animal in 49 should do. I should not leave the figure without saying what it hides. The imputation of @sec-eda-missing-data guessed about `r round(median(as_draws_df(fit_mi)[[grep("^Ymi_", names(as_draws_df(fit_mi)), value = TRUE)[1]]]) * 100)` negative cells for this animal, with an interval that went below zero, and the reconstruction says zero. Both are far apart as *values*, and they lead to the same slope because one animal contributes little to a slope. A model-based guess is a guess about a value that the file already contains, in a form that is not an NA. The lesson is the order of the questions: *can the value be reconstructed from the data?* comes before *how should it be imputed?*
+
+```{r}
+#| label: fit-td79-intensity
+
+# 23 and 24. The zero intensity: the day-3 mean of PdgfrbLow_Intensity with Td79 as a zero, and without it
+fit_i1 <- brm(PdgfrbLow_Intensity ~ DPI_f, data = cell_data, seed = 123, refresh = 0,
+              file = "models/missing-data-measurement-error_fit23.rds", file_refit = "never")
+fit_i2 <- brm(PdgfrbLow_Intensity ~ DPI_f, data = cell_data[cell_data$MouseID != "Td79", ], seed = 123, refresh = 0,
+              file = "models/missing-data-measurement-error_fit24.rds", file_refit = "never")
+day3 <- function(fit) { d <- as_draws_df(fit); d$b_Intercept + d$b_DPI_f3 }
+```
+
+The zero intensity does matter more, because it is on a variable that is not tied to the count by an identity. The mean of the low-class intensity at day 3 is `r qs(day3(fit_i1), 1)` with `Td79` as a zero and `r qs(day3(fit_i2), 1)` without it (a Gaussian model for the intensity on the days, default priors): the zero pulls the day-3 mean down by `r round(median(day3(fit_i2)) - median(day3(fit_i1)), 1)` units (`r round(100 * (median(day3(fit_i2)) - median(day3(fit_i1))) / median(day3(fit_i2)))`% of the mean), with an interval that is already wide, since only eight animals contribute to it. That is not enough to change a conclusion that is a ratio of days, and it is the right size to show you what the choice costs: one value, written as zero, moves a group mean by about a seventh of its value.
+
+::: {.callout-note title="How to report it"}
+**Results.** One animal (`Td79`, day 3) had no recorded count of PDGFR-β-negative cells; its total equalled its count of positive cells, and I took its negative count to be zero (total minus positive), a reading that is consistent with the file and awaits confirmation on the image. The coefficient of the count of negative cells (log of the count of positive cells per 100 negative cells) was `r round(td_df$Estimate[4], 2)` (95% credible interval `r round(td_df$Q2.5[4], 2)` to `r round(td_df$Q97.5[4], 2)`) with that value, and `r round(td_df$Estimate[1], 2)` (`r round(td_df$Q2.5[1], 2)` to `r round(td_df$Q97.5[1], 2)`) when the animal was excluded. The intensity of the low class (0 in this animal, undefined if the class has no cells) was excluded from the analysis of its day-3 mean.
+
+**Methods.** A missing count was reconstructed from the identity positive + negative = total, which held in all 48 animals with a recorded count. Results were compared with exclusion, imputation within the model (`mi()` in `brms`) and multiple imputation (`mice`, 20 imputations, Rubin's rules).
+:::
+
+## Missing predictors, and imputation as estimation {#sec-mdme-predictors}
+
+The animal `Td79` was a missing *predictor*, and a missing predictor is the case in which the machinery of imputation earns its keep, because a model cannot simply drop what it needs to condition on without paying in rows. The idea that this chapter adds to @sec-eda-missing-data is a change of what we call it. In the Bayesian framework a missing value is not a hole to be filled before the analysis, it is an **unknown, and an unknown is a parameter**: it gets a prior (here, a sub-model for the variable that has gaps) and a posterior, estimated jointly with everything else [@mcelreath2020; @gelman2020]. The imputed values are then not "data" that the analysis treats as known, they carry their uncertainty into every other parameter, and that is the whole difference with plugging in a mean.
+
+The practical comparison with multiple imputation is shorter than it sounds. Multiple imputation (`mice`) draws several completed datasets from a model for the variable with gaps, fits the analysis on each, and pools with Rubin's rules [@mice]; `mi()` does the draw at every iteration of the sampler, inside the model. Both assume the loss is missing at random given what is in the imputation model, and the pitfall that I will repeat because it is the commonest one is that **the imputation model must include the outcome**: a model that imputes $x$ without looking at $y$ is assuming that they are unrelated, and it flattens the slope toward zero [@harrell2015; @mcelreath2020]. Both of mine did include it (the `mice` call has `log_pos` in the data, and `mi()` is fitted jointly with the outcome).
+
+When there are *many* missing values in several predictors, which I do not have in the book, the syntax grows to one sub-model per incomplete variable. I show it in a chunk that is not run, with invented names, so that you can see the shape of it, and I would be glad to replace it with a real dataset if you have one with missing covariates.
+
+```{r}
+#| label: mi-illustration
+#| eval: false
+
+# ILLUSTRATION, NOT RUN: two incomplete predictors, each with its own sub-model (invented names).
+# Every row keeps its place; the missing x1 and x2 are estimated as parameters, jointly with the outcome
+brm(
+  bf(y ~ mi(x1) + mi(x2) + group + (1 | animal)) +
+    bf(x1 | mi() ~ group) +
+    bf(x2 | mi() ~ group + mi(x1)) +
+    set_rescor(FALSE),
+  data = dat, family = gaussian()
+)
+```
+
+`mi()` works only with continuous variables, because Stan cannot sample discrete parameters, so a missing count has to be handled as continuous or integrated out [@mcelreath2020], and when the loss is not at random the sub-model has to be extended with a model of the missingness itself, or replaced by a sensitivity analysis as in @sec-mdme-tipping.
+
+## Checks, and how much the priors matter {#sec-mdme-checks}
+
+I held every `brms` model of the chapter to the three thresholds of the book (R-hat below 1.01, bulk and tail effective sample sizes above 400, no divergent transitions). @tbl-mdme_mcmc has the worst case of each fit and the time it took on four chains of this machine.
+
+```{r}
+#| label: tbl-mdme_mcmc
+#| tbl-cap: "Sampler checks for the models of the chapter: worst R-hat, smallest bulk and tail effective sample sizes, divergent transitions, and the wall-clock minutes of the slowest chain."
+
+# Worst-case diagnostics of every brms fit of the chapter
+source("functions/mcmc_check.R")
+fits_all <- list(
+  "Wire: Gaussian, completed" = fit_w1, "Wire: Student-t, completed" = fit_w2, "Wire: capped entered as 60 s" = fit_w3,
+  "Wire: censored (main)" = fit_w4, "Wire: falls censored at fall" = fit_w5, "Wire: falls as cap" = fit_w6,
+  "Wire: 60 s crossings censored" = fit_w7, "Wire: censored, narrow priors" = fit_w8, "Wire: censored, wide priors" = fit_w9,
+  "Wire: not completed (logistic)" = fit_w10,
+  "Open field day 1: 270 s rule" = fit_o1, "Open field day 1: all sessions" = fit_o2,
+  "NeuN cortex: all sections" = fit_s1, "NeuN cortex: sections 1 to 6" = fit_s2, "NeuN cortex: without 3 mice" = fit_s3,
+  "Fiber tracts: log density" = fit_e1, "Fiber tracts: se()" = fit_e2, "Fiber tracts: counts, offset" = fit_e3,
+  "Fiber tracts: se() and sigma ~ hemisphere" = fit_e4,
+  "GFAP on PDGFR-b count: exact" = fit_x1, "GFAP on PDGFR-b count: me()" = fit_x2,
+  "Td79 reconstructed as zero" = fit_t1, "Low intensity with Td79" = fit_i1, "Low intensity without Td79" = fit_i2
+)
+chk <- mcmc_check(fits_all)
+chk$minutes <- sapply(fits_all, function(f) round(max(rowSums(rstan::get_elapsed_time(f$fit))) / 60, 1))
+chk$max_rhat <- round(chk$max_rhat, 3); chk$min_ess_bulk <- round(chk$min_ess_bulk); chk$min_ess_tail <- round(chk$min_ess_tail)
+knitr::kable(chk, row.names = FALSE)
+```
+
+All `r nrow(chk)` models are in the table, and `r sum(chk$ok)` of them pass all three checks. The smallest effective sample size of all the fits is `r min(chk$min_ess_bulk)` for the bulk and `r min(chk$min_ess_tail)` for the tail. The slowest models are the censored Student-*t* fits, about a minute each on four chains, and the `se()` and `me()` fits (the last has a latent value for each of the 49 animals), which I ran with more iterations and a higher `adapt_delta` after a first run showed an effective sample size below 400 or a few divergent transitions; two of the fits still report a single transition that reached the maximum tree depth, which costs time and not validity. The fits of the wire are the ones whose results I would most want you to check for yourself, so they are cached (`models/missing-data-measurement-error_fit*.rds`) and a re-render does not run them again.
+
+The second check is about the priors of the censored model, and it is the one that matters most for this chapter, because the part of the likelihood that comes from the capped attempts depends on the *shape of the tail*, which the data cannot inform. I refit with a narrower and a wider set of priors for the coefficients, the spread between mice and the degrees of freedom of the Student-*t* (@tbl-mdme_prior_sens).
+
+```{r}
+#| label: tbl-mdme_prior_sens
+#| tbl-cap: "Prior sensitivity of the censored model of the wire: ratio of typical crossing times (knockout to control), ratio per day of training, spread between mice and degrees of freedom of the Student-t, under the priors of the chapter, a narrower set and a wider set."
+
+# The key quantities under the three sets of priors
+ps_row <- function(fit, label) {
+  d <- as_draws_df(fit)
+  data.frame(Priors = label, `Ratio KO/control` = qs(exp(d$b_genotypeKO), 2), `Ratio per day` = qs(exp(d$b_day_c), 2),
+             `SD between mice` = qs(d$sd_mouse__Intercept, 2), `Degrees of freedom` = qs(d$nu, 1), check.names = FALSE)
+}
+prior_tab <- rbind(
+  ps_row(fit_w8, "Narrow: b N(0, 0.25), sd Exp(6), nu Gamma(2, 0.2)"),
+  ps_row(fit_w4, "Chapter: b N(0, 0.5), sd Exp(3), nu Gamma(2, 0.1)"),
+  ps_row(fit_w9, "Wide: b N(0, 1), sd Exp(1), nu Gamma(2, 0.05)")
+)
+knitr::kable(prior_tab, row.names = FALSE)
+```
+
+I read @tbl-mdme_prior_sens for what moves. The ratio of crossing times, the number that the chapter reports, moves by `r round(max(sapply(list(fit_w8, fit_w4, fit_w9), function(f) median(exp(as_draws_df(f)$b_genotypeKO)))) - min(sapply(list(fit_w8, fit_w4, fit_w9), function(f) median(exp(as_draws_df(f)$b_genotypeKO)))), 2)` between the narrowest and the widest set, a small fraction of the width of its interval; the narrow prior pulls the genotype coefficient toward zero, as a narrow prior should, and the intervals overlap almost completely. The degrees of freedom of the Student-*t* are what the data inform the least (the tail beyond 60 seconds is exactly where there are no data) and they are low under every prior, which is itself a statement that the attempts are heavy-tailed, so I would not report them without the prior next to them. The practical conclusion is the one a reader should need: the comparison of crossing times does not depend on the prior within this range, and the tail itself is an assumption.
+
+## One table of decisions {#sec-mdme-decisions}
+
+@tbl-mdme_decisions collects every case of the chapter, which of the three jars it belongs to, what I did and what the sensitivity analysis showed. I find this table, more than any model, to be the product of the chapter: a record that someone else could check and disagree with.
+
+```{r}
+#| label: tbl-mdme_decisions
+#| tbl-cap: "Every missing, hidden or blurred value of the chapter: what kind of absence it is, what I did with it and what the check showed."
+
+# One row per case
+dec <- data.frame(
+  Case = c("Attempts that reached the 60 s cap", "Falls before the cap", "Two crossings at exactly 60 s",
+           "Open-field sessions tracked under 270 s", "Animals with no session after day 1 (or day 15)",
+           "NeuN sections after the sixth", "NeuN sections lost inside a series", "NeuN regions with zero positive cells",
+           "Counting error of NeuN counts", "NA in Pdgfrb_Neg of Td79", "Zero in PdgfrbLow_Intensity of Td79"),
+  Kind = c("Hidden (right-censored)", "A different event", "Hidden or exact (boundary)",
+           "Absent in part", "Absent (loss of the animal)",
+           "Absent, structural (the series ends)", "Absent, plausibly related to the tissue", "Structural, or a failed detection",
+           "Blurred", "Absent or structural zero", "Undefined, not a limit"),
+  `What I did` = c("Censored likelihood at 60 s (`cens()`)", "Left out of the time model; counted; two bracketing sensitivity analyses",
+                   "Kept as exact times; refit as censored",
+                   "Used what was seen (all sessions) and a tipping-point analysis on the kept ones",
+                   "Model with a level for the animal (valid if the loss depends on the observed day-1 value); not tested further",
+                   "Used what exists; refit on sections 1 to 6", "Used what exists; refit without the three mice",
+                   "Not entered as zero counts in a log model; read each in context", "`se()` and a count model with an area offset",
+                   "Reconstructed (total minus positive); compared with drop, `mi()` and `mice`", "Excluded from a day-3 mean; flagged"),
+  `What the check showed` = c("Ratio of times larger than with dropping or replacing; the censored interval is wider",
+                              "Ratio between the two extremes of the sensitivity analyses", "No change",
+                              "Lost sessions had lower center share; the day-1 jump does not tip but shrinks",
+                              "The three animals that leave were in the top third of day-1 shares (n = 3)",
+                              "Not related to the injury (also in day-0 mice)", "All from ischemic days; no change in the ratio",
+                              "Three kinds of zero; two regions to check on the image",
+                              "Small next to the spread; no change in the estimates", "Same slope under four treatments",
+                              "Moves a group mean by about a seventh"),
+  check.names = FALSE
+)
+knitr::kable(dec)
+```
+
+## What to write in a paper {#sec-mdme-report}
+
+Three of the "How to report it" blocks above are the ones I would paste into a Results section: the censored comparison of crossing times, the tipping-point analysis of the open field, and the animal whose value was reconstructed. There is a fourth sentence that is easy to forget, and it is the one that a reviewer is most likely to want: *what was missing, why, and what was assumed*. I would put it in Methods, once, for the whole study.
+
+::: {.callout-note title="How to report it"}
+**Methods.** Of `r n_att` attempts on the hanging wire, `r end_tab["WT", "Reached the cap"] + end_tab["KO", "Reached the cap"]` reached the 60-second limit and were treated as right-censored, and `r sum(attempts$end == "Fell")` ended in a fall and were analyzed separately. Of `r n_of_sess` open-field sessions in the `r n_of_an` animals analyzed, `r n_short` had fewer than 270 s of tracking; they were excluded from the main analysis and examined in a sensitivity analysis on the log-odds scale of the center share, and `r length(leavers)` animals had no session after day 1 or day 15 (attributed to postoperative mortality). For the NeuN counts, `r n_end` sections after the sixth were not available for `r length(unique(sec_grid$mouse[sec_grid$status == "Series ends before it"]))` mice and `r n_lost_in` sections were lost inside a series; the comparison of hemispheres was unchanged when they were excluded. Counting error (Poisson) accounted for less than `r ceiling(max(err_tab$"Variance due to counting (%)"))`% of the variance between sections in every structure. Missing data were assumed to be missing at random given the group, the day and the animal's earlier values, except where a sensitivity analysis is reported.
+:::
+
+## What the chapter leaves behind {#sec-mdme-close}
+
+We started with three mice at 60 seconds and a question, and what I hope you take is a habit more than a model. Before touching any code, ask which of three things has happened: the value is *absent*, *hidden behind a limit* or *blurred*. An absent value asks for a reason and an honest statement of what the analysis assumes, and, when the assumption cannot be checked, a sensitivity analysis that turns it into a number you can move. A hidden value asks to stay in the model with what we know about it, which is that it is beyond a limit, instead of being dropped, replaced by the limit or replaced by half of it. A blurred value asks to be put next to the variation that matters and, if it is not negligible, to be carried by the model. And a zero, an NA and a value below detection are three different things, which a single animal in a table of 49 was enough to show.
+
+The result about the wire was that dropping the capped attempts made the knockout delay look about `r round(100 * (median(ratio_ko) - 1)) - round(100 * (median(exp(dr_w$w2$b_genotypeKO)) - 1))` percentage points smaller than the censored model says, and the open-field result was that the inherited rule makes the day-1 jump look larger than it is, by an amount that does not reverse it. Two small things in opposite directions, from the same cause, which is that the values that are easiest to lose are the ones that matter. The books I have used agree on this: the question is never whether to take the missing values seriously, but which of the three jars they come from [@mcelreath2020; @gelman2020; @harrell2015].
+
+Two topics are left outside on purpose. The first is time-to-event analysis proper, with hazards, competing risks and frailty models, which is the natural next step from the Kaplan-Meier curve of @fig-mdme_km and has its own place in the appendix on what comes next (@sec-appendix-next). The second is the question of what a statistic *means* when the cause of the missing values is part of the story, which is what the next chapter, @sec-causal-inference-splines, takes up with the tools of causal inference: a diagram of what causes the loss is exactly what tells you whether the loss is ignorable.
