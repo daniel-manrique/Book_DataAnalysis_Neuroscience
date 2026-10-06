@@ -46,6 +46,20 @@ A plot of the estimated intercept of every group, with its credible interval, or
 
 :::
 
+## Censored {#gl-censored .unnumbered .unlisted}
+
+An observation is censored when we only know that its value lies beyond a limit: at least the limit (right-censored, such as a mouse still on the wire when the clock stops at 60 seconds) or at most the limit (left-censored, such as a concentration below an assay's detection limit). A censored observation enters the likelihood as the probability of being beyond the limit, not as a measured value. Truncated observations are different: units beyond the limit are not in the sample at all.
+
+*Think of it as:* A ruler that disappears into fog: you can read it up to the fog, and after that you only know the thing is at least that long.
+
+*See also:* [informative censoring](#gl-informative-censoring), [survival curve](#gl-survival-curve), [missing at random](#gl-missing-at-random)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-censored-1)
+
+:::
+
 ## Coefficient of Variation {#gl-coefficient-of-variation .unnumbered .unlisted}
 
 The standard deviation divided by the mean. A gamma or lognormal outcome has a constant coefficient of variation: its spread is a fixed fraction of its mean.
@@ -113,6 +127,20 @@ Two or more varying effects of the same group (for example the intercept and the
 ::: {.content-visible when-format="html"}
 
 *Where it appears:* [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-correlated-varying-effects-1)
+
+:::
+
+## Counting Error {#gl-counting-error .unnumbered .unlisted}
+
+The sampling error of a count. For a Poisson count of n cells the standard deviation is the square root of n, so the relative error is one over the square root of n: about 3% for a thousand cells and 10% for a hundred.
+
+*Think of it as:* Counting the raindrops that fall in a bucket in one minute: a second minute would give a slightly different number even if nothing changed.
+
+*See also:* [measurement error](#gl-measurement-error)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-counting-error-1)
 
 :::
 
@@ -250,6 +278,20 @@ A property of the categorical logit model: the odds between two classes depend o
 
 :::
 
+## Informative Censoring {#gl-informative-censoring .unnumbered .unlisted}
+
+Censoring whose chance depends on the group or on the unobserved value itself, so that the censored units are not a random subset. Dropping them biases the comparison, because what is removed is systematically the slowest (or the highest, or the sickest).
+
+*Think of it as:* A marathon whose clock is switched off at four hours: averaging only the finishers describes the fast runners and says nothing about the rest.
+
+*See also:* [censored](#gl-censored), [missing at random](#gl-missing-at-random)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-informative-censoring-1)
+
+:::
+
 ## Intraclass Correlation {#gl-intraclass-correlation .unnumbered .unlisted}
 
 The share of the total variance of an outcome that lies between groups instead of within them. It measures how much two rows of the same group resemble each other.
@@ -373,6 +415,20 @@ In a Gaussian process, the amplitude of the curve: how far it can wander from it
 ::: {.content-visible when-format="html"}
 
 *Where it appears:* [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-marginal-standard-deviation-1)
+
+:::
+
+## Measurement Error {#gl-measurement-error .unnumbered .unlisted}
+
+The difference between a measured value and the true one. Error in an outcome widens the intervals without biasing a slope; error in a predictor pulls the slope toward zero (attenuation) by the share of the predictor's variance that is noise.
+
+*Think of it as:* A line drawn twice with a shaky hand: the line is there, with some smear around it.
+
+*See also:* [counting error](#gl-counting-error)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-measurement-error-1)
 
 :::
 
@@ -672,6 +728,34 @@ A maximum-likelihood fit of a multilevel model in which a group-level variance i
 
 *See also:* [correlated varying effects](#gl-correlated-varying-effects), [varying slope](#gl-varying-slope)
 
+## Structural Zero {#gl-structural-zero .unnumbered .unlisted}
+
+A zero that is there because the thing cannot occur (a brain region that does not exist in that section), not because none was found. It should not be entered as a count of zero.
+
+*Think of it as:* The number of windows on the third floor of a two-story building.
+
+*See also:* [missing at random](#gl-missing-at-random)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-structural-zero-1)
+
+:::
+
+## Survival Curve {#gl-survival-curve .unnumbered .unlisted}
+
+The share of units that have not yet had the event at each time (here, attempts not yet completed at each second), estimated with the Kaplan-Meier method, which keeps a censored unit in the denominator until its clock stops.
+
+*Think of it as:* A countdown of how many runners are still on the course, second by second.
+
+*See also:* [censored](#gl-censored)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-survival-curve-1)
+
+:::
+
 ## Threshold {#gl-threshold .unnumbered .unlisted}
 
 In an ordinal model, a cut point on the hidden severity scale between two neighboring grades. K grades need K minus 1 thresholds, and their spacing is estimated from the data, not assumed to be equal.
@@ -679,6 +763,20 @@ In an ordinal model, a cut point on the hidden severity scale between two neighb
 *Think of it as:* A knot in the rope: where the severity stops being grade 2 and starts being grade 3.
 
 *See also:* [cumulative logit model](#gl-cumulative-logit-model), [ordinal outcome](#gl-ordinal-outcome)
+
+## Tipping-Point Analysis {#gl-tipping-point-analysis .unnumbered .unlisted}
+
+A sensitivity analysis for missing data that cannot be checked. A shift (delta) describing how different the missing values might be from the observed ones is moved over a plausible range, and the conclusion is recomputed for each delta to find the shift at which it changes, if any.
+
+*Think of it as:* Asking a reviewer how wrong an assumption would have to be before they stopped believing the result.
+
+*See also:* [missing at random](#gl-missing-at-random), [informative censoring](#gl-informative-censoring)
+
+::: {.content-visible when-format="html"}
+
+*Where it appears:* [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-tipping-point-analysis-1)
+
+:::
 
 ## Varying Intercept {#gl-varying-intercept .unnumbered .unlisted}
 

@@ -629,3 +629,86 @@
     A mouse is skipped on a day because of the cage rack it lives in, which the
     model knows, and not because of how it was going to behave that day.
   see_also: [observation-level random effect]
+
+- term: censored
+  status: draft
+  definition: >
+    An observation is censored when we only know that its value lies beyond a
+    limit: at least the limit (right-censored, such as a mouse still on the
+    wire when the clock stops at 60 seconds) or at most the limit
+    (left-censored, such as a concentration below an assay's detection limit).
+    A censored observation enters the likelihood as the probability of being
+    beyond the limit, not as a measured value. Truncated observations are
+    different: units beyond the limit are not in the sample at all.
+  analogy: >
+    A ruler that disappears into fog: you can read it up to the fog, and after
+    that you only know the thing is at least that long.
+  see_also: [informative censoring, survival curve, missing at random]
+
+- term: informative censoring
+  status: draft
+  definition: >
+    Censoring whose chance depends on the group or on the unobserved value
+    itself, so that the censored units are not a random subset. Dropping them
+    biases the comparison, because what is removed is systematically the
+    slowest (or the highest, or the sickest).
+  analogy: >
+    A marathon whose clock is switched off at four hours: averaging only the
+    finishers describes the fast runners and says nothing about the rest.
+  see_also: [censored, missing at random]
+
+- term: tipping-point analysis
+  status: draft
+  definition: >
+    A sensitivity analysis for missing data that cannot be checked. A shift
+    (delta) describing how different the missing values might be from the
+    observed ones is moved over a plausible range, and the conclusion is
+    recomputed for each delta to find the shift at which it changes, if any.
+  analogy: >
+    Asking a reviewer how wrong an assumption would have to be before they
+    stopped believing the result.
+  see_also: [missing at random, informative censoring]
+
+- term: measurement error
+  status: draft
+  definition: >
+    The difference between a measured value and the true one. Error in an
+    outcome widens the intervals without biasing a slope; error in a
+    predictor pulls the slope toward zero (attenuation) by the share of the
+    predictor's variance that is noise.
+  analogy: >
+    A line drawn twice with a shaky hand: the line is there, with some smear
+    around it.
+  see_also: [counting error]
+
+- term: counting error
+  status: draft
+  definition: >
+    The sampling error of a count. For a Poisson count of n cells the standard
+    deviation is the square root of n, so the relative error is one over the
+    square root of n: about 3% for a thousand cells and 10% for a hundred.
+  analogy: >
+    Counting the raindrops that fall in a bucket in one minute: a second
+    minute would give a slightly different number even if nothing changed.
+  see_also: [measurement error]
+
+- term: structural zero
+  status: draft
+  definition: >
+    A zero that is there because the thing cannot occur (a brain region that
+    does not exist in that section), not because none was found. It should
+    not be entered as a count of zero.
+  analogy: >
+    The number of windows on the third floor of a two-story building.
+  see_also: [missing at random]
+
+- term: survival curve
+  status: draft
+  definition: >
+    The share of units that have not yet had the event at each time (here,
+    attempts not yet completed at each second), estimated with the
+    Kaplan-Meier method, which keeps a censored unit in the denominator until
+    its clock stops.
+  analogy: >
+    A countdown of how many runners are still on the course, second by second.
+  see_also: [censored]

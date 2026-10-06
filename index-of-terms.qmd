@@ -21,6 +21,7 @@
 
 - **categorical logit model** ([glossary](glossary.qmd#gl-categorical-logit-model)): [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-categorical-logit-model-1)
 - **caterpillar plot** ([glossary](glossary.qmd#gl-caterpillar-plot)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-caterpillar-plot-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-caterpillar-plot-1)
+- **censored** ([glossary](glossary.qmd#gl-censored)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-censored-1)
 - **centering**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-centering-1)
 - **chains**: [MCMC and model checking](mcmc-model-checking.qmd#ix-chains-1)
 - **coefficient of variation** ([glossary](glossary.qmd#gl-coefficient-of-variation)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-coefficient-of-variation-1)
@@ -33,6 +34,7 @@
 - **confounder**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-confounder-1)
 - **correlated varying effects** ([glossary](glossary.qmd#gl-correlated-varying-effects)): [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-correlated-varying-effects-1)
 - **correlation matrix**: [EDA using ggpairs](eda-ggpairs.qmd#ix-correlation-matrix-1)
+- **counting error** ([glossary](glossary.qmd#gl-counting-error)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-counting-error-1)
 - **coverage**: [Why testing your assumptions doesn't protect you](appendix-assumption-tests.qmd#ix-coverage-1)
 - **credible interval** ([glossary](glossary.qmd#gl-credible-interval)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-credible-interval-1)
 - **crossed grouping** ([glossary](glossary.qmd#gl-crossed-grouping)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-crossed-grouping-1)
@@ -83,6 +85,7 @@
 - **independence**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-independence-1)
 - **independence of irrelevant alternatives** ([glossary](glossary.qmd#gl-independence-of-irrelevant-alternatives)): [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-independence-of-irrelevant-alternatives-1)
 - **indicator variable**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-indicator-variable-1)
+- **informative censoring** ([glossary](glossary.qmd#gl-informative-censoring)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-informative-censoring-1)
 - **interaction**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-interaction-1)
 - **intercept**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-intercept-1)
 - **intraclass correlation** ([glossary](glossary.qmd#gl-intraclass-correlation)): [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1); [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-intraclass-correlation-1) ([2](multilevel-intro.qmd#ix-intraclass-correlation-2)); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-intraclass-correlation-1); [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-intraclass-correlation-1); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-intraclass-correlation-1)
@@ -91,6 +94,7 @@
 
 - **latent scale** ([glossary](glossary.qmd#gl-latent-scale)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-latent-scale-1)
 - **leave-one-out cross-validation**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-leave-one-out-cross-validation-1)
+- **left-censored**: [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-left-censored-1) ([2](missing-data-measurement-error.qmd#ix-left-censored-2))
 - **length-scale** ([glossary](glossary.qmd#gl-length-scale)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-length-scale-1)
 - **level** ([glossary](glossary.qmd#gl-level)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-level-1)
 - **likelihood** ([glossary](glossary.qmd#gl-likelihood)): [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-likelihood-1)
@@ -107,6 +111,7 @@
 - **marginal effect** ([glossary](glossary.qmd#gl-marginal-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-marginal-effect-1)
 - **marginal standard deviation** ([glossary](glossary.qmd#gl-marginal-standard-deviation)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-marginal-standard-deviation-1)
 - **markov chain monte carlo**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-markov-chain-monte-carlo-1)
+- **measurement error** ([glossary](glossary.qmd#gl-measurement-error)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-measurement-error-1)
 - **missing at random** ([glossary](glossary.qmd#gl-missing-at-random)): [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-at-random-1); [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-missing-at-random-1)
 - **missing completely at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-completely-at-random-1)
 - **missing not at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-not-at-random-1)
@@ -161,6 +166,7 @@
 - **residuals**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-residuals-1)
 - **rhat**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-rhat-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-rhat-1)
 - **ridge regression**: [Specifying priors and regularization](priors-regularization.qmd#ix-ridge-regression-1)
+- **right-censored**: [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-right-censored-1)
 - **robust regression**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-robust-regression-1)
 - **rootogram**: [Counting cells and spikes](count-regression.qmd#ix-rootogram-1)
 
@@ -173,12 +179,16 @@
 - **slope**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
 - **smooth density plot**: [EDA using graphics](eda-ggplot.qmd#ix-smooth-density-plot-1)
 - **softmax**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-softmax-1)
+- **structural zero** ([glossary](glossary.qmd#gl-structural-zero)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-structural-zero-1)
 - **student-t distribution**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-student-t-distribution-1)
+- **survival curve** ([glossary](glossary.qmd#gl-survival-curve)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-survival-curve-1)
 
 ## T {.unnumbered .unlisted}
 
 - **term**: [Setting up your analysis toolchain](appendix-toolchain.qmd#ix-term-1); [Finding your way around the datasets](appendix-datasets.qmd#ix-term-1); [Designing and reading figures for papers](appendix-figures.qmd#ix-term-1); [Writing up results](appendix-reporting.qmd#ix-term-1); [Deciding how many animals to use](appendix-sample-size.qmd#ix-term-1); [Where to go next](appendix-next.qmd#ix-term-1)
 - **thresholds**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-thresholds-1)
+- **tipping-point analysis** ([glossary](glossary.qmd#gl-tipping-point-analysis)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-tipping-point-analysis-1)
+- **truncated**: [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-truncated-1)
 
 ## V {.unnumbered .unlisted}
 
