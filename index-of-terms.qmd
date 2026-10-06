@@ -27,6 +27,7 @@
 - **collinear**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-collinear-1)
 - **complete pooling** ([glossary](glossary.qmd#gl-complete-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-complete-pooling-1)
 - **complete separation**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-complete-separation-1)
+- **compound symmetry** ([glossary](glossary.qmd#gl-compound-symmetry)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-compound-symmetry-1)
 - **conditional effect** ([glossary](glossary.qmd#gl-conditional-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-conditional-effect-1)
 - **confidence interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-confidence-interval-1)
 - **confounder**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-confounder-1)
@@ -40,6 +41,7 @@
 
 ## D {.unnumbered .unlisted}
 
+- **derived quantity** ([glossary](glossary.qmd#gl-derived-quantity)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-derived-quantity-1)
 - **design effect** ([glossary](glossary.qmd#gl-design-effect)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-design-effect-1) ([2](multilevel-intro.qmd#ix-design-effect-2))
 - **dispersion statistic**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-dispersion-statistic-1); [Counting cells and spikes](count-regression.qmd#ix-dispersion-statistic-1); [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-dispersion-statistic-1)
 - **distribution**: [EDA using graphics](eda-ggplot.qmd#ix-distribution-1) ([2](eda-ggplot.qmd#ix-distribution-2))
@@ -61,6 +63,7 @@
 
 ## G {.unnumbered .unlisted}
 
+- **gaussian process** ([glossary](glossary.qmd#gl-gaussian-process)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-gaussian-process-1)
 - **generative**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-generative-1)
 - **group-level effect**: [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-group-level-effect-1)
 - **grouping factor** ([glossary](glossary.qmd#gl-grouping-factor)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-grouping-factor-1)
@@ -88,6 +91,7 @@
 
 - **latent scale** ([glossary](glossary.qmd#gl-latent-scale)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-latent-scale-1)
 - **leave-one-out cross-validation**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-leave-one-out-cross-validation-1)
+- **length-scale** ([glossary](glossary.qmd#gl-length-scale)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-length-scale-1)
 - **level** ([glossary](glossary.qmd#gl-level)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-level-1)
 - **likelihood** ([glossary](glossary.qmd#gl-likelihood)): [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-likelihood-1)
 - **linear predictor**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-linear-predictor-1)
@@ -96,12 +100,14 @@
 - **link function**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-link-function-1)
 - **lkj prior** ([glossary](glossary.qmd#gl-lkj-prior)): [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-lkj-prior-1)
 - **log-odds**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-log-odds-1)
+- **longitudinal design** ([glossary](glossary.qmd#gl-longitudinal-design)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-longitudinal-design-1)
 
 ## M {.unnumbered .unlisted}
 
 - **marginal effect** ([glossary](glossary.qmd#gl-marginal-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-marginal-effect-1)
+- **marginal standard deviation** ([glossary](glossary.qmd#gl-marginal-standard-deviation)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-marginal-standard-deviation-1)
 - **markov chain monte carlo**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-markov-chain-monte-carlo-1)
-- **missing at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-at-random-1)
+- **missing at random** ([glossary](glossary.qmd#gl-missing-at-random)): [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-at-random-1); [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-missing-at-random-1)
 - **missing completely at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-completely-at-random-1)
 - **missing not at random**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-missing-not-at-random-1)
 - **model expansion** ([glossary](glossary.qmd#gl-model-expansion)): [Deciding whether a line is the right model](linear-models-reflection.qmd#ix-model-expansion-1) ([2](linear-models-reflection.qmd#ix-model-expansion-2))
@@ -115,11 +121,12 @@
 - **nested grouping** ([glossary](glossary.qmd#gl-nested-grouping)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-nested-grouping-1)
 - **no pooling** ([glossary](glossary.qmd#gl-no-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-no-pooling-1)
 - **non-centered parameterization** ([glossary](glossary.qmd#gl-non-centered-parameterization)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-non-centered-parameterization-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-non-centered-parameterization-1)
+- **nonlinear regression model** ([glossary](glossary.qmd#gl-nonlinear-regression-model)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-nonlinear-regression-model-1)
 - **normality**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-normality-1)
 
 ## O {.unnumbered .unlisted}
 
-- **observation-level random effect** ([glossary](glossary.qmd#gl-observation-level-random-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-observation-level-random-effect-1)
+- **observation-level random effect** ([glossary](glossary.qmd#gl-observation-level-random-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-observation-level-random-effect-1); [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-observation-level-random-effect-1)
 - **odds**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-odds-1)
 - **offset** ([glossary](glossary.qmd#gl-offset)): [Counting cells and spikes](count-regression.qmd#ix-offset-1) ([2](count-regression.qmd#ix-offset-2))
 - **ordinal outcomes**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-ordinal-outcomes-1)
@@ -179,7 +186,7 @@
 - **variability**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-variability-1)
 - **variance inflation factor**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-variance-inflation-factor-1)
 - **varying**: [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-1)
-- **varying intercept** ([glossary](glossary.qmd#gl-varying-intercept)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-intercept-1); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-varying-intercept-1) ([2](multilevel-varying-intercepts.qmd#ix-varying-intercept-2)); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-varying-intercept-1)
+- **varying intercept** ([glossary](glossary.qmd#gl-varying-intercept)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-intercept-1); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-varying-intercept-1) ([2](multilevel-varying-intercepts.qmd#ix-varying-intercept-2)); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-varying-intercept-1); [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-varying-intercept-1)
 - **varying slope** ([glossary](glossary.qmd#gl-varying-slope)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-slope-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-varying-slope-1)
 - **visualization**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-visualization-1)
 

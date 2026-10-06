@@ -365,10 +365,11 @@
 - term: observation-level random effect
   status: draft
   definition: >
-    A varying intercept with one level per row of the data, added to a Poisson
-    model so that each observation has its own rate. It is the lognormal-Poisson
-    alternative to the negative binomial (a gamma-Poisson) for overdispersed
-    counts.
+    A varying intercept with one level per row of the data, added to a model so
+    that each observation has its own deviation. In a Poisson model it is the
+    lognormal-Poisson alternative to the negative binomial (a gamma-Poisson) for
+    overdispersed counts; in a beta model it carries the variation between
+    sessions that a single precision cannot.
   analogy: >
     Letting every single morning at the bakery have its own busyness, instead
     of assuming that busyness is the same all day.
@@ -522,3 +523,109 @@
     Shoe size and reading score correlate across children of all ages and hardly
     at all among children of one age: the second is the residual correlation.
   see_also: [multivariate regression, correlated varying effects]
+
+- term: nonlinear regression model
+  status: draft
+  definition: >
+    A regression in which the mean depends on the predictors through a formula
+    with named parameters (a level, a plateau, a rate), instead of one
+    coefficient per term. Its parameters can be read in the units of the
+    outcome or of time, and the curve cannot leave the values that the formula
+    allows.
+  analogy: >
+    A thermostat sentence instead of a line: the room is at 21 degrees now, it
+    cools toward 15, and it loses half of the gap every ten minutes.
+  see_also: [Gaussian process, derived quantity]
+
+- term: derived quantity
+  status: draft
+  definition: >
+    A function of the parameters that answers a question you can say in the
+    lab (the day of the peak, the rate of change on a given day, the day when a
+    curve returns to a reference level). It is computed row by row from the
+    posterior draws, so it has its own posterior and interval.
+  analogy: >
+    You do not ask a thermostat for its rate constant; you ask when the room
+    will be at 18 degrees, and the answer is computed from the constants.
+  see_also: [posterior distribution, credible interval]
+
+- term: Gaussian process
+  status: draft
+  definition: >
+    A prior over whole smooth curves, built from the idea that the heights of
+    the curve at two nearby inputs are correlated and the correlation fades
+    with the distance between them. Two numbers control it: a length-scale and
+    an amplitude.
+  analogy: >
+    Friends standing along a rope, one at every day: friends who stand close
+    have similar heights, friends who stand far apart do not.
+  see_also: [length-scale, marginal standard deviation]
+
+- term: length-scale
+  status: draft
+  definition: >
+    In a Gaussian process, the distance along the input (here, days) over which
+    the curve keeps a memory of where it was. A long length-scale gives slow
+    curves; a short one gives a curve that wiggles from one day to the next.
+  analogy: >
+    How many paces apart two friends on the rope must stand before they stop
+    resembling each other.
+  see_also: [Gaussian process, marginal standard deviation]
+
+- term: marginal standard deviation
+  status: draft
+  definition: >
+    In a Gaussian process, the amplitude of the curve: how far it can wander
+    from its average. It sets the vertical scale of the oscillations and leaves
+    their wiggliness to the length-scale.
+  analogy: >
+    How tall the tallest friend on the rope can be above the average height.
+  see_also: [Gaussian process, length-scale]
+
+- term: longitudinal design
+  status: draft
+  definition: >
+    A design in which the same units (animals, patients) are measured repeatedly
+    through time, so that the measurements of one unit belong together and are
+    not independent. It differs from a time course across different animals,
+    each measured once.
+  analogy: >
+    One animal photographed on five days, against five different animals each
+    photographed once.
+  see_also: [varying intercept, compound symmetry]
+
+- term: compound symmetry
+  status: draft
+  definition: >
+    A covariance structure in which every pair of measurements of the same unit
+    has the same correlation, whatever the time between them. A single varying
+    intercept for the unit implies it.
+  analogy: >
+    A trait of the animal: a timid mouse is timid on every day, whether the
+    sessions are one day or three weeks apart.
+  see_also: [autoregressive model of order one, varying intercept]
+
+- term: autoregressive model of order one
+  status: draft
+  definition: >
+    A model in which each measurement carries over a fraction of the deviation
+    of the previous one, so that the correlation between two measurements
+    falls with the number of steps between them (rho, rho squared, and so
+    on). With unequally spaced times it needs a continuous-time version, in
+    which the exponent is the gap in days.
+  analogy: >
+    A conversation in which each reply echoes part of the last one: the echo
+    fades as the replies get farther apart.
+  see_also: [compound symmetry, longitudinal design]
+
+- term: missing at random
+  status: draft
+  definition: >
+    Data are missing at random when the chance that a value is missing depends
+    only on information that is in the model (the group, the day, the animal's
+    earlier values) and not on the missing value itself. A likelihood-based
+    mixed model is valid for the mean under this condition.
+  analogy: >
+    A mouse is skipped on a day because of the cage rack it lives in, which the
+    model knows, and not because of how it was going to behave that day.
+  see_also: [observation-level random effect]
