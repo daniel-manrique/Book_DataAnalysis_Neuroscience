@@ -325,7 +325,7 @@ Eight chapters follow, in an order that goes from the simplest use of the idea t
 
 **Next we deal with values the microscope cannot see** (@sec-missing-data-measurement-error). Missing data, measurement error and censoring pick up the thread of @sec-eda-missing-data: imputation recast as parameter estimation, and limits of detection as part of the model.
 
-**And we close by asking what causes what, and drawing curves** (@sec-causal-inference-splines). Causal diagrams for the adjustment questions that @sec-linear-regression-multiple and @sec-linear-models-reflection raised, and splines for the curved time courses where a straight line failed in the first part.
+**And we close by asking what causes what, and drawing curves** (@sec-causal-inference-splines). Causal diagrams for the adjustment questions that @sec-linear-regression-multiple and @sec-linear-models-reflection raised, and splines as a flexible way to hold a variable fixed and to ask whether a relationship bends. (The curved time course where a straight line failed in the first part got its own answer in @sec-longitudinal-timeseries, because five distinct days are too few for a spline.)
 
 Part 6 follows, on spatial and structural analysis ([Reading the geometry of tissue](spatial-intro.qmd)). I mention it here because spatial dependence is the same independence problem in another dress: cells that sit close together resemble each other in the way attempts of one mouse do, and the tools of this part are what make it tractable.
 

@@ -1297,9 +1297,13 @@ The reliability of the log count at the same day is `r round(reliab, 3)`: `r rou
 The frequentist tools for an error in a predictor are regression calibration and SIMEX, in the packages `mecor` and `simex`. Neither is installed in this project, so I did not run them, and I will not describe their output. Both take the same ingredient as `me()`, the variance of the measurement error, and correct the slope by the reliability. The Bayesian version differs in that it propagates the uncertainty of the correction into the interval, instead of applying it afterwards.
 :::
 
+<!-- PENDING-DATA: Daniel has replicate sections of the same area in the same animal (to add later). Use them to compute the reliability of a count from the replicates, compare it with the Poisson counting error of the figure above, and run me() with the error variance estimated from the replicates. -->
+
 ### Values below a limit of detection, which I can explain but not demonstrate {#sec-mdme-lod}
 
 The first-class case of a hidden value on the *low* side is a measurement below the limit of detection of an assay: an ELISA concentration below the lowest standard, a band too faint on the film, a qPCR reaction whose Ct is "undetermined". The practice that I see most often is to replace the value by half the limit (or by the limit divided by $\sqrt{2}$) and carry on. The books that this one follows are of one voice against it: it creates a spike of identical values that did not exist, shrinks the spread, and distorts the slopes and the correlations [@mcelreath2020; @gelman2020]. The alternative is the one that you already know from the wire: a [left-censored]{.ix ix="left-censored"} observation is a value that is *at most* the limit, and it contributes to the likelihood the probability of being below it, $F(\text{limit}\mid\mu,\sigma)$. In `brms` the only change is the left side of the formula, and `cens = "left"`.
+
+<!-- PENDING-DATA: Daniel has ELISA data somewhere (to add later). Replace the illustration below with a real left-censored analysis, compared with substituting half the limit. -->
 
 I have no real dataset with detection limits in this book, and I do not simulate one; the chunk below shows the syntax and is **not run**. It is an illustration with invented names (`conc`, `lod`, `below`), nothing more.
 
