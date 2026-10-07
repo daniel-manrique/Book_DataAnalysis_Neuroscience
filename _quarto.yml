@@ -5,6 +5,7 @@ project:
 
 book:
   title: "Data analysis for Neuroscientists"
+  subtitle: "Answering scientific questions with reproducible models, not asterisks"
   reader-mode: true
 
   page-footer:
@@ -20,6 +21,7 @@ book:
   repo-actions: [edit, issue]
   chapters:
     - index.qmd
+    - preface.qmd
 
     - part: introduction.qmd
       chapters:
@@ -126,3 +128,18 @@ execute:
   freeze: auto
   warning: false
   message: false
+
+nocite: |
+  @broom
+  @ggextra
+  @gghalves
+  @ggrepel
+  @here
+  @knitr
+  @posterior
+  @rcoreteam
+  @rstan
+  @scales
+  @tibble
+  @tidyr
+  @viridis
