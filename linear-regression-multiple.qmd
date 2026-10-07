@@ -395,7 +395,7 @@ fe_int <- fixef(fit_interaction)["DPI_c:Gfap_c", ]
 ::: {.callout-note title="How to report it"}
 **Results.** Across days 3 to 14, GFAP integrated density alone was weakly and negatively associated with tissue area (`r round(fe_alone[["Estimate"]], 2)` mm² per 100 units; 95% credible interval `r round(fe_alone[["Q2.5"]], 2)` to `r round(fe_alone[["Q97.5"]], 2)`). After adjusting for day, the association was close to zero (`r round(fe_adj[["Estimate"]], 2)` mm² per 100 units; 95% credible interval `r round(fe_adj[["Q2.5"]], 2)` to `r round(fe_adj[["Q97.5"]], 2)`), and we found no reliable evidence that the association changed over time (interaction `r round(fe_int[["Estimate"]], 2)` mm² per 100 units per day; 95% credible interval `r round(fe_int[["Q2.5"]], 2)` to `r round(fe_int[["Q97.5"]], 2)`).
 
-**Methods.** Models were Gaussian linear models in `brms` with default priors, with the day centered at 3 and GFAP centered at its mean in the interaction model. Models were compared with leave-one-out cross-validation; the day-only model ranked first.
+**Methods.** Models were Gaussian linear models in `brms` with default priors, with the day centered at 3 and GFAP centered at its mean in the interaction model. Models were compared with leave-one-out cross-validation [@loo]; the day-only model ranked first.
 :::
 
 ## Transformations: when a log helps, and when it doesn't

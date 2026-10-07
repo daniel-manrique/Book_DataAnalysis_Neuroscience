@@ -514,7 +514,7 @@ cat("Standard deviation of the animal intercepts:", round(sqrt(as.numeric(VarCor
 ```
 :::
 
-`ordinal::clmm` fits the cumulative logit with random effects by maximum likelihood (a Laplace approximation by default, and adaptive quadrature when there is a single random intercept), and there is no way to put a prior on anything. `parsnip` has no engine for ordinal outcomes at all, so for this chapter the frequentist companion is `ordinal` for the cumulative family and `nnet` for the nominal one. In the frequentist model nothing keeps the standard deviation of the animals away from a boundary if 23 mice are not enough to see it, and that is where a weakly informative prior earns its keep (@sec-multilevel-varying-intercepts).
+`ordinal::clmm` fits the cumulative logit with random effects by maximum likelihood (a Laplace approximation by default, and adaptive quadrature when there is a single random intercept), and there is no way to put a prior on anything. `parsnip` has no engine for ordinal outcomes at all, so for this chapter the frequentist companion is `ordinal` for the cumulative family and `nnet` [@venables2002] for the nominal one. In the frequentist model nothing keeps the standard deviation of the animals away from a boundary if 23 mice are not enough to see it, and that is where a weakly informative prior earns its keep (@sec-multilevel-varying-intercepts).
 
 ```{r}
 # The maximum likelihood fit and the Bayesian fit side by side (coefficients on the logit scale)
