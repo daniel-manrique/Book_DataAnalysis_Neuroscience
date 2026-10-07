@@ -7,11 +7,14 @@
 ## A {.unnumbered .unlisted}
 
 - **adjusting**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-adjusting-1)
+- **adjustment set** ([glossary](glossary.qmd#gl-adjustment-set)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-adjustment-set-1)
 - **auc**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-auc-1)
 - **average predictive comparison**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-average-predictive-comparison-1); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-average-predictive-comparison-1)
 
 ## B {.unnumbered .unlisted}
 
+- **backdoor path** ([glossary](glossary.qmd#gl-backdoor-path)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-backdoor-path-1)
+- **basis function** ([glossary](glossary.qmd#gl-basis-function)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-basis-function-1)
 - **beta-binomial**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-beta-binomial-1)
 - **beta distribution**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-beta-distribution-1) ([2](beta-robust-regression.qmd#ix-beta-distribution-2))
 - **binomial**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-binomial-1); [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-binomial-1)
@@ -21,10 +24,12 @@
 
 - **categorical logit model** ([glossary](glossary.qmd#gl-categorical-logit-model)): [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-categorical-logit-model-1)
 - **caterpillar plot** ([glossary](glossary.qmd#gl-caterpillar-plot)): [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-caterpillar-plot-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-caterpillar-plot-1)
+- **causal diagram** ([glossary](glossary.qmd#gl-causal-diagram)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-causal-diagram-1)
 - **censored** ([glossary](glossary.qmd#gl-censored)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-censored-1)
 - **centering**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-centering-1)
 - **chains**: [MCMC and model checking](mcmc-model-checking.qmd#ix-chains-1)
 - **coefficient of variation** ([glossary](glossary.qmd#gl-coefficient-of-variation)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-coefficient-of-variation-1)
+- **collider** ([glossary](glossary.qmd#gl-collider)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-collider-1) ([2](causal-inference-splines.qmd#ix-collider-2))
 - **collinear**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-collinear-1)
 - **complete pooling** ([glossary](glossary.qmd#gl-complete-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-complete-pooling-1)
 - **complete separation**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-complete-separation-1)
@@ -54,6 +59,7 @@
 
 ## E {.unnumbered .unlisted}
 
+- **effective degrees of freedom** ([glossary](glossary.qmd#gl-effective-degrees-of-freedom)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-effective-degrees-of-freedom-1)
 - **effective sample size**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-effective-sample-size-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-effective-sample-size-1)
 - **equal-tailed interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-equal-tailed-interval-1)
 - **error**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-error-1)
@@ -62,6 +68,7 @@
 ## F {.unnumbered .unlisted}
 
 - **family**: [The book's shared plot theme (this also loads the legend helpers)](glm-intro.qmd#ix-family-1)
+- **fork** ([glossary](glossary.qmd#gl-fork)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-fork-1)
 
 ## G {.unnumbered .unlisted}
 
@@ -82,6 +89,7 @@
 
 ## I {.unnumbered .unlisted}
 
+- **ignorable** ([glossary](glossary.qmd#gl-ignorable)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-ignorable-1)
 - **independence**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-independence-1)
 - **independence of irrelevant alternatives** ([glossary](glossary.qmd#gl-independence-of-irrelevant-alternatives)): [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-independence-of-irrelevant-alternatives-1)
 - **indicator variable**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-indicator-variable-1)
@@ -89,6 +97,10 @@
 - **interaction**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-interaction-1)
 - **intercept**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-intercept-1)
 - **intraclass correlation** ([glossary](glossary.qmd#gl-intraclass-correlation)): [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1); [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-intraclass-correlation-1) ([2](multilevel-intro.qmd#ix-intraclass-correlation-2)); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-intraclass-correlation-1); [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-intraclass-correlation-1); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-intraclass-correlation-1)
+
+## K {.unnumbered .unlisted}
+
+- **knot** ([glossary](glossary.qmd#gl-knot)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-knot-1)
 
 ## L {.unnumbered .unlisted}
 
@@ -141,6 +153,7 @@
 ## P {.unnumbered .unlisted}
 
 - **partial pooling** ([glossary](glossary.qmd#gl-partial-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-partial-pooling-1)
+- **pipe** ([glossary](glossary.qmd#gl-pipe)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-pipe-1)
 - **posterior distribution** ([glossary](glossary.qmd#gl-posterior-distribution)): [Why model? A first worked example](intro-applied-modeling.qmd#ix-posterior-distribution-1)
 - **posterior predictive check**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-posterior-predictive-check-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-posterior-predictive-check-1); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-posterior-predictive-check-1)
 - **precision**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-precision-1)
@@ -179,12 +192,15 @@
 - **slope**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
 - **smooth density plot**: [EDA using graphics](eda-ggplot.qmd#ix-smooth-density-plot-1)
 - **softmax**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-softmax-1)
+- **spline** ([glossary](glossary.qmd#gl-spline)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-spline-1)
+- **standardization** ([glossary](glossary.qmd#gl-standardization)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-standardization-1)
 - **structural zero** ([glossary](glossary.qmd#gl-structural-zero)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-structural-zero-1)
 - **student-t distribution**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-student-t-distribution-1)
 - **survival curve** ([glossary](glossary.qmd#gl-survival-curve)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-survival-curve-1)
 
 ## T {.unnumbered .unlisted}
 
+- **table 2 fallacy** ([glossary](glossary.qmd#gl-table-2-fallacy)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-table-2-fallacy-1)
 - **term**: [Setting up your analysis toolchain](appendix-toolchain.qmd#ix-term-1); [Finding your way around the datasets](appendix-datasets.qmd#ix-term-1); [Designing and reading figures for papers](appendix-figures.qmd#ix-term-1); [Writing up results](appendix-reporting.qmd#ix-term-1); [Deciding how many animals to use](appendix-sample-size.qmd#ix-term-1); [Where to go next](appendix-next.qmd#ix-term-1)
 - **thresholds**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-thresholds-1)
 - **tipping-point analysis** ([glossary](glossary.qmd#gl-tipping-point-analysis)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-tipping-point-analysis-1)

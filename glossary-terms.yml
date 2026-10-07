@@ -712,3 +712,146 @@
   analogy: >
     A countdown of how many runners are still on the course, second by second.
   see_also: [censored]
+
+- term: causal diagram
+  status: draft
+  definition: >
+    A picture of what you assume causes what: variables as boxes and arrows from
+    each cause to its effects. It does not come from the data; it is a claim that
+    tells you which variables to hold fixed in a model and which not to.
+  analogy: >
+    The wiring plan of a house, drawn before you test any switch: it says which
+    switch is supposed to light which lamp, and a colleague can argue with it.
+  see_also: [fork, pipe, collider, adjustment set]
+
+- term: fork
+  status: draft
+  definition: >
+    A common cause of two variables (X <- Z -> Y). The two are associated without
+    either acting on the other, and the association disappears once the common
+    cause is held fixed.
+  analogy: >
+    One lamp on a pole lighting a window in each of two houses: the windows come
+    on together, and neither switches the other.
+  see_also: [pipe, collider, causal diagram]
+
+- term: pipe
+  status: draft
+  definition: >
+    A chain in which one variable acts on another through a third (X -> Z -> Y).
+    The middle variable is a mediator: holding it fixed blocks the effect that
+    passes through it.
+  analogy: >
+    Two tanks joined by a pipe: if you want to know what filling the top tank does
+    to the bottom one, you must not close the middle valve.
+  see_also: [fork, collider, causal diagram]
+
+- term: collider
+  status: draft
+  definition: >
+    A variable that is a common effect of two causes (X -> Z <- Y). The causes are
+    independent until you hold the collider fixed, select on it or drop the rows
+    where it is missing; doing so creates an association between them.
+  analogy: >
+    Two streams that meet in one pond: if you only count the fish you catch, and
+    you only catch them in a good pond, the two streams look related.
+  see_also: [fork, pipe, causal diagram]
+
+- term: backdoor path
+  status: draft
+  definition: >
+    A route from the exposure to the outcome that starts with an arrow pointing
+    into the exposure. It carries associations that are not effects, and an
+    adjustment set is a list of variables that closes every backdoor path.
+  analogy: >
+    The back doors of a house: the effect enters by the front door (the arrows
+    that leave the exposure), and every other door has to be shut.
+  see_also: [adjustment set, causal diagram]
+
+- term: adjustment set
+  status: draft
+  definition: >
+    The variables to hold fixed in a model so that the remaining association
+    between exposure and outcome is the causal effect, according to the causal
+    diagram. It closes every backdoor path without blocking the effect or opening
+    a new route through a collider.
+  analogy: >
+    The list of doors to lock before you count who came in by the front door.
+  see_also: [backdoor path, collider, causal diagram]
+
+- term: Table 2 fallacy
+  status: draft
+  definition: >
+    Reading the coefficients of the covariates of an adjusted model as their own
+    causal effects. The set of variables was chosen to unconfound one exposure,
+    and for every other variable in the model it is not an adjustment set.
+  analogy: >
+    Using the key that opens one lock as if it opened every door in the corridor.
+  see_also: [adjustment set, standardization]
+
+- term: standardization
+  status: draft
+  definition: >
+    Turning a fitted regression into a statement about a population: predict the
+    outcome for every unit as if it had each level of the exposure, then average
+    and compare. Also called g-computation; it gives a causal effect only if the
+    adjustment set is right, every kind of unit could have had either exposure,
+    and the exposure is well defined.
+  analogy: >
+    Photocopying the sample twice, relabelling every mouse in one copy and not in
+    the other, and comparing what the model predicts for the two copies.
+  see_also: [adjustment set, causal diagram]
+
+- term: spline
+  status: draft
+  definition: >
+    A flexible curve built as a weighted sum of small local functions (a basis),
+    usually with a penalty that stops it from wiggling more than the data
+    support. It is a linear regression with synthetic predictors.
+  analogy: >
+    The shipbuilder's thin wooden strip held down by lead weights: it takes the
+    smoothest shape that the weights allow.
+  see_also: [knot, basis function, effective degrees of freedom]
+
+- term: knot
+  status: draft
+  definition: >
+    A point on the predictor axis where one local piece of a spline hands over to
+    the next. With a penalty, the number of knots matters little once there are
+    enough of them.
+  analogy: >
+    The pegs along a washing line that decide where the line is allowed to bend.
+  see_also: [spline, basis function]
+
+- term: basis function
+  status: draft
+  definition: >
+    One of the small pre-specified functions (hill-shaped, in a B-spline) whose
+    weighted sum makes a spline. The weights are estimated like regression
+    coefficients, and they are not meant to be read one by one.
+  analogy: >
+    A row of friends with flashlights, each lighting the patch of wall near them;
+    the weight is how brightly each one shines.
+  see_also: [spline, knot]
+
+- term: effective degrees of freedom
+  status: draft
+  definition: >
+    The amount of flexibility a penalized smooth actually uses: 1 is a straight
+    line, about 2 a gentle curve, and values near the number of building blocks
+    mean the penalty found no reason to tax the curve.
+  analogy: >
+    The number of bends the strip is actually allowed once the weights have been
+    placed.
+  see_also: [spline]
+
+- term: ignorable
+  status: draft
+  definition: >
+    Missing values are ignorable given a set of variables when what makes a value
+    missing depends only on those variables, which are in the model. It is the
+    causal-diagram statement of missing at random.
+  analogy: >
+    A cook who drops the eggs that are cracked, where the cracks show on the
+    shell: you can account for it as long as the shell is in your notes.
+  see_also: [missing at random, causal diagram]
