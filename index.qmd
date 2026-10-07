@@ -1,7 +1,5 @@
 # Welcome {.unnumbered}
 
-![](images/index_cover.png){fig-align="center" width="45%" fig-alt="Book cover. Title Data analysis for Neuroscientists, subtitle Answering scientific questions with reproducible models, not asterisks, and the author Daniel Manrique-Castano, over a watercolor of a neuron drawn as a tree: its branches carry translucent teal uncertainty bands, its roots reach through a scatter of ochre data points, and a bell-shaped curve rises behind it like a sun."}
-
 This is the website for *Data analysis for Neuroscientists*, a book about building statistical models of the data we actually collect at the bench: tissue, behavior, spike counts, images. It is written by a neuroscientist for other neuroscientists, and for anyone at the bench who is tired of the run-the-test, look-for-the-asterisk routine and wants to see what the alternative looks like. The main line is Bayesian modeling with `brms` in R, and the frequentist equivalent of every model sits right next to it, so you can compare them for yourself.
 
 If you're deciding whether this book is for you, the [Preface](preface.qmd) tells you who I am, what I believe about modeling versus asterisks, and how the book is organized.

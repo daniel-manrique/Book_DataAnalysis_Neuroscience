@@ -14,6 +14,7 @@ book:
     right: |
       This book was created with <a href="https://quarto.org/">Quarto</a>.
   cover-image: images/index_cover.png
+  cover-image-alt: "Book cover. Title Data analysis for Neuroscientists, subtitle Answering scientific questions with reproducible models, not asterisks, and the author Daniel Manrique-Castano, over a watercolor of a neuron drawn as a tree: its branches carry translucent teal uncertainty bands, its roots reach through a scatter of ochre data points, and a bell-shaped curve rises behind it like a sun."
   #favicon: cover.png
   #site-url: https://quarto-tdg.org/
   repo-url: https://github.com/daniel-manrique/Book_DataAnalysis_Neuroscience
