@@ -12,7 +12,7 @@ book:
       Data analysis for Neuroscientists was written by Daniel Manrique-Castano (https://orcid.org/0000-0002-1912-1764).
     right: |
       This book was created with <a href="https://quarto.org/">Quarto</a>.
-  #cover-image: cover.png
+  cover-image: images/index_cover.png
   #favicon: cover.png
   #site-url: https://quarto-tdg.org/
   repo-url: https://github.com/daniel-manrique/Book_DataAnalysis_Neuroscience
