@@ -9,8 +9,7 @@ bibliography: references.bib
 
 library(ggplot2)
 
-# Load this book's shared ggplot theme (functions/plot_theme.R) so every
-# figure in the chapter shares the same look.
+# Shared ggplot theme for the whole book
 Plot_theme <- source("functions/plot_theme.R")
 Plot_theme <- Plot_theme$value
 ```
@@ -29,28 +28,23 @@ The posterior is what happens when you let the prior and the likelihood negotiat
 
 ![Credibility is a fixed amount of water in a tray. The prior spreads it evenly; the data tilt the tray and it flows toward the values that explain what we saw.](images/bayesian-core-workflow_tilted-tray.png){#fig-workflow-tray fig-align="center" width="90%" fig-alt="Watercolor sketch of a long shallow glass tray tilted on a small wooden wedge. Teal water has pooled deeply at the lower end and thins to a faint film across the rest, with a few ochre droplets sliding along the surface and a dotted line above the tray marking where an even, flat layer would sit."}
 
-Because our prior here was flat (no existing scientific information behind it, remember), there's nothing for the likelihood to fight against. All the credibility reallocation is done by the data alone, so the posterior should end up looking almost exactly like the likelihood itself. Let's check that directly, using the same fitted model from last chapter instead of a new example. In @fig-workflow_credibility_reallocation, the prior, the likelihood and the posterior are drawn as curves with `geom_line()` from `ggplot2`; a curve rather than a set of bars is the honest way to draw credibility spread over a continuous quantity, since bars would suggest that credibility jumps in steps.
+Because our prior here was flat (no existing scientific information behind it, remember), there's nothing for the likelihood to fight against. All the credibility reallocation is done by the data alone, so the posterior should end up looking almost exactly like the likelihood itself. Let's check that directly, using the same fitted model from last chapter instead of a new example. It takes three short steps, and none of them is magic.
+
+First, we reload what we already have. Each chapter starts a fresh R session, so the data subset is rebuilt in three lines. The `brms` fit [@brms] is read from the file where the first chapter saved it: `brm()` with `file` and `file_refit = "never"` loads the saved fit instead of running the chains again. We also refit the same model with `lm()` through `parsnip` [@parsnip]. That second fit is not here for comparison. We only need two numbers from it, the estimate of the ischemia effect and its standard error, because together they say where the data point and how sharply, which is exactly the shape of the likelihood. `tidy()` from `broom` [@broom] hands them over as a small table.
 
 ```{r}
-#| label: fig-workflow_credibility_reallocation
-#| fig-cap: Prior, likelihood, and posterior for the ischemia effect on GFAP intensity
-#| fig-width: 6
-#| fig-height: 5
-
 library(here)
 library(brms)
 library(parsnip)
 library(broom)
 library(posterior)
 
-# Same DPI 0 (SHAM) vs. DPI 3 (MCAO) subset of cell_data used in the first chapter,
-# rebuilt here because this is a fresh R session for this chapter.
+# Same DPI 0 vs 3 subset as the first chapter
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 cell_data_sub <- subset(cell_data, DPI %in% c(0, 3))
 cell_data_sub$Condition <- factor(cell_data_sub$Condition, levels = c("SHAM", "MCAO"))
 
-# Reload the exact brms fit from the first chapter rather than refitting it:
-# file_refit = "never" means brms just reads the cached .rds if it exists.
+# Cached brms fit from the first chapter (no refitting)
 brms_model <- brm(
   Gfap_Intensity ~ Condition,
   data = cell_data_sub,
@@ -59,72 +53,59 @@ brms_model <- brm(
   file_refit = "never"
 )
 
-# Frequentist counterpart to the same model. We only need it here for its
-# point estimate and standard error, which stand in for the likelihood's
-# center and spread in the grid approximation below.
+# lm fit, used only for the estimate and standard error
 parsnip_model <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Gfap_Intensity ~ Condition, data = cell_data_sub)
 
-# Pull out the ConditionMCAO coefficient's estimate and SE from the lm fit.
+# Estimate and standard error of the ischemia effect
 freq_tidy <- tidy(parsnip_model)
 freq_est <- freq_tidy$estimate[freq_tidy$term == "ConditionMCAO"]
 freq_se  <- freq_tidy$std.error[freq_tidy$term == "ConditionMCAO"]
+```
 
-# A grid of 500 plausible values for the ischemia effect, spanning 5 standard
-# errors either side of the frequentist estimate. step is the grid spacing,
-# used below to keep each density properly normalized (area under curve = 1).
+Second, we build the curves by hand, on a grid. Instead of asking R for a formula, we list 500 candidate values for the ischemia effect, evenly spaced from five standard errors below the estimate to five above, and score each one. The flat prior gives every candidate the same density. (A truly flat prior has no density to plot, so we use a wide uniform over the same grid, which looks identical on the page.) The likelihood is a normal curve centered on the estimate, with the standard error as its spread, a good approximation for a linear model like this one. The posterior is Bayes' rule at its most literal: multiply prior and likelihood candidate by candidate, then rescale so the area under the curve is 1 again. Finally, `as_draws_df()` from the `posterior` package [@posterior] turns the `brms` fit into a table with one row per draw, and base R's `density()` smooths those draws into a curve, so we can set our hand-made posterior next to the real one.
+
+```{r}
+# 500 candidate effect sizes, 5 standard errors either side of the estimate
 grid <- seq(freq_est - 5 * freq_se, freq_est + 5 * freq_se, length.out = 500)
-step  <- mean(diff(grid))
+step <- mean(diff(grid))   # spacing, used to rescale densities to area 1
 
-# brms's default prior on this coefficient is flat (improper): every value
-# equally credible. A true flat prior has no density to plot, so we stand in
-# for it with a wide uniform over the same grid, purely for display.
+# Flat prior: the same density at every candidate
 prior_density <- rep(1 / diff(range(grid)), length(grid))
 
-# The likelihood curve: how well each candidate effect size explains the data,
-# approximated here by the normal shape implied by the frequentist fit's
-# estimate and standard error.
+# Likelihood: normal curve at the estimate, rescaled to area 1
 likelihood_curve <- dnorm(grid, mean = freq_est, sd = freq_se)
 likelihood_curve <- likelihood_curve / (sum(likelihood_curve) * step)
 
-# Bayes' rule at its most literal: posterior is proportional to prior times
-# likelihood, computed pointwise over the grid, then renormalized so the
-# result is a proper density again (area under the curve equal to 1).
+# Posterior = prior x likelihood, rescaled to area 1
 posterior_grid <- prior_density * likelihood_curve
 posterior_grid <- posterior_grid / (sum(posterior_grid) * step)
 
-# One shared factor for all four curves, in display order. Mapping the
-# same variable to both color and linetype collapses them into a single
-# legend instead of two separate stacked ones.
-curve_levels <- c("Prior (flat)", "Likelihood", "Posterior (grid approximation)", "brms posterior draws (MCMC)")
-
-grid_df <- data.frame(
-  beta1 = rep(grid, 3),
-  density = c(prior_density, likelihood_curve, posterior_grid),
-  curve = factor(rep(curve_levels[1:3], each = length(grid)), levels = curve_levels)
-)
-
-# The actual posterior brms gave us, computed as a plain density curve
-# rather than geom_density()'s filled-area layer, so its legend key is a
-# clean line to match the other three, not a solid box.
+# Density of the draws from the real brms posterior
 actual_draws <- as_draws_df(brms_model)
 brms_dens <- density(actual_draws$b_ConditionMCAO)
-brms_df <- data.frame(
-  beta1 = brms_dens$x,
-  density = brms_dens$y,
-  curve = factor(curve_levels[4], levels = curve_levels)
+
+# All four curves in one long table, named in the curve column
+curve_levels <- c("Prior (flat)", "Likelihood", "Posterior (grid approximation)", "brms posterior draws (MCMC)")
+curve_df <- rbind(
+  data.frame(beta1 = grid, density = prior_density, curve = curve_levels[1]),
+  data.frame(beta1 = grid, density = likelihood_curve, curve = curve_levels[2]),
+  data.frame(beta1 = grid, density = posterior_grid, curve = curve_levels[3]),
+  data.frame(beta1 = brms_dens$x, density = brms_dens$y, curve = curve_levels[4])
 )
+curve_df$curve <- factor(curve_df$curve, levels = curve_levels)
+```
 
-# Stack the grid-based curves and the brms density curve into one long
-# data frame, ready for a single ggplot call keyed on the curve column.
-curve_df <- rbind(grid_df, brms_df)
+Third, the plot. @fig-workflow_credibility_reallocation draws each curve with `geom_line()` from `ggplot2` [@wickham2016]. A curve rather than a set of bars is the honest way to show credibility spread over a continuous quantity, since bars would suggest that it jumps in steps. Two design choices are worth keeping for your own figures. The colors come from the Okabe-Ito palette, which stays distinguishable for readers with color vision deficiency. And because the likelihood, the grid posterior and the `brms` posterior are nearly the same curve here, solid lines would bury two of the three under the last one drawn, so every curve also gets its own dash pattern. Mapping the same column to both color and line type has a bonus: `ggplot2` merges them into a single legend.
 
-# The likelihood and grid-approximation posterior are, by construction,
-# almost exactly the same curve here (a flat prior changes nothing), and
-# both nearly coincide with brms's own posterior too. Plotting all three as
-# solid lines would bury two of them entirely, so distinct dash patterns
-# keep every layer visible even where they land on the same pixels.
+```{r}
+#| label: fig-workflow_credibility_reallocation
+#| fig-cap: Prior, likelihood, and posterior for the ischemia effect on GFAP intensity
+#| fig-width: 6
+#| fig-height: 5
+
+# Okabe-Ito colors and a distinct dash pattern for every curve
 curve_colors <- c(
   "Prior (flat)" = "grey60",
   "Likelihood" = "#D55E00",
@@ -138,20 +119,19 @@ curve_linetypes <- c(
   "brms posterior draws (MCMC)" = "longdash"
 )
 
-# color and linetype both mapped to the same "curve" column, so ggplot
-# draws one combined legend instead of two separate ones.
+# Same column for color and linetype gives a single legend
 ggplot(curve_df, aes(x = beta1, y = density, color = curve, linetype = curve)) +
   geom_line(linewidth = 0.9) +
   scale_color_manual(values = curve_colors) +
   scale_linetype_manual(values = curve_linetypes) +
   labs(x = "Plausible ischemia effect on GFAP intensity", y = "Density", color = NULL, linetype = NULL) +
-  # Wrap the 4 legend entries into 2 rows instead of a single wide one
+  # Legend in two rows
   guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
   Plot_theme +
   legend_bottom()
 ```
 
-The grey line, the flat prior, is going nowhere; it treats every value on the x-axis as equally plausible going in. The dashed vermillion line is the likelihood, and it's already doing the real work: it's tall and narrow right around where the data actually points. The dotted blue posterior traces the exact same path, because multiplying by a flat line doesn't change a curve's shape. We gave it a different dash pattern specifically so it wouldn't just disappear underneath the likelihood. The long-dashed black line (the real posterior `brms` handed you, drawn from the MCMC chains, not from our grid approximation) traces that same path a third time. Three different dash patterns landing on the identical curve isn't a coincidence we got lucky with; it's the direct, visible consequence of starting with a prior that carried no existing scientific information to contribute.
+The grey line, the flat prior, is going nowhere; it treats every value on the x-axis as equally plausible going in. The dashed vermillion line is the likelihood, and it's already doing the real work: it's tall and narrow right around where the data actually points. The dotted blue posterior traces the exact same path, because multiplying by a flat line doesn't change a curve's shape. The long-dashed black line (the real posterior `brms` handed you, drawn from the MCMC chains, not from our grid approximation) traces that same path a third time. Three different dash patterns landing on the identical curve isn't a coincidence we got lucky with; it's the direct, visible consequence of starting with a prior that carried no existing scientific information to contribute.
 
 Worth flagging precisely, since it'll matter later: that flat default only applies to coefficients like `ConditionMCAO`. The intercept gets its own, different default (a weakly informative prior scaled to the data), so "`brms` used a flat prior" is a statement about this specific slope, not about the model as a whole.
 
@@ -190,24 +170,20 @@ A statistical model can be tested the exact same way, and this is one of the mor
 
 Let's actually run that control on the model from this chapter, rather than describing it in the abstract. We'll invent a ground truth (a baseline GFAP intensity in sham animals, a specific size for the ischemia effect, and a specific amount of noise), generate a fake dataset from it, and see whether fitting our usual model recovers the numbers we planted. @tbl-workflow_sbc_truth lists the numbers we plant.
 
+The code simply runs the model equation forward. Every animal gets the sham baseline, plus the planted effect if it is an `MCAO` animal, plus a random amount of noise. The noise comes from `rnorm()`, which draws random numbers from a normal distribution whose spread is the `sigma` we chose. `set.seed()` fixes R's random number generator, so the fake data, and every number we quote from them below, are the same each time the book is rendered. We use eight animals per group, about the size of the real study (seven sham and eight ischemic animals), and `gt` [@gt] to print what we planted as a table.
+
 ```{r}
 #| label: tbl-workflow_sbc_truth
 #| tbl-cap: Ground-truth parameters used to simulate the fake dataset
 
-# Fix the random seed so the simulated dataset (and every number quoted in
-# the prose below, computed from it) is identical on every re-render.
-set.seed(2025)
+set.seed(2025)   # same fake data on every render
 
-true_beta0 <- 30   # baseline GFAP intensity we're choosing for sham animals
-true_beta1 <- 107  # ischemia effect we're planting, on the scale of the real data
-true_sigma <- 20   # noise we're choosing to add
+true_beta0 <- 30    # sham baseline
+true_beta1 <- 107   # ischemia effect, on the scale of the real data
+true_sigma <- 20    # residual noise
+n_per_group <- 8    # animals per group
 
-n_per_group <- 8   # animals per group, matching the real dataset's scale
-
-# Build a two-group design like the real one (8 SHAM, 8 MCAO), then
-# generate Gfap_Intensity directly from the model equation
-# Gfap_i = beta0 + beta1 * Condition_i + noise, using OUR chosen true values
-# instead of estimating them from real data.
+# Two groups, then value = baseline + effect (MCAO only) + noise
 sim_data <- data.frame(
   Condition = factor(rep(c("SHAM", "MCAO"), each = n_per_group), levels = c("SHAM", "MCAO"))
 )
@@ -215,6 +191,7 @@ sim_data$Gfap_Intensity <- true_beta0 +
   true_beta1 * (sim_data$Condition == "MCAO") +
   rnorm(nrow(sim_data), mean = 0, sd = true_sigma)
 
+# Table of the planted values
 library(gt)
 gt(data.frame(
   parameter = c("beta0 (baseline)", "beta1 (ischemia effect)", "sigma (noise)"),
@@ -224,14 +201,13 @@ gt(data.frame(
 
 Notice we picked realistic numbers (an effect size and noise level in the same ballpark as the real GFAP data from last chapter) rather than something arbitrary. A generative check is only as informative as the fake data is realistic; simulating an effect twenty times larger than anything biologically plausible would tell you nothing about whether the model can handle *your* data.
 
-Following our usual practice, let's fit that model both ways, the same `brms`/`parsnip` pairing from @sec-intro-applied-modeling, on the fake data. Fitting it both ways here isn't just habit: it means we get to check, in a moment, whether the frequentist fit recovers the planted truth just as well as the Bayesian one does, or whether the two behave differently once we know the right answer in advance.
+Following our usual practice, let's fit that model both ways, the same `brms`/`parsnip` pairing from @sec-intro-applied-modeling, on the fake data. Fitting it both ways here isn't just habit: it means we get to check, in a moment, whether the frequentist fit recovers the planted truth just as well as the Bayesian one does, or whether the two behave differently once we know the right answer in advance. Nothing changes in the code except the data: `brm()` takes the same formula `lm()` does, `seed` makes the sampling reproducible, and `file` with `file_refit = "never"` saves the fit the first time and reloads it afterwards, so re-rendering the book does not rerun the chains.
 
 ::: panel-tabset
 ### brms
 
 ```{r}
-# Identical model formula to the real-data fit earlier in this chapter,
-# just pointed at sim_data instead of cell_data_sub.
+# Same model as before, on the simulated data
 sbc_fit <- brm(
   Gfap_Intensity ~ Condition,
   data = sim_data,
@@ -244,8 +220,7 @@ sbc_fit <- brm(
 ### parsnip
 
 ```{r}
-# Same lm() fit as in the first chapter, now on the simulated data, so we can check
-# whether the frequentist side also recovers the planted true_beta1.
+# Same lm() fit, to see whether it also recovers the planted effect
 sbc_parsnip <- linear_reg() %>%
   set_engine("lm") %>%
   fit(Gfap_Intensity ~ Condition, data = sim_data)
@@ -254,24 +229,20 @@ tidy(sbc_parsnip, conf.int = TRUE)
 ```
 :::
 
-Before we even look at whether either fit landed anywhere near 107, there's a prior question specific to the Bayesian side: did the sampler itself do its job? Think of it like checking that a balance is properly tared before you trust the weight it reports: a miscalibrated scale can hand you a perfectly confident-looking number that's simply wrong, and MCMC has its own version of that failure. `brms` doesn't just compute a posterior; it explores it by simulating a chain of draws, and that exploration can go badly even when nothing *looks* obviously broken in a summary table. Three numbers tell us whether to trust it: [Rhat]{style="color:green; font-weight:bold;"}, which compares independent chains against each other and should sit under 1.01 if they've all converged on the same distribution; [effective sample size]{style="color:green; font-weight:bold;"} (ESS), which measures how many genuinely independent-ish draws we actually got out of possibly-correlated MCMC samples, and should clear 400 for both the bulk and the tails of the distribution; and the count of [divergent transitions]{style="color:green; font-weight:bold;"}, which should be exactly zero. Even one divergence means the sampler failed to explore some region of the posterior, and there's no way to tell from the outside which region.
+Before we even look at whether either fit landed anywhere near 107, there's a prior question specific to the Bayesian side: did the sampler itself do its job? Think of it like checking that a balance is properly tared before you trust the weight it reports: a miscalibrated scale can hand you a perfectly confident-looking number that's simply wrong, and MCMC has its own version of that failure. `brms` doesn't just compute a posterior; it explores it by simulating a chain of draws, and that exploration can go badly even when nothing *looks* obviously broken in a summary table. Three numbers tell us whether to trust it: [Rhat]{style="color:green; font-weight:bold;"}, which compares independent chains against each other and should sit under 1.01 if they've all converged on the same distribution; [effective sample size]{style="color:green; font-weight:bold;"} (ESS), which measures how many genuinely independent-ish draws we actually got out of possibly-correlated MCMC samples, and should clear 400 for both the bulk and the tails of the distribution; and the count of [divergent transitions]{style="color:green; font-weight:bold;"}, which should be exactly zero. Even one divergence means the sampler failed to explore some region of the posterior, and there's no way to tell from the outside which region. To get all three, we turn the fit into a table of draws with `as_draws_df()`, ask `summarise_draws()` from `posterior` for Rhat and both effective sample sizes [@vehtari2021], and add up the divergence flags that `nuts_params()` records for every iteration of the sampler. @tbl-workflow_sbc_diagnostics keeps only the three model parameters and drops bookkeeping columns such as `lp__`.
 
 ```{r}
 #| label: tbl-workflow_sbc_diagnostics
 #| tbl-cap: MCMC diagnostics for the simulation-based calibration fit
 
-# Every posterior draw from every chain, in tidy data-frame form.
+# One row per posterior draw
 sbc_draws <- as_draws_df(sbc_fit)
 
-# posterior::summarise_draws() computes Rhat and both effective sample
-# sizes per parameter in one call; we only keep the 3 model parameters
-# (dropping bookkeeping columns like lp__).
+# Rhat and effective sample sizes for the three parameters
 sbc_diagnostics <- summarise_draws(sbc_draws, "rhat", "ess_bulk", "ess_tail")
 sbc_diagnostics <- subset(sbc_diagnostics, variable %in% c("b_Intercept", "b_ConditionMCAO", "sigma"))
 
-# nuts_params() exposes per-iteration NUTS sampler diagnostics; the
-# "divergent__" row flags, per draw, whether that transition diverged.
-# Summing it gives the total count of divergences across all chains.
+# Divergent transitions, summed over all chains
 n_divergent <- sum(subset(nuts_params(sbc_fit), Parameter == "divergent__")$Value)
 
 gt(sbc_diagnostics)
@@ -281,6 +252,8 @@ Every Rhat in @tbl-workflow_sbc_diagnostics sits at `r sprintf("%.3f", max(sbc_d
 
 With that settled, let's look at what the Bayesian fit actually recovered. A bare density curve would technically show us the posterior, but this entire chapter has been building the case that a hard-edged single number is the wrong way to represent uncertainty, so let's not undercut that argument in our own figure. We'll draw the full shape of the posterior alongside the same style of equal-tailed credible interval we used in @sec-intro-applied-modeling, so "did we recover the truth" has a precise, checkable answer instead of an eyeballed one.
 
+The numbers come straight from the draws: the median, and the 2.5% and 97.5% quantiles, which bracket the middle 95%. The figure uses `stat_halfeye()` from `ggdist` [@ggdist; @kay2024], which draws the density of the draws and, underneath it, a dot for the median with a thick and a thin bar for the 66% and 95% intervals. A dashed line marks the planted value. We also pull the `lm` estimate and its confidence interval with `tidy()`, to quote in the frequentist note further down.
+
 ```{r}
 #| label: fig-workflow_sbc_recovery
 #| fig-cap: Recovered posterior for the ischemia effect, against the planted true value
@@ -289,24 +262,21 @@ With that settled, let's look at what the Bayesian fit actually recovered. A bar
 
 library(ggdist)
 
-# Posterior median and a 95% equal-tailed credible interval for the
-# recovered ischemia effect, computed directly from the MCMC draws.
+# Median and 95% equal-tailed interval from the draws
 sbc_post_median <- median(sbc_draws$b_ConditionMCAO)
 sbc_post_lo <- quantile(sbc_draws$b_ConditionMCAO, 0.025)
 sbc_post_hi <- quantile(sbc_draws$b_ConditionMCAO, 0.975)
 
-# Same extraction as for the first chapter's frequentist model, now on the simulated-
-# data fit, so we can quote the parsnip/lm result in the callout below too.
+# Same quantities from the lm fit, for the frequentist note
 sbc_freq_tidy <- tidy(sbc_parsnip, conf.int = TRUE)
 sbc_freq_est <- sbc_freq_tidy$estimate[sbc_freq_tidy$term == "ConditionMCAO"]
 sbc_freq_lo  <- sbc_freq_tidy$conf.low[sbc_freq_tidy$term == "ConditionMCAO"]
 sbc_freq_hi  <- sbc_freq_tidy$conf.high[sbc_freq_tidy$term == "ConditionMCAO"]
 
 ggplot(sbc_draws, aes(x = b_ConditionMCAO)) +
-  # Half-eye: full posterior density on top, point + 66%/95% interval below,
-  # so "did we recover the truth" has a precise interval to check against.
+  # Density plus median and 66% / 95% intervals
   stat_halfeye(fill = "#0072B2", alpha = 0.7, .width = c(0.66, 0.95)) +
-  # Vertical marker at the true value we planted when simulating sim_data.
+  # Dashed line at the planted value
   geom_vline(xintercept = true_beta1, color = "#D55E00", linewidth = 1, linetype = "dashed") +
   annotate("text", x = true_beta1, y = 0, label = "true value", vjust = -1, hjust = -0.1, color = "#D55E00") +
   labs(x = "Recovered ischemia effect (posterior)", y = NULL) +

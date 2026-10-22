@@ -63,6 +63,7 @@
 - **effective sample size**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-effective-sample-size-1); [MCMC and model checking](mcmc-model-checking.qmd#ix-effective-sample-size-1)
 - **equal-tailed interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-equal-tailed-interval-1)
 - **error**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-error-1)
+- **error term**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-error-term-1)
 - **exploratory data analysis**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-exploratory-data-analysis-1)
 
 ## F {.unnumbered .unlisted}
@@ -92,10 +93,10 @@
 - **ignorable** ([glossary](glossary.qmd#gl-ignorable)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-ignorable-1)
 - **independence**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-independence-1)
 - **independence of irrelevant alternatives** ([glossary](glossary.qmd#gl-independence-of-irrelevant-alternatives)): [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-independence-of-irrelevant-alternatives-1)
-- **indicator variable**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-indicator-variable-1)
+- **indicator variable**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-indicator-variable-1); [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-indicator-variable-1)
 - **informative censoring** ([glossary](glossary.qmd#gl-informative-censoring)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-informative-censoring-1)
 - **interaction**: [Asking what else explains the tissue loss](linear-regression-multiple.qmd#ix-interaction-1)
-- **intercept**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-intercept-1)
+- **intercept**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-intercept-1); [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-intercept-1)
 - **intraclass correlation** ([glossary](glossary.qmd#gl-intraclass-correlation)): [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-intraclass-correlation-1); [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-intraclass-correlation-1) ([2](multilevel-intro.qmd#ix-intraclass-correlation-2)); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-intraclass-correlation-1); [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-intraclass-correlation-1); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-intraclass-correlation-1)
 
 ## K {.unnumbered .unlisted}
@@ -147,7 +148,7 @@
 - **odds**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-odds-1)
 - **offset** ([glossary](glossary.qmd#gl-offset)): [Counting cells and spikes](count-regression.qmd#ix-offset-1) ([2](count-regression.qmd#ix-offset-2))
 - **ordinal outcomes**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-ordinal-outcomes-1)
-- **outcome**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-outcome-1)
+- **outcome**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-outcome-1); [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-outcome-1)
 - **outliers**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-outliers-1)
 
 ## P {.unnumbered .unlisted}
@@ -189,10 +190,11 @@
 - **shrinkage** ([glossary](glossary.qmd#gl-shrinkage)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-shrinkage-1) ([2](multilevel-intro.qmd#ix-shrinkage-2))
 - **simulation-based calibration**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-simulation-based-calibration-1)
 - **skew**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-skew-1)
-- **slope**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
+- **slope**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-slope-1); [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
 - **smooth density plot**: [EDA using graphics](eda-ggplot.qmd#ix-smooth-density-plot-1)
 - **softmax**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-softmax-1)
 - **spline** ([glossary](glossary.qmd#gl-spline)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-spline-1)
+- **standard deviation**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-standard-deviation-1)
 - **standardization** ([glossary](glossary.qmd#gl-standardization)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-standardization-1)
 - **structural zero** ([glossary](glossary.qmd#gl-structural-zero)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-structural-zero-1)
 - **student-t distribution**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-student-t-distribution-1)
