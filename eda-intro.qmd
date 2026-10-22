@@ -8,9 +8,35 @@ bibliography: references.bib
 
 library(here)
 library(gt)
+library(ggplot2)
+library(patchwork)
+library(ggdist)
+library(gghalves)
+
+# Book plotting theme and legend helpers
+Plot_theme <- source("functions/plot_theme.R")$value
 
 # Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
+
+# Extreme values at day 7 (same injury, same survival time, very different response)
+gfap_d7 <- cell_data$Gfap_IntDen[cell_data$DPI == 7]
+gfap_d7_range <- range(gfap_d7)
+gfap_d7_fold <- gfap_d7_range[2] / gfap_d7_range[1]
+
+# Day 30: find the widest gap between neighbouring animals (low group vs high group)
+gfap_d30 <- sort(cell_data$Gfap_IntDen[cell_data$DPI == 30])
+gap_at <- which.max(diff(gfap_d30))
+d30_low_max <- gfap_d30[gap_at]
+d30_high_min <- gfap_d30[gap_at + 1]
+d30_n_low <- gap_at
+d30_n_high <- length(gfap_d30) - gap_at
+
+# The one animal the usual boxplot rule flags at day 0
+gfap_d0 <- cell_data[cell_data$DPI == 0, ]
+d0_flag_value <- boxplot.stats(gfap_d0$Gfap_IntDen)$out
+d0_flag_id <- gfap_d0$MouseID[gfap_d0$Gfap_IntDen %in% d0_flag_value]
+d0_median <- median(gfap_d0$Gfap_IntDen)
 
 # Numbers quoted in the text, computed from the data so they cannot drift
 gfap_range <- range(cell_data$Gfap_IntDen)
@@ -28,7 +54,7 @@ By now you've watched a posterior distribution get built, taken apart, and inter
 
 Most of us know the temptation. The experiment is done, the lab meeting is on Thursday, and the fastest route to a slide is to feed the spreadsheet straight into a model or a test. Nobody would run a Western blot that way: you check the loading control before you trust the band. [Exploratory data analysis]{style="color:green; font-weight:bold;"} (EDA) is the same instinct applied to a spreadsheet instead of a gel. It means summarizing and visualizing your data before you model it, on purpose and systematically, looking for structure and patterns, and for the things that quietly break models: missing values, extreme values (outliers), and outright errors. Neuroscience data makes this more urgent than usual, because a single dataset can mix marker intensities, structural brain metrics, electrophysiological recordings, or cell counts from techniques like FACS, each with its own scale and its own ways of misbehaving.
 
-The cornerstone of EDA is [visualization]{style="color:green; font-weight:bold;"}. In my own work, I trust a scatterplot faster than I trust a table of means and standard deviations; a plot shows me the shape of the data, while a summary table has already thrown that shape away and handed me two numbers instead. A scatterplot can reveal a nonlinear relationship that a correlation coefficient would flatten into a single misleading number; a boxplot can flag an outlier that a mean would have quietly absorbed. @fig-eda-intro-shadow is the picture I keep in mind: a table of summaries is the shadow, and two quite different objects can cast the same one.
+The cornerstone of EDA is [visualization]{style="color:green; font-weight:bold;"}. In my own work, I trust a scatterplot faster than I trust a table of means and standard deviations; a plot shows me the shape of the data, while a summary table has already thrown that shape away and handed me two numbers instead. A scatterplot can reveal a nonlinear relationship that a correlation coefficient would flatten into a single misleading number; a boxplot can flag an extreme value that a mean would have quietly absorbed. @fig-eda-intro-shadow is the picture I keep in mind: a table of summaries is the shadow, and two quite different objects can cast the same one.
 
 ![Two very different objects, one identical shadow. A table of means and standard deviations is just the shadow; a plot is the object itself.](images/eda-intro_same-shadow-different-shape.png){#fig-eda-intro-shadow fig-align="center" width="90%" fig-alt="Watercolor sketch of a small wooden table lit by a desk lamp, with a teal glass sphere and an upright ochre disc on it. On the wall behind, the two objects cast two identical round grey-blue shadows side by side."}
 
@@ -82,13 +108,87 @@ A two-humped shape is often a clue that you are looking at a mixture: two cell p
 
 ### Looking at relationships
 
-Beyond single variables, EDA examines how variables move together. A scatter plot of marker intensity against `Tissue_Area`, for example, shows a clear negative relationship (r ≈ `r sprintf("%.2f", r_pdgfrb_area)` for `Pdgfrb_IntDen`), and it is not hard to see why: the section shrinks as the injury progresses (r ≈ `r sprintf("%.2f", r_area_dpi)` between `Tissue_Area` and DPI) while the markers increase. Grouped boxplots, violin plots, or the raincloud plots we will build later (a half-density, the raw points, and a boxplot in one picture) show how location and [variability]{style="color:green; font-weight:bold;"} change across groups or time points. That is where the second surprise of `cell_data` lives: the spread of `Gfap_IntDen` is not constant, with a standard deviation near `r round(gfap_sd_d0)` at day 0 against nearly `r round(gfap_sd_d7)` at day 7. These plots are not decorations for publication, adorned with asterisks and p-values. They are how we decide what to ask next.
+Beyond single variables, EDA examines how variables move together. A scatter plot of marker intensity against `Tissue_Area`, for example, shows a clear negative relationship (r ≈ `r sprintf("%.2f", r_pdgfrb_area)` for `Pdgfrb_IntDen`; @fig-eda-intro-gallery, panel A), and it is not hard to see why: the section shrinks as the injury progresses (r ≈ `r sprintf("%.2f", r_area_dpi)` between `Tissue_Area` and DPI) while the markers increase. Grouped boxplots, violin plots, or the raincloud plots we will build later (a half-density, the raw points, and a boxplot in one picture) show how location and [variability]{style="color:green; font-weight:bold;"} change across groups or time points (panels B to D). That is where the second surprise of `cell_data` lives: the spread of `Gfap_IntDen` is not constant, with a standard deviation near `r round(gfap_sd_d0)` at day 0 against nearly `r round(gfap_sd_d7)` at day 7. These plots are not decorations for publication, adorned with asterisks and p-values. They are how we decide what to ask next.
+
+Before we go deeper, I want you to see how much variety is on offer, because most of us were trained on one or two chart types (the bar of means with an asterisk on top, mostly). @fig-eda-intro-gallery is a first taste, and nothing more: the real code, and the reasoning behind each choice, come in @sec-eda-ggplot. Panels B, C and D draw the very same `r nrow(cell_data)` animals three ways, so you can watch each chart type reveal, or hide, something different.
+
+```{r}
+#| label: fig-eda-intro-gallery
+#| fig-cap: "Four ways of looking at `cell_data`. A: scatter plot of PDGFR-β against tissue area, one point per animal. B to D: GFAP integrated density by day post-ischemia drawn as a boxplot (B), a violin plot (C) and a raincloud plot (D)."
+#| fig-alt: "Four panels. A: scatter plot in which ischemic animals, drawn as blue triangles, show higher PDGFR-β integrated density at smaller tissue areas, while sham animals, drawn as orange circles, sit at large tissue area and low PDGFR-β. B: boxplots of GFAP integrated density rising from day 0 to day 7 and staying high through day 30, with a much wider box at day 7. C: violin plots of the same data; day 30 narrows in the middle, hinting at two humps. D: raincloud plots combining half-densities, boxplots and individual animals for each day."
+#| fig-width: 9
+#| fig-height: 7
+
+# Colorblind-safe colours (Okabe-Ito); the scatter also uses shape, so it reads in grayscale
+okabe_ito <- c(SHAM = "#E69F00", MCAO = "#0072B2")
+
+# Day as a category, so each day gets its own box, violin or cloud
+cell_data$DPI_f <- factor(cell_data$DPI)
+
+# Smaller text than the single-figure theme, so four panels fit on one page
+Plot_theme_small <- Plot_theme +
+  theme(
+    plot.title = element_text(size = 13, hjust = 0, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 11),
+    axis.line = element_line(linewidth = 0.8),
+    axis.ticks = element_line(linewidth = 0.6),
+    axis.ticks.length = unit(4, "pt")
+  )
+
+# A: one point per animal; the legend sits in the empty upper right corner
+p_scatter <- ggplot(cell_data, aes(Tissue_Area, Pdgfrb_IntDen,
+                                   color = Condition, shape = Condition)) +
+  geom_point(size = 2.4, alpha = 0.85) +
+  scale_color_manual(values = okabe_ito) +
+  scale_shape_manual(values = c(SHAM = 16, MCAO = 17)) +
+  labs(title = "Scatter plot", x = "Tissue area (mm²)",
+       y = "PDGFR-β integrated density") +
+  Plot_theme_small + legend_inside(0.82, 0.85)
+
+# B: five-number summary per day
+p_box <- ggplot(cell_data, aes(DPI_f, Gfap_IntDen)) +
+  geom_boxplot(fill = "#56B4E9", alpha = 0.6, width = 0.6) +
+  labs(title = "Boxplot", x = "Days post-ischemia", y = "GFAP integrated density") +
+  Plot_theme_small
+
+# C: the whole shape of the distribution per day
+p_violin <- ggplot(cell_data, aes(DPI_f, Gfap_IntDen)) +
+  geom_violin(fill = "#009E73", alpha = 0.55, width = 0.9, scale = "width") +
+  labs(title = "Violin plot", x = "Days post-ischemia", y = "GFAP integrated density") +
+  Plot_theme_small
+
+# D: half-density (the cloud), boxplot, and every animal (the rain)
+p_rain <- ggplot(cell_data, aes(DPI_f, Gfap_IntDen)) +
+  stat_halfeye(adjust = 0.6, width = 0.6, .width = 0, normalize = "groups",
+               justification = -0.2, point_colour = NA,
+               fill = "#D55E00", alpha = 0.6) +
+  geom_boxplot(width = 0.15, outlier.shape = NA) +
+  geom_half_point(side = "l", range_scale = 0.35, alpha = 0.7, size = 1.6) +
+  labs(title = "Raincloud plot", x = "Days post-ischemia", y = "GFAP integrated density") +
+  Plot_theme_small
+
+# Assemble the four panels and tag them A to D
+(p_scatter | p_box) / (p_violin | p_rain) + plot_annotation(tag_levels = "A")
+```
+
+A word on why the figure looks like this, since it is not the default most of us inherited. Everything is drawn with `ggplot2` [@wickham2016], the clouds with `ggdist::stat_halfeye()` [@ggdist] and the raw points with `gghalves::geom_half_point()` [@gghalves], and the panels are stitched together with `patchwork` [@patchwork]. The reason to prefer these forms is that each day here holds only `r min(table(cell_data$DPI))` to `r max(table(cell_data$DPI))` animals. A bar of means with an asterisk would squeeze each of those groups into one number and one star, and you would never learn that the spread explodes after day 3. A design tip you can steal for your own figures: when the groups are small, show every animal.
+
+::: {.callout-tip title="How to read this gallery"}
+Start with panel A: each point is one animal, its position says how large its section was and how much PDGFR-β it showed, and the shape and color tell you whether it was sham or ischemic. Now compare panels B, C and D, which share the same y-axis. In the boxplot, the box holds the middle half of the animals and the thick line is the median. In the violin, width means "many animals have values around here". In the raincloud, you get the width *and* the animals themselves, so you can count them. What to look for is the spread: the day 0 box is tiny and the day 7 box is enormous, and each chart tells you so in its own way. The one mistake to avoid is reading a smooth violin as if it held thousands of observations; each one here rests on about ten animals.
+:::
 
 Two ideas often get mixed up at this stage, and they deserve their own names. Two predictors that are strongly correlated with each other (like `Pdgfrb_Area` and `Pdgfrb_IntDen`) are [collinear]{style="color:green; font-weight:bold;"}: they carry overlapping information, and a model that includes both will struggle to apportion credit between them (two thermometers taped side by side tell you the temperature, but not which of them to thank). A [confounder]{style="color:green; font-weight:bold;"} is something different: a variable that influences both the predictor you care about and the outcome, and so can manufacture or hide an association (if the sham mice were all stained in Monday's batch and the ischemic ones on Thursday's, the batch is a confounder of the group difference you think you see). Here, DPI plays that role in the relationship between the two markers. Plots can alert you to both, but only your knowledge of the experiment tells you which one you are looking at. We screen for collinearity systematically in @sec-eda-ggpairs and quantify it on a fitted model in @sec-linear-regression-assumptions.
 
-### Looking for the unusual
+### Looking for extreme values
 
-Finally, EDA is how you find [outliers]{style="color:green; font-weight:bold;"}: points that sit far from the rest. Suppose a few measurements of GFAP intensity are extraordinarily high. They could be a rare biological event, such as a pronounced astrocytic response in a subset of animals, or a measurement error. The plot cannot tell you which; the lab notebook and the microscope session can. What EDA does is make sure you *ask*, because a single extreme point can dominate a fit and produce a "significant" result that disappears without it. And asking is not the same as deleting. Removing a point because it is inconvenient is its own kind of bias, and when extreme values are legitimate, the better answer is usually a model that expects them, such as the Student-t regression in @sec-beta-robust-regression.
+Finally, EDA is how you find the points that sit far from the rest of the data. The usual name for them is [outliers]{.ix ix="extreme values"}, and I am going to avoid the word as much as I can, because it arrives with a verdict attached. An outlier is something that lies *outside*: a stray, a nuisance, a row to be tidied away so that the real analysis can begin. A plot cannot tell you any of that. All it can tell you is that a point is far from the others, so I prefer to call these [extreme values]{style="color:green; font-weight:bold;"}, and to treat the name as a description, not a diagnosis.
+
+Here is why I care. Behind every extreme value in our data there is a mouse. Take the animals in `cell_data` at day 7 after ischemia: same surgery, same survival time, processed and imaged by the same hands. Their GFAP integrated density runs from `r round(gfap_d7_range[1])` to `r round(gfap_d7_range[2])`, a `r round(gfap_d7_fold)`-fold range. The animal at the bottom barely reacted; the one at the top reacted fiercely. Nobody made a mistake. That is what biology does when you hand it the same injury more than once, and plausible reasons are easy to list (the size of the infarct, how much collateral blood flow each animal had, how strong its inflammatory response was). At day 30 the picture is sharper still: `r d30_n_low` animals sit at or below `r round(d30_low_max)`, `r d30_n_high` sit at or above `r round(d30_high_min)`, and not one lies in between. If I had called the low ones outliers and deleted them, I would not have cleaned my data. I would have erased the mice that did not respond, and my paper would have described a response that every animal had, which is not the response nature gave me.
+
+The same logic holds for a treatment. Some animals do not respond to it at all, others respond dramatically, and that is a finding in itself (who responds, and why?), not noise around the finding. A mean computed after trimming the extremes is a story about an average mouse that does not exist, told with an interval too narrow to be honest about it.
+
+None of this means an extreme value is always real. Extreme values can be errors: a stain that failed, a mislabeled tube, a section cut at the wrong level. In `cell_data`, the usual boxplot rule flags exactly one animal, `r d0_flag_id`, a sham mouse at day 0 with a GFAP integrated density of `r round(d0_flag_value)` against a median of `r round(d0_median)` for its group. From the table alone, I cannot tell whether that is a stain that did not take or a mouse with a very quiet baseline. The lab notebook and the microscope session can. So the habit I try to keep is to *ask first, write down the answer, and delete only for a reason that has nothing to do with the number being inconvenient*. It matters, because a single extreme point can dominate a fit and produce a "significant" result that disappears without it, and because removing a point for being inconvenient is its own kind of bias. When an extreme value is legitimate, the better answer is usually a model that expects it, such as the Student-t regression in @sec-beta-robust-regression, and when you are genuinely unsure, report the analysis with and without it.
 
 ::: callout-tip
 ### Exploratory data analysis in action
@@ -98,6 +198,7 @@ What a few minutes of looking already told us about `cell_data`:
 -   **The design has a shape:** [A table of counts]{style="text-decoration: underline;"} showed that SHAM animals exist only at day 0, so surgery and time cannot be separated for them.
 -   **The spread is not constant:** [A grouped plot]{style="text-decoration: underline;"} would show `Gfap_IntDen` varying far more at day 7 than at day 0, a warning for any model that assumes one common variance.
 -   **Variables overlap and move together:** [A scatter plot]{style="text-decoration: underline;"} of `Pdgfrb_IntDen` against `Tissue_Area` shows a strong negative association that is mostly riding on DPI, the kind of overlap that can bias a model if used carelessly.
+-   **Extreme values deserve a question, not an eraser:** [A raincloud plot]{style="text-decoration: underline;"} shows that animals given the same injury can differ `r round(gfap_d7_fold)`-fold in GFAP at day 7. That spread is biology to model, and it only becomes an error once the lab notebook says so.
 :::
 
 ## Take home message

@@ -372,7 +372,7 @@ Once DPI is categorical, we can construct the raincloud plot using ggplot2 with 
 
 -   `stat_halfeye` that generates a [smooth density plot]{style="color:green; font-weight:bold;"} for each DPI level, allowing us to visualize the overall shape and spread of the data distribution.
 -   `geom_boxplot` adding a traditional box plot to depict the [median and the interquartile range (IQR)]{style="color:green; font-weight:bold;"}. This layer summarizes the data’s central tendency and variability.
--   `geom_half_point` plots the [individual observations]{style="text-decoration: underline;"}, giving us insight into data dispersion and outliers at each time point.
+-   `geom_half_point` plots the [individual observations]{style="text-decoration: underline;"}, giving us insight into data dispersion and extreme values at each time point.
 -   `stat_summary`: Displays the [mean value]{style="text-decoration: underline;"} for each DPI group, offering an additional measure of central tendency.
 
 The layers come from three packages: `ggdist::stat_halfeye()` draws the density, `ggplot2::geom_boxplot()` the box, and `gghalves::geom_half_point()` the individual animals. I use this figure instead of the bar with asterisks that fills most papers because a bar keeps one number per group and discards everything else: the spread, the shape, and the fact that there are only seven to twelve animals behind each cloud. A design tip you can reuse: whenever a group has fewer than about thirty observations, show every one of them.

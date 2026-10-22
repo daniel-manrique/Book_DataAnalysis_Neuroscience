@@ -30,13 +30,13 @@
 - **chains**: [MCMC and model checking](mcmc-model-checking.qmd#ix-chains-1)
 - **coefficient of variation** ([glossary](glossary.qmd#gl-coefficient-of-variation)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-coefficient-of-variation-1)
 - **collider** ([glossary](glossary.qmd#gl-collider)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-collider-1) ([2](causal-inference-splines.qmd#ix-collider-2))
-- **collinear**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-collinear-1)
+- **collinear**: [Book plotting theme and legend helpers](eda-intro.qmd#ix-collinear-1)
 - **complete pooling** ([glossary](glossary.qmd#gl-complete-pooling)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-complete-pooling-1)
 - **complete separation**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-complete-separation-1)
 - **compound symmetry** ([glossary](glossary.qmd#gl-compound-symmetry)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-compound-symmetry-1)
 - **conditional effect** ([glossary](glossary.qmd#gl-conditional-effect)): [Modeling trials within neurons and mice](multilevel-glmm.qmd#ix-conditional-effect-1)
 - **confidence interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-confidence-interval-1)
-- **confounder**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-confounder-1)
+- **confounder**: [Book plotting theme and legend helpers](eda-intro.qmd#ix-confounder-1)
 - **correlated varying effects** ([glossary](glossary.qmd#gl-correlated-varying-effects)): [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-correlated-varying-effects-1)
 - **correlation matrix**: [EDA using ggpairs](eda-ggpairs.qmd#ix-correlation-matrix-1)
 - **counting error** ([glossary](glossary.qmd#gl-counting-error)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-counting-error-1)
@@ -64,7 +64,8 @@
 - **equal-tailed interval**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-equal-tailed-interval-1)
 - **error**: [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-error-1)
 - **error term**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-error-term-1)
-- **exploratory data analysis**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-exploratory-data-analysis-1)
+- **exploratory data analysis**: [Book plotting theme and legend helpers](eda-intro.qmd#ix-exploratory-data-analysis-1)
+- **extreme values**: [Book plotting theme and legend helpers](eda-intro.qmd#ix-extreme-values-1) ([2](eda-intro.qmd#ix-extreme-values-2))
 
 ## F {.unnumbered .unlisted}
 
@@ -84,7 +85,7 @@
 - **heteroscedasticity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-heteroscedasticity-1)
 - **heteroskedasticity**: [EDA using graphics](eda-ggplot.qmd#ix-heteroskedasticity-1)
 - **highest-density interval (hdi)**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-highest-density-interval-hdi-1)
-- **histogram or density plot**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-histogram-or-density-plot-1)
+- **histogram or density plot**: [Book plotting theme and legend helpers](eda-intro.qmd#ix-histogram-or-density-plot-1)
 - **homoscedasticity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-homoscedasticity-1)
 - **hurdle**: [Counting cells and spikes](count-regression.qmd#ix-hurdle-1)
 
@@ -149,7 +150,6 @@
 - **offset** ([glossary](glossary.qmd#gl-offset)): [Counting cells and spikes](count-regression.qmd#ix-offset-1) ([2](count-regression.qmd#ix-offset-2))
 - **ordinal outcomes**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-ordinal-outcomes-1)
 - **outcome**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-outcome-1); [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-outcome-1)
-- **outliers**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-outliers-1)
 
 ## P {.unnumbered .unlisted}
 
@@ -211,12 +211,12 @@
 ## V {.unnumbered .unlisted}
 
 - **validity**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-validity-1)
-- **variability**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-variability-1)
+- **variability**: [Book plotting theme and legend helpers](eda-intro.qmd#ix-variability-1)
 - **variance inflation factor**: [Checking whether the line deserves your trust](linear-regression-assumptions.qmd#ix-variance-inflation-factor-1)
 - **varying**: [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-1)
 - **varying intercept** ([glossary](glossary.qmd#gl-varying-intercept)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-intercept-1); [Untangling cells, sections and animals](multilevel-varying-intercepts.qmd#ix-varying-intercept-1) ([2](multilevel-varying-intercepts.qmd#ix-varying-intercept-2)); [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-varying-intercept-1); [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-varying-intercept-1)
 - **varying slope** ([glossary](glossary.qmd#gl-varying-slope)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-varying-slope-1); [Letting each animal have its own response](multilevel-varying-slopes.qmd#ix-varying-slope-1)
-- **visualization**: [Read the cell data (one row per animal)](eda-intro.qmd#ix-visualization-1)
+- **visualization**: [Book plotting theme and legend helpers](eda-intro.qmd#ix-visualization-1)
 
 ## W {.unnumbered .unlisted}
 
