@@ -4,52 +4,70 @@ bibliography: references.bib
 
 # EDA using graphics {#sec-eda-ggplot}
 
-When analyzing neuroscientific data, one of the most essential early steps is to explore the [distribution]{style="color:green; font-weight:bold;"} and [patterns]{style="text-decoration: underline;"} within the measurements.
-Before diving into statistical models, understanding the [raw data’s structure]{style="text-decoration: underline;"} is crucial.
-Common visualizations such as density plots, scatter plots, and violin plots provide intuitive insights that may not be immediately obvious from summary statistics alone.
-These visual tools not only highlight patterns and relationships but also guide decisions about the most appropriate modeling strategies.
-
-For instance, consider a dataset where we measure characteristics of PDGFR-β and GFAP-positive cells following experimental cerebral ischemia (a model I employed in my research for almost a decade).
-We might be interested in how GFAP intensity (`Gfap_IntDen` in our table) increases in the ischemic hemisphere following injury.
-Visualizing the [distribution]{style="color:green; font-weight:bold;"} of fluorescence intensity values, for example through density plots, can immediately reveal whether the [data clusters]{style="text-decoration: underline;"} around specific values, exhibits [multiple peaks]{style="text-decoration: underline;"} (suggesting subpopulations), or contains [extreme values]{style="text-decoration: underline;"} that might indicate [measurement errors]{style="color:red;"} or [rare biological events]{style="color:red;"}.
-
-If the word *distribution* feels abstract, picture the measurements of all the animals dropped onto a number line like grains of sand: where the pile is tall, many animals share that value; where it thins out, few do. A density plot is simply the outline of that pile, and the outline tells you what a mean and a standard deviation cannot: whether the pile is one hill, two, or a hill with a long tail.
-
-Similarly, we can use [scatter plots]{style="color:green; font-weight:bold;"} to explore [relationships]{style="text-decoration: underline;"} between two variables, such as GFAP and PDGFR-β intensity.
-These visualizations might uncover [correlations]{style="text-decoration: underline;"}, [nonlinear patterns]{style="text-decoration: underline;"}, or even [distinct subgroups]{style="text-decoration: underline;"} of data.
-These relationships, often hidden in tables of summary statistics, can profoundly [shape our interpretation]{style="text-decoration: underline;"} and [guide the selection of statistical models]{style="text-decoration: underline;"}.
-
-Another powerful visualization is the violin plot, or [raincloud plot]{style="color:green; font-weight:bold;"}, which combines the benefits of box plots and density plots, offering a clear view of both central tendencies and variability within groups.
-When comparing GFAP intensity across time points or experimental conditions, these plots can highlight unexpected differences or [heterogeneity]{style="text-decoration: underline;"} in variability.
-
-Below, we will walk through an example of exploratory data analysis using a real dataset from my own research.
-Using [`ggplot2`](https://ggplot2.tidyverse.org/) [@wickham2016], we will create density plots, scatter plots and raincloud plots for two key variables: `Gfap_IntDen` (GFAP integrated density) and `Pdgfrb_IntDen` (PDGFR-β integrated density).
-These intensity values, quantified in [FIJI](https://imagej.net/software/fiji/) [@schindelin2012], represent the fluorescence signal of the respective markers.
-The resulting plots will allow us to assess the distributions, spot anomalies, and generate hypotheses about the underlying biological processes.
-
-## The data
-
-First, we can have a look at our data, called `cell_data` for this exercise.
-We load the data (code not shown in rendering) and plot the initial rows using the [`gt`](https://gt.rstudio.com/) package [@gt]. The first rows are in @tbl-cell_data_tbl.
-
 ```{r}
 #| include: false
 
 library(here)
+library(ggplot2)
+
+# The book's shared plot theme (this also loads the legend helpers)
+Plot_theme <- source("functions/plot_theme.R")$value
 
 # Read the cell data (one row per animal)
 cell_data <- read.csv(here("project/AnalysisData/Cells_Gfap-Pdgfrb.csv"))
 
+# Day as a category (one group per day, in time order) for the grouped plots
+cell_data$DPI_f <- factor(cell_data$DPI, levels = c(0, 3, 7, 14, 30))
+
 # Numbers quoted in the text, computed from the data so they cannot drift
 n_obs <- nrow(cell_data)
 n_vars <- ncol(cell_data)
+n_day <- table(cell_data$DPI)
+gfap_range <- range(cell_data$Gfap_IntDen)
+pdgfrb_range <- range(cell_data$Pdgfrb_IntDen)
+gfap_mean <- mean(cell_data$Gfap_IntDen)
+gfap_sd <- sd(cell_data$Gfap_IntDen)
+gfap_peak <- with(density(cell_data$Gfap_IntDen), x[which.max(y)])
+pdgfrb_peak <- with(density(cell_data$Pdgfrb_IntDen), x[which.max(y)])
+gfap_mean_day <- tapply(cell_data$Gfap_IntDen, cell_data$DPI, mean)
+gfap_med_day <- tapply(cell_data$Gfap_IntDen, cell_data$DPI, median)
 gfap_sd_day <- tapply(cell_data$Gfap_IntDen, cell_data$DPI, sd)
+pdgfrb_mean_day <- tapply(cell_data$Pdgfrb_IntDen, cell_data$DPI, mean)
+pdgfrb_med_day <- tapply(cell_data$Pdgfrb_IntDen, cell_data$DPI, median)
 pdgfrb_sd_day <- tapply(cell_data$Pdgfrb_IntDen, cell_data$DPI, sd)
+
+# Day 30 GFAP: the widest gap between neighbouring animals (a low group and a high group)
+gfap_d30 <- sort(cell_data$Gfap_IntDen[cell_data$DPI == 30])
+gap_at <- which.max(diff(gfap_d30))
+d30_low_max <- gfap_d30[gap_at]
+d30_high_min <- gfap_d30[gap_at + 1]
+d30_n_low <- gap_at
+d30_n_high <- length(gfap_d30) - gap_at
+
+# Straight-line fit of GFAP on day, only to see where the line sits at day 0
+gfap_line_d0 <- unname(coef(lm(Gfap_IntDen ~ DPI, data = cell_data))[1])
+
+# Correlation between the two markers, pooled and within each day
+r_pooled <- cor(cell_data$Gfap_IntDen, cell_data$Pdgfrb_IntDen)
+r_day <- sapply(split(cell_data, cell_data$DPI),
+                function(s) cor(s$Gfap_IntDen, s$Pdgfrb_IntDen))
 ```
+
+Back in @sec-eda-first-look we read the table, and in @sec-eda-data-quality and @sec-eda-missing-data we made sure we could trust it. The table told us what is in `cell_data`. It could not tell us what the data *look like*, and that is the question I was itching to ask the whole time. You have probably been here before: a spreadsheet of fluorescence quantifications, a mean and a standard deviation per group already sitting in a slide, and a nagging feeling that the numbers are hiding something. This chapter is where we stop reading and start drawing.
+
+::: {style="text-align: center"}
+***What does the pile of measurements actually look like?***
+:::
+
+The data come from my own work on glial scarring after experimental cerebral ischemia, a model I used for almost a decade. We met the study in @sec-intro-applied-modeling; here we open the whole dataset and look at two markers, `Gfap_IntDen` (GFAP integrated density, an astroglial marker) and `Pdgfrb_IntDen` (PDGFR-β integrated density, a pericyte marker), quantified in FIJI [@schindelin2012] across five days post-ischemia (DPI). Everything is drawn with `ggplot2` [@wickham2016], which builds a figure by stacking layers, one per question you want to put to the data. The map for this part is in the introduction to exploratory data analysis, and @sec-eda-summary will collect what we learn here into one running list; for now we ask three questions in order, each answered by a different kind of figure: how are the values distributed, how do they change with time, and do the two markers move together?
+
+## The data
+
+Here are the first rows of `cell_data`, printed with `gt` [@gt] so they look the same in the web and the PDF editions (@tbl-cell_data_tbl). The file is read with `here` [@here], which finds it from the project root, so the code runs on any machine without editing paths.
 
 ```{r}
 #| label: tbl-cell_data_tbl
-#| tbl-cap: Cell data table used for excploratory data visualization
+#| tbl-cap: First rows of `cell_data`, the table used for the graphical exploration
 
 library(gt)
 
@@ -57,196 +75,105 @@ library(gt)
 gt(head(cell_data))
 ```
 
-We can see that this data table contains `r n_vars` variables and `r n_obs` observations in total (@tbl-cell_data_tbl shows the first rows).
-We'll focus the EDA on the variables of interest `Gfap_IntDen` (GFAP integrated density) and `Pdgfrb_IntDen` (PDGFR-β integrated density).
+The table has `r n_vars` columns and `r n_obs` rows, one per animal, with `r paste(n_day, collapse = ", ")` animals at days `r paste(names(n_day), collapse = ", ")`. We will keep the focus on the two integrated-density columns and on `DPI`. With about ten animals per day, you will see that every figure below shows the individual animals. That is not a stylistic whim; it is the point of the chapter.
 
-## Checking the data distribution with density plots
+## Looking at the distribution: density plots
 
-Before we start plotting our data, it's worth naming something you'll see in every figure from here on: a [personalised theme]{style="text-decoration: underline;"}, built once with ggplot2's [`theme`](https://ggplot2.tidyverse.org/reference/theme.html) function and reused everywhere, so every plot in this book shares the same typography, axis styling, and overall feel instead of looking like it came from a different author each chapter.
-We call this object `Plot_theme`, and it lives in `functions/plot_theme.R` in the book's repository; we load it once per chapter and apply it to every plot we build.
+If the word *distribution* feels abstract, picture the measurements of all the animals dropped onto a number line like grains of sand. Where the pile is tall, many animals share that value; where it thins out, few do. A [density plot]{style="color:green; font-weight:bold;"} is the outline of that pile. The outline tells you what a mean and a standard deviation cannot: whether you have one hill, two, or a hill with a long tail (@fig-eda-ggplot-bell-jar shows why that matters).
 
-```{r}
-#| include: false
+Before the first plot, one piece of housekeeping. Every figure in this book uses the same theme, `Plot_theme`, built once with ggplot2's `theme()` function and stored in `functions/plot_theme.R`. We load it at the top of each chapter so the typography and axes look the same everywhere instead of coming from a different author each time. It sits in the hidden setup chunk of this chapter, together with the legend helpers explained in @sec-appendix-figures.
 
-# Plotting package and the book's shared plot theme (this also loads the legend helpers)
-library(ggplot2)
+For a first look I choose a density over a histogram because its outline does not depend on where the bars happen to start (it does have a smoothing setting of its own, the bandwidth, which we turn on purpose near the end of this chapter), and I choose either over a bar with an error whisker because a whisker cannot show that a distribution has two humps. We use `ggplot2::geom_density()` and place the two markers side by side with `patchwork` [@patchwork], whose `+` operator joins plots and whose `plot_annotation()` adds the A and B tags you see in papers. Each plot is a short recipe: `data` names the table, `aes()` says which column goes on the x axis (density supplies the y axis itself), `geom_density()` draws the outline, `labs()` writes the labels and `Plot_theme` dresses it.
 
-Plot_theme <- source("functions/plot_theme.R")
-Plot_theme <- Plot_theme$value
-```
-
-As I mentioned when we first talked about exploratory data analysis, EDA is a dynamic process of asking ourselves fundamental questions and answering them with data, in this case data visualizations.
-A question we might have at the beginning of our research is:
-
-::: {style="text-align: center"}
-***How is my data distributed?***
-:::
-
-To answer this question, we can use [`geom_density`](https://ggplot2.tidyverse.org/reference/geom_density.html) to get density plots for PDGFR-β and GFAP intensity. I prefer a density to a histogram for a first look because its outline does not change with the width of the bars you happen to pick, and I prefer either to a bar with an error whisker because a whisker cannot show that a distribution has two humps.
-This gives us an overview of how the data is distributed, along with the lower and upper bounds.
-Our plot has the following components:
-
--   `data` where we specify the data frame, in this case the object we have called `cell_data`.
--   `aes` specifies the content of the axes. Here, we only pass the argument for the x-axis (i.e. Pdgfrb_IntDen). By default, `geom_density` uses the y-axis to create a density distribution with the variable we specify on the x-axis.
--   `geom_density`, which creates a density distribution for the variable specified previously.
--   `plot_theme` is the custom theme we created to personalize our plots.
--   `labs` allow us to specify titles and axis labels.
-
-Also, we use `+` form the [`patchwork`](https://patchwork.data-imaginist.com/) package [@patchwork] to plot the PDGFR-β and GFAP intensity graphs side by side.
-This is a great tool to generate [publication-ready graphs]{style="text-decoration: underline;"}.
-Also, we use `plot_annotation(tag_levels = 'A')` to include [tagging](https://patchwork.data-imaginist.com/articles/guides/annotation.html).
+One decision about color deserves a sentence, because it will repeat all chapter. PDGFR-β is always vermillion and GFAP always blue (Okabe-Ito colors, as in @wilke2019). The same marker keeps the same color in every figure, so you never need a legend to remember who is who, and the pair stays distinguishable for readers with the most common forms of color blindness and in a grayscale print of the PDF, which a red-green pair does not.
 
 ```{r}
 #| label: fig-cell_data_dens_EDA
-#| fig-cap: EDA for the distribution of PDGFR$\beta$ and GFAP expression (density plots)
+#| fig-cap: Distribution of PDGFR-β and GFAP integrated density across all animals (density plots)
+#| fig-alt: Two density plots side by side. Both are right-skewed, with a main peak at low to middle values and a long tail toward high values.
 #| fig-width: 10
 #| fig-height: 5
 #| warning: false
 #| message: false
-#| results: false
 
 library(patchwork)
 
-# We'll reuse this vermillion/blue pair for PDGFR-β/GFAP across every
-# figure in this chapter. It keeps the warm/cool intuition the original
-# red/green pairing was going for, but red-green is precisely the
-# combination a reader with the most common form of color blindness
-# (deuteranopia/protanopia) cannot tell apart; vermillion and blue read
-# as distinct under any color vision, and still separate cleanly in
-# grayscale for the PDF edition.
+# One color per marker, reused in every figure of this chapter
 Pdgfrb_color <- "#D55E00"
 Gfap_color <- "#0072B2"
 
-# Density plot for Pdgfrb_Intensity
-Pdgfrb_dens <- ggplot(
-  data = cell_data,
-  aes(x = Pdgfrb_IntDen)) +
+# Density of PDGFR-β integrated density
+Pdgfrb_dens <- ggplot(data = cell_data, aes(x = Pdgfrb_IntDen)) +
   geom_density(fill = Pdgfrb_color, alpha = 0.5) +
-  labs(title = "Density of PDGFR-β Intensity",
-       subtitle = "Density plot",
-       x = "PDGFR-β Intensity",
-       y = "Density") +
+  labs(title = "PDGFR-β", x = "PDGFR-β integrated density", y = "Density") +
   Plot_theme
 
-# Density plot for Gfap_Intensity
-Gfap_dens <- ggplot(
-  data = cell_data,
-  aes(x = Gfap_IntDen)) +
+# Density of GFAP integrated density
+Gfap_dens <- ggplot(data = cell_data, aes(x = Gfap_IntDen)) +
   geom_density(fill = Gfap_color, alpha = 0.5) +
-  labs(title = "Density of GFAP Intensity",
-       subtitle = "Density plot",
-       x = "Gfap Intensity",
-       y = "Density") +
+  labs(title = "GFAP", x = "GFAP integrated density", y = "Density") +
   Plot_theme
 
-# Render the two graphs side by side with patchwork
-Pdgfrb_dens + Gfap_dens + plot_annotation(tag_levels = 'A')
+# Join the two plots side by side and tag them A and B
+Pdgfrb_dens + Gfap_dens + plot_annotation(tag_levels = "A")
 ```
 
-The density plots shown in @fig-cell_data_dens_EDA reveal critical aspects of our data.
-Both proteins, PDGFR-β and GFAP, exhibit distributions with a prominent peak between 250 and 500.
-Their ranges, however, differ slightly: PDGFR-β extends up to approximately 1500, while GFAP reaches around 1250.
-These visualizations allow us to quickly grasp the [overall distribution]{style="text-decoration: underline;"} and [range]{style="text-decoration: underline;"} of our variables of interest, which is an essential first step in [understanding the data]{style="text-decoration: underline;"}.
-
-::: {style="text-align: left"}
-**Is the data normally distributed?**
+::: {.callout-tip title="How to read this figure"}
+Look at the height first: the tallest part of the outline is where most animals sit. Then look at the sides. A symmetric hill has two similar tails; a long tail on one side means a few animals sit far from the rest. Finally, count the humps. One hump says "one population"; two say "look for a reason" (two cell types, two days, two batches). Nothing here asks whether a curve is "significant"; you are reading a shape.
 :::
 
-A critical look at the density curves strongly suggests that [the data is not normally distributed]{style="color:red;"}.
-The **asymmetry**, **peak skewness**, and **tails** of the distributions deviate significantly from the [bell-shaped curve]{style="text-decoration: underline;"} characteristic of a normal distribution.
-This observation implies that [relying solely on the mean and standard deviation to describe our data may be misleading]{style="color:red;"}, as these metrics assume a normal distribution.
+@fig-cell_data_dens_EDA gives a first answer. Both markers have their main peak at low to middle values (around `r round(pdgfrb_peak)` for PDGFR-β and `r round(gfap_peak)` for GFAP) and a long right-hand tail: PDGFR-β runs from `r round(pdgfrb_range[1])` to `r round(pdgfrb_range[2])` and GFAP from `r round(gfap_range[1])` to `r round(gfap_range[2])`. Neither looks like a bell.
 
-This [lack of normality]{style="text-decoration: underline;"} is not surprising in the context of neuroscience data.
-In over a decade of working with such datasets, I have rarely encountered normally distributed data.
-Experimental measurements, particularly those involving biological markers such as GFAP or PDGFR-β, are often influenced by a wide range of factors (biological heterogeneity, measurement noise, and experimental artifacts) that naturally lead to skewed or multimodal distributions.
-While it is possible that others have encountered normally distributed data, such cases appear to be exceptions rather than the rule in this field.
+### Is the data normally distributed?
 
-To further illustrate the implications of non-normality, let’s compare the observed GFAP distribution to a [theoretical normal distribution]{style="text-decoration: underline;"} constructed using the approximate observed range as the bounds.
-This comparison will provide an intuitive sense of how far our data deviates from normality.
+The question every reviewer eventually asks. It is worth answering with a picture, not a test. To see how far a bell curve is from our data, let us draw the normal curve with the *same mean and standard deviation* as GFAP (mean `r round(gfap_mean)`, standard deviation `r round(gfap_sd)`) over the observed density, so the comparison is the fairest one the normal curve can get (@fig-cell_data_normal_EDA). We draw it with `stat_function()`, which lays any mathematical curve over a plot.
 
 ```{r}
 #| label: fig-cell_data_normal_EDA
-#| fig-cap: Comparison of GFAP density with a normal distribution
+#| fig-cap: Observed GFAP density (blue) against the normal curve with the same mean and standard deviation (vermillion line)
+#| fig-alt: A blue density of GFAP integrated density with a long right tail, and a symmetric vermillion bell curve drawn over it. The bell curve extends below zero, where there are no observations, and misses the peak of the data.
 #| fig-width: 6
 #| fig-height: 6
 #| warning: false
 #| message: false
 
-# Observed GFAP density (filled) with a hand-picked normal curve drawn over it
+# Observed GFAP density (filled) with the normal curve of equal mean and spread on top
 Gfap_dens_normal <- ggplot(data = cell_data, aes(x = Gfap_IntDen)) +
   geom_density(fill = Gfap_color, alpha = 0.5) +
-  # Add a theoretical normal distribution curve
   stat_function(
     fun = dnorm,
-    args = list(mean = 625, sd = 200),
+    args = list(mean = gfap_mean, sd = gfap_sd),
     color = Pdgfrb_color,
     linewidth = 1
   ) +
-  labs(
-    title = "GFAP density - normal distribution",
-    subtitle = "Density plot",
-    x = "Gfap Intensity / normal distribution",
-    y = "Density"
-  ) +
-  coord_cartesian(xlim = c(0, 1250)) +
+  labs(x = "GFAP integrated density", y = "Density") +
   Plot_theme
 
 Gfap_dens_normal
 ```
 
-The results shown in @fig-cell_data_normal_EDA reveal a clear divergence between the observed GFAP intensity values and the theoretical normal distribution simulated within the range of 0–1250.
-This is not a trivial detail (@fig-eda-ggplot-bell-jar).
-I believe it underscores a fundamental principle often overlooked in many data analysis pipelines: the importance of [understanding the actual distribution of the data]{style="color:red;"} before applying statistical models.
-It is far too common to proceed under the [default assumption of normality]{style="color:red;"}, without first examining the data itself.
-Here, we have critical evidence to challenge such assumptions and prevent misguided analyses.
-I have no doubt that you can easily extrapolate this exercise to any data sets you are working with or will be working with in your research endeavors.
+The vermillion line in @fig-cell_data_normal_EDA is the best bell the mean and standard deviation can build, and it still fits badly. It spills below zero, where an integrated density cannot go, and its peak sits to the side of where the animals actually pile up (@fig-eda-ggplot-bell-jar).
 
 ![A normal curve is a neat bell jar for your data, until the data have a long tail. Forced over skewed measurements, part of them sticks out.](images/eda-ggplot_bell-jar-over-skewed-clay.png){#fig-eda-ggplot-bell-jar fig-align="center" width="90%" fig-alt="Watercolor sketch of a symmetric glass bell jar on a wooden bench covering a lumpy mound of ochre clay that is steep on the left, with a long thin tail of clay sticking out from under the right edge of the jar and trailing along the bench."}
 
-Some may argue that the apparent non-normality stems from a [small sample size]{style="color:red;"} and that, with a larger dataset, the values would eventually approximate a normal distribution as dictated by the [central limit theorem](https://www.statisticshowto.com/probability-and-statistics/normal-distributions/central-limit-theorem-definition-examples/).
-While it is true that many real-world phenomena tend toward normality when sufficiently sampled, this argument misses an essential point.
-**We have no way of predicting the true mean or standard deviation of this hypothetical larger dataset**.
-Will it align with the mean and standard deviation observed in our smaller sample?
-I find that highly unlikely.
-Given this fundamental uncertainty, why should we rely on speculative assumptions of normality when we possess tools explicitly designed to handle non-normal data?
-I judge that modern statistical approaches offers a diverse toolkit for robust modeling that enable us to choose approaches that are both theoretically sound and empirically grounded.
-This book will further develop this perspective.
+Now the fair-minded caveat, which I wish someone had told me earlier. This picture pools animals from five different days, and we are going to see in a moment that the days sit at very different levels. A pile made of five shifted piles will look lopsided even if each day on its own were perfectly bell-shaped. What a linear model assumes is also subtler than "the column is normal": it concerns the *residuals*, the variation left over once the predictors are accounted for, and we check that explicitly in @sec-linear-regression-assumptions. So the honest reading of @fig-cell_data_normal_EDA is not "the data fail a normality test". It is "a mean and a standard deviation of the pooled column are a poor description of it, so summarize by group and look at the shape". (If you are wondering why I do not run a Shapiro-Wilk test here, @sec-appendix-assumption-tests shows with simulated data what such tests can and cannot do.) The same argument answers the reader who says that with more animals the shape would become normal: more animals would sharpen the outline of the pile, not remove the structure that makes it lopsided.
 
-## Conditioning on additional variables with scatter plots
+## Conditioning on time: scatter plots
 
-As you possess deep knowledge about your data, I also hold a comprehensive understanding of the `cell_data` data frame, having acquired it during my research on glial scarring.
-One crucial aspect in EDA is considering the hierarchy or organization inherent to the data.
-In this case, the `cell_data` dataset contains a fundamental grouping variable: `DPI`, which stands for days post-ischemia.
-This variable reflects the time points at which the brain samples were harvested, processed, stained, and imaged following the ischemic injury.
-Specifically, the `DPI` variable includes the following levels: 0, 3, 7, 14, and 30, representing distinct biological stages of glial scar formation and cellular reactivity.
-
-In the previous visualizations, we treated the intensity variables (`Gfap_IntDen` and `Pdgfrb_IntDen`) without conditioning on DPI.
-While these global plots provided a useful overview of the data's overall distribution, they did not account for this hierarchical structure.
-By conditioning on DPI, we can now answer an additional and biologically meaningful question:
+Which brings us to the structure. The pooled picture ignores the one variable that organizes this experiment. `DPI` records the day after ischemia on which each animal was perfused, stained and imaged, so it takes five values: 0, 3, 7, 14 and 30, five snapshots of the unfolding of the glial scar. Ignoring it would be like averaging a time-lapse video into one blurry frame. The next question is then:
 
 ::: {style="text-align: center"}
-***How is my data distributed per DPI?***
+***How does my data change with time after ischemia?***
 :::
 
-We can approach this question from two perspectives: treating `DPI` as either a numeric or categorical variable.
-These two views emphasize different features of the data.
-When DPI is numeric, we can examine trends across time.
-[Scatter plots]{style="color:green; font-weight:bold;"} are particularly useful here because they intuitively show how marker intensities evolve with time post-injury.
-On the other hand, when `DPI` is a categorical we view this variable as discrete groups (0, 3, 7, 14, and 30) and can easily compare the distributions of marker intensities within each group.
-[Raincloud plots]{style="color:green; font-weight:bold;"} are an excellent choice in this case as they combine elements of boxplots, violin plots, and scatter plots to display the central tendency, spread, and individual data points simultaneously.
-In the following, we will explore scatter plots (`DPI` as numeric) and we leave raincloud plots for the next section.
+There are two honest ways to treat `DPI`, and they answer different questions. As a *number*, it asks about trends: does the marker go up as days pass? As a *category* (five groups), it asks about distributions: what does the pile look like on each day? We take the numeric view in this section, with [scatter plots]{style="color:green; font-weight:bold;"}, and the categorical one in the next.
 
-Our scatterplot has the following layers:
-
--   `geom_smooth` to draw a line of fit that shows the linear trend of the data.
--   `geom_point`, which shows the observations in each DPI.
--   `ggMarginal`, which displays histograms and density plots (called densigrams) at the borders of the plot.
-
-Finally, we will use the [`cowplot`](https://wilkelab.org/cowplot/index.html) package [@cowplot] to organize the output into two columns.
+A scatter plot is the right figure for "does y change with x", because position on both axes carries the information and every animal is one dot. We add two things to the dots. `geom_smooth(method = lm)` draws the best-fit straight line, the one that stays as close as possible to the points (we make "as close as possible" precise in @sec-linear-regression-what), with a band for its uncertainty. And `ggExtra::ggMarginal()` [@ggextra] draws small histograms and densities on the borders, so we see the two distributions of @fig-cell_data_dens_EDA again, now in the margins of the plot. `cowplot` [@cowplot] arranges the two marked-up panels in a row.
 
 ```{r}
 #| label: fig-cell_data_scatter_EDA
-#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP expression (scatterplot)
+#| fig-cap: PDGFR-β and GFAP integrated density against days post-ischemia (scatter plots with a straight-line fit and marginal distributions)
+#| fig-alt: Two scatter plots of integrated density against days post-ischemia (0, 3, 7, 14 and 30), one for PDGFR-β in vermillion and one for GFAP in blue. Each has a black straight line with a shaded band, and marginal histograms on the top and right. Points at 0 and 3 days lie low and close together; later days are higher and more spread out.
 #| fig-width: 10
 #| fig-height: 5
 #| warning: false
@@ -255,312 +182,175 @@ Finally, we will use the [`cowplot`](https://wilkelab.org/cowplot/index.html) pa
 
 library(cowplot)
 library(ggExtra)
-library(ggplot2)
 
-# Plot for PDGFR-β
-Pdgfrb_scatter <- ggplot(
-  data = cell_data,
-  aes(x = DPI,
-      y= Pdgfrb_IntDen)) +
-  geom_smooth(method=lm , color="black", fill=Pdgfrb_color, se=TRUE) +
+# PDGFR-β against day, with a straight-line fit
+Pdgfrb_scatter <- ggplot(data = cell_data, aes(x = DPI, y = Pdgfrb_IntDen)) +
+  geom_smooth(method = lm, color = "black", fill = Pdgfrb_color, se = TRUE) +
   geom_point() +
-  scale_x_continuous(breaks = c(0, 3,7,14,30)) +
-  labs(title = "",
-     subtitle = "Scatterplot",
-     x = "Days post-ischemia (DPI)",
-     y = "PDGFR-β intensity") +
+  scale_x_continuous(breaks = c(0, 3, 7, 14, 30)) +
+  labs(x = "Days post-ischemia (DPI)", y = "PDGFR-β integrated density") +
   Plot_theme
 
-
-# Add marginal plots
+# Marginal distributions on the borders
 Pdgfrb_scatter_Marginal <- ggMarginal(
-  Pdgfrb_scatter,
-  type="densigram",
-  colour = "black",
-  fill = Pdgfrb_color,
-  alpha = .9
-  )
+  Pdgfrb_scatter, type = "densigram",
+  colour = "black", fill = Pdgfrb_color, alpha = 0.9
+)
 
-# Plot for GFAP
-Gfap_scatter <- ggplot(
-  data = cell_data,
-  aes(x = DPI,
-      y= Gfap_IntDen)) +
-  geom_smooth(method=lm , color="black", fill=Gfap_color, se=TRUE) +
+# Same figure for GFAP
+Gfap_scatter <- ggplot(data = cell_data, aes(x = DPI, y = Gfap_IntDen)) +
+  geom_smooth(method = lm, color = "black", fill = Gfap_color, se = TRUE) +
   geom_point() +
-  scale_x_continuous(breaks = c(0, 3,7,14,30)) +
-  labs(title = "",
-     subtitle = "Scatterplot",
-     x = "Days post-ischemia (DPI)",
-     y = "Gfap intensity")+
+  scale_x_continuous(breaks = c(0, 3, 7, 14, 30)) +
+  labs(x = "Days post-ischemia (DPI)", y = "GFAP integrated density") +
   Plot_theme
 
-# Add marginal plots
 Gfap_scatter_Marginal <- ggMarginal(
-  Gfap_scatter,
-  type="densigram",
-  colour = "black",
-  fill = Gfap_color,
-  alpha = .9
-  )
+  Gfap_scatter, type = "densigram",
+  colour = "black", fill = Gfap_color, alpha = 0.9
+)
 
-# Plot side by side
-cowplot::plot_grid(
-  Pdgfrb_scatter_Marginal, Gfap_scatter_Marginal,
-  nrow = 1,
-  ncol = 2
-  )
+# Place both panels in one row
+cowplot::plot_grid(Pdgfrb_scatter_Marginal, Gfap_scatter_Marginal, nrow = 1, ncol = 2)
 ```
 
-We may agree that @fig-cell_data_scatter_EDA provides a more informative perspective compared to our previous visualizations.
-The scatter plots reveal a clear [increasing trend]{style="text-decoration: underline;"} for both PDGFR-β and GFAP intensity as a function of time (DPI).
-This trend aligns with my expectations as a researcher on this field, showing how marker expression increases as a [sign of glial and neurovascular reactivity]{style="text-decoration: underline;"} following the ischemic injury.
+::: {.callout-tip title="How to read this figure"}
+First, the direction of the cloud: does it climb, fall or stay flat? Second, the line: is it a fair summary of where the dots are *at every day*, or does it pass above or below whole groups of them? Third, the width of the cloud at each day: a cloud that is narrow at one end and wide at the other is a different problem from a cloud that is simply shifted. The margins tell you the same story collapsed onto one axis. The line is a drawing aid, not a fitted model yet; we fit models in @sec-linear-regression-single-continuous.
+:::
 
-However, while the graph includes the **best-fit line** that minimizes the [distance between the observed data points and the line itself]{style="text-decoration: underline;"} (we'll make this precise in @sec-linear-regression-what), it is clear that [many points are not captured]{style="color:red;"}.
-For PDGFR-β, the line fails to account for the values at 0 and 3 DPI, where the data points lie substantially below the trend.
-For GFAP, the situation is even more pronounced at 0 DPI, where the line does not cover any observed points.
+Both markers climb with time (@fig-cell_data_scatter_EDA), which is what I expect as someone who has looked at a lot of ischemic tissue: GFAP and PDGFR-β go up as the glial and neurovascular response builds. But the straight line is not telling the whole story, and three details say so.
 
-What does this tell us?
-This discrepancy suggests that a simple [linear model]{style="text-decoration: underline;"} [may not]{style="color:red;"} be the most appropriate approach to capture the true trend in our data.
-While we do not expect a perfect fit (given the inherent biological variability and noise), we would ideally prefer a line that passes through or near the central tendency (the "midpoint") of the data at each DPI level.
-The failure of the linear fit, particularly at the early time points, indicates that we need to address with more flexible modeling techniques.
-Please note that we have not yet fitted a statistical model, we are simply drawing a line that gives us some initial insight into the trends in the data.
+**The line does not follow the animals.** For PDGFR-β, the animals at 0 and 3 DPI sit well below the line (median `r round(pdgfrb_med_day["0"])` and `r round(pdgfrb_med_day["3"])`, against `r round(pdgfrb_med_day["14"])` at 14 DPI), so the early days are overestimated and the middle is underestimated. For GFAP the line crosses day 0 at about `r round(gfap_line_d0)` while the day-0 animals sit near `r round(gfap_mean_day["0"])`, so it misses all of them. GFAP also stops climbing: its mean is `r round(gfap_mean_day["14"])` at 14 DPI and `r round(gfap_mean_day["30"])` at 30 DPI, a plateau and a dip that no straight line can follow. Nothing is wrong with the line as arithmetic; it is the wrong *shape* for these data, and that is what we explore next in @sec-linear-regression-assumptions.
 
-Another important observation is the striking [variability in the distribution]{style="text-decoration: underline;"} of points across different DPI levels.
-We can see that at 0 and 3 DPI, the data points shows a relatively low variability, whereas the situation changes dramatically after 3 DPI, with a higher degree of variability in the marker intensities as time progresses.
-
-Is the preceding biologically sound?
-Absolutely.
-My understanding of cerebral ischemia allows me to confidently assert that the evolution of the injury introduces numerous biological variables that exert strong effects on the intensity of the markers of interest.
-At 0 DPI, the observed variability can be logically attributed to a combination of inherent biological variability (natural differences in marker intensities across animals) and measurement errors arising from staining, imaging, and quantification processes.
-At this baseline time point, the biological system is stable, with minimal pathological influences.
-Following ischemia, however, a variety of biological and experimental factors come into play, increasing the variability in marker intensities.
-These factors can include animal well-being, feeding behavior, injury size, neurodegeneration, and recovery processes, all of which introduce heterogeneity into the data.
-
-Critically, this biological understanding provides a sound [scientific basis]{style="text-decoration: underline;"} for anticipating [heteroskedasticity]{style="color:green; font-weight:bold;"}, a condition where the variability (or variance) of the data is not constant across different levels of a predictor variable (in this case, DPI); @sec-linear-regression-assumptions makes this a formal, checkable assumption rather than a passing observation.
-The variability observed at early stages (0 or 3 DPI) is expected to be lower due to the stability of the system, whereas later stages exhibit increased dispersion as the brain undergoes neurodegeneration and repair processes. @fig-eda-ggplot-trumpet is the shape of that pattern: narrow at one end, wide at the other.
-Unfortunately, heteroskedasticity is often ignored in traditional, mindless statistical approaches that assume constant variance (homoskedasticity) across groups or predictors.
-Thus, it is not surprising that we are flowed with [biased estimates]{style="color:red;"}, [unreliable inferences]{style="color:red;"}, and [missed opportunities]{style="color:red;"} for meaningful scientific advance.
+**The spread is not constant.** At 0 and 3 DPI the animals are tightly packed (the standard deviation of GFAP is `r round(gfap_sd_day["0"])` and `r round(gfap_sd_day["3"])`), and from day 7 on they scatter widely (`r round(gfap_sd_day["7"])` at 7 DPI). PDGFR-β shows the same widening, from `r round(pdgfrb_sd_day["0"])` at day 0 to `r round(pdgfrb_sd_day["30"])` at day 30. Is that biologically sensible? Entirely. At baseline the tissue is stable and what varies is staining, imaging and natural differences between animals. After the injury, lesion size, feeding, recovery and the animal's own response add their own variability, so identical surgeries produce quite different scars. Statisticians call this unequal spread [heteroskedasticity]{style="color:green; font-weight:bold;"} (its opposite, a constant spread, is *homoskedasticity*), and think of the bell of a trumpet: narrow at the mouthpiece, wide at the other end (@fig-eda-ggplot-trumpet). One straight line and one variance cannot describe both ends. Knowing the biology lets us *predict* this pattern before we see it, which is the best use of expertise in EDA; @sec-linear-regression-assumptions turns it into a checkable assumption, and @sec-multivariate-distributional-regression shows how to model the spread itself instead of ignoring it.
 
 ![A trumpet starts narrow and ends wide, like the spread of our data over time: tight at the start, scattered later. One straight line, and one variance, can't describe both ends.](images/eda-ggplot_trumpet-widening-spread.png){#fig-eda-ggplot-trumpet fig-align="center" width="90%" fig-alt="Watercolor sketch of a brass trumpet lying on a wooden bench. Small teal and ochre dots come out along it, forming a tight narrow line near the mouthpiece and spreading into a wide scattered fan beyond the bell, with a thin straight arrow along the trumpet's axis."}
 
-Last but not least, the marginal density plot on the right offers additional insight into the overall distribution of intensity values.
-Here, we can observe that the distribution is a bit skewed toward lower intensity values, as indicated by the density lines.
-Nevertheless, there remains a considerable spread across the higher intensity range, suggesting a mix of low- and high-intensity observations.
+**The margins show the skew.** The marginal densities on the right of each panel repeat what @fig-cell_data_dens_EDA showed: more animals at lower intensities and a long reach toward high ones. Note that this is the pooled pile again, so it mixes days.
 
-In summary, with these scatter plots we have learned:
+With only the scatter plots we can say three things: a straight line is a poor description of the trend, the spread grows with time, and the pooled values are right-skewed. They are leads, not conclusions. We have not fitted a model, and, as we will see in @sec-eda-summary, what a plot proposes a model must still decide.
 
--   The [inadequacy]{style="color:red;"} of a linear fit to capture the full trend.
--   The [non-uniform]{style="text-decoration: underline;"} variability across DPI levels.
--   The likely [skewed distribution]{style="text-decoration: underline;"} of marker intensities, concentrated more toward lower values.
+## Conditioning on time as a category: raincloud plots
 
-These observations set the stage for our further tasks of statistical modeling.
+Now treat `DPI` as five groups, which is already done in the hidden setup chunk (`DPI_f`, a factor in time order). The question becomes about shapes, group by group:
 
-## Using raincloud plots for grouped variables
+::: {style="text-align: center"}
+***What does the distribution look like on each day?***
+:::
 
-Now, let’s move forward with one of my favorite visualization strategies: the [raincloud plot]{style="color:green; font-weight:bold;"}.
-This method provides an excellent way to combine multiple layers of information in a single graph, making it a powerful tool for EDA.
-Before proceeding, we need to ensure that DPI is treated as a categorical variable.
-This transformation is straightforward and can be achieved with a single line of code:
+The figure I reach for here is the [raincloud plot]{style="color:green; font-weight:bold;"}. The name comes from its anatomy: a half-density on one side is the *cloud*, and the individual animals scattered beneath it are the *rain*, with a boxplot between them to give the median and the middle half. Three packages build it: `ggdist::stat_halfeye()` [@ggdist; @kay2024] draws the cloud, `ggplot2::geom_boxplot()` the box, and `gghalves::geom_half_point()` [@gghalves] the rain. A diamond, drawn with `stat_summary()`, marks the mean.
 
-```{r}
-# Treat the day as a category (one group per day), in time order
-cell_data$DPI <- factor(cell_data$DPI, levels = c("0", "3", "7", "14", "30"))
-```
-
-Once DPI is categorical, we can construct the raincloud plot using ggplot2 with the following layered approach:
-
--   `stat_halfeye` that generates a [smooth density plot]{style="color:green; font-weight:bold;"} for each DPI level, allowing us to visualize the overall shape and spread of the data distribution.
--   `geom_boxplot` adding a traditional box plot to depict the [median and the interquartile range (IQR)]{style="color:green; font-weight:bold;"}. This layer summarizes the data’s central tendency and variability.
--   `geom_half_point` plots the [individual observations]{style="text-decoration: underline;"}, giving us insight into data dispersion and extreme values at each time point.
--   `stat_summary`: Displays the [mean value]{style="text-decoration: underline;"} for each DPI group, offering an additional measure of central tendency.
-
-The layers come from three packages: `ggdist::stat_halfeye()` draws the density, `ggplot2::geom_boxplot()` the box, and `gghalves::geom_half_point()` the individual animals. I use this figure instead of the bar with asterisks that fills most papers because a bar keeps one number per group and discards everything else: the spread, the shape, and the fact that there are only seven to twelve animals behind each cloud. A design tip you can reuse: whenever a group has fewer than about thirty observations, show every one of them.
+Why this form and not the bar with asterisks that fills most papers? A bar keeps one number per group and throws everything else away: the spread, the shape, and the fact that there are only `r min(n_day)` to `r max(n_day)` animals behind each group. A boxplot keeps five numbers and still cannot show two humps. The raincloud shows all of it at once. A design tip you can reuse: whenever a group has fewer than about thirty observations, show every one of them. (More on these choices, and on what the usual alternatives hide, in @sec-appendix-figures.)
 
 ```{r}
 #| label: fig-cell_data_rain_EDA
-#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP expression (raincloud plot)
+#| fig-cap: PDGFR-β and GFAP integrated density by day post-ischemia (raincloud plots; the diamond is the group mean)
+#| fig-alt: Two raincloud plots with days 0, 3, 7, 14 and 30 on the x axis. For each day there is a half-density cloud, a boxplot and the individual animals as points to the left, with a colored diamond for the mean. PDGFR-β rises steadily and spreads out with time. GFAP rises to day 7 or 14 and drops slightly at day 30, where it has two groups of animals.
 #| fig-width: 10
 #| fig-height: 5
 #| warning: false
 #| message: false
 
-library(patchwork)
 library(ggdist)
 library(gghalves)
 
-# Plot for PDGFR-β
-Pdgfrb_raincloud <- ggplot(
-  data = cell_data, 
-  aes(x = DPI, 
-      y = Pdgfrb_IntDen)) + 
-  stat_halfeye(adjust = .5, 
-               width = .6, 
-               .width = 2, 
-               justification = -.3, 
-               point_colour = NA) + 
-  geom_boxplot(width = .2, 
-               outlier.shape = NA) +
-  geom_half_point(side = "l",
-                  range_scale = .4,
-                  alpha = .5)+
-  stat_summary(fun=mean, geom="point", shape=18, size=4, color=Pdgfrb_color) +
-  labs(title = "",
-     subtitle = "Raincloud plot",
-     x = "Days post-ischemia (DPI)",
-     y = "PDGFR-β intensity") +
+# PDGFR-β by day: cloud, box, rain and mean
+Pdgfrb_raincloud <- ggplot(data = cell_data, aes(x = DPI_f, y = Pdgfrb_IntDen)) +
+  stat_halfeye(adjust = 0.5, width = 0.6, .width = 0,
+               justification = -0.3, point_colour = NA) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  geom_half_point(side = "l", range_scale = 0.4, alpha = 0.5) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4,
+               color = Pdgfrb_color) +
+  labs(x = "Days post-ischemia (DPI)", y = "PDGFR-β integrated density") +
   Plot_theme
 
-
-#Plot for GFAP
-Gfap_raincloud <- ggplot(
-  data = cell_data, 
-  aes(x = DPI, 
-      y = Gfap_IntDen)) + 
-  stat_halfeye(adjust = .5, 
-               width = .6, 
-               .width = 2, 
-               justification = -.3, 
-               point_colour = NA) + 
-  geom_boxplot(width = .2, 
-               outlier.shape = NA) +
-  geom_half_point(side = "l",
-                  range_scale = .4,
-                  alpha = .5)+
-  stat_summary(fun=mean, geom="point", shape=18, size=4, color=Gfap_color) +
-  labs(title = "",
-     subtitle = "Raincloud plot",
-     x = "Days post-ischemia (DPI)",
-     y = "Gfap intensity") +
+# GFAP by day, same layers
+Gfap_raincloud <- ggplot(data = cell_data, aes(x = DPI_f, y = Gfap_IntDen)) +
+  stat_halfeye(adjust = 0.5, width = 0.6, .width = 0,
+               justification = -0.3, point_colour = NA) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  geom_half_point(side = "l", range_scale = 0.4, alpha = 0.5) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4,
+               color = Gfap_color) +
+  labs(x = "Days post-ischemia (DPI)", y = "GFAP integrated density") +
   Plot_theme
 
-
-Pdgfrb_raincloud + Gfap_raincloud 
+# Side by side, tagged
+Pdgfrb_raincloud + Gfap_raincloud + plot_annotation(tag_levels = "A")
 ```
 
-Contrary to our previous scatter plot, @fig-cell_data_rain_EDA offers us a wealth of information about the distribution of our data at each [DPI level]{style="text-decoration: underline;"}.
-This allows us to answer the following vital question:
-
-::: {style="text-align: center"}
-***What is the variability of my data by DPI?***
+::: {.callout-tip title="How to read this figure"}
+Read each day as a small landscape. The points on the left are the animals themselves; count them to remember how few there are. The cloud above is the outline of that pile (the same idea as a density plot, now one per day), so a cloud with two humps is a group that behaves like two groups. The box gives the median (black line) and the middle half of the animals. The diamond is the mean: when it sits on the median and in the middle of the cloud, a mean describes the group; when it floats away from both, it does not.
 :::
 
-The raincloud plot reveals that while the variance at 0 and 3 DPI is relatively small for both markers, the variability at 30 DPI is strikingly large.
-Importantly, for GFAP at 30 DPI, we observe a bimodal distribution, where the mean value (indicated by the green diamond) does not correspond to either of the two density peaks.
-The mean here fails to represent the underlying data in any meaningful way, highlighting the risk of relying on the mean as a sole descriptor of central tendency in skewed or multimodal distributions (@fig-eda-ggplot-raincloud).
+@fig-cell_data_rain_EDA answers what the scatter plots could not. Both markers are tight at 0 and 3 DPI and spread out afterwards, as before, but now we see how: at 30 DPI PDGFR-β ranges from about `r round(min(cell_data$Pdgfrb_IntDen[cell_data$DPI == 30]))` to `r round(max(cell_data$Pdgfrb_IntDen[cell_data$DPI == 30]))`, a long reach with no gap. GFAP at 30 DPI looks different. Its `r d30_n_low` lowest animals sit at `r round(d30_low_max)` or below, then there is an empty stretch up to `r round(d30_high_min)`, and the other `r d30_n_high` animals lie above it. With eleven animals I would not swear to two populations, but it is an honest hint of two kinds of response (a more and a less reactive scar), and it is a hint a bar plot would never have shown. The mean, `r round(gfap_mean_day["30"])`, sits inside that gap, where there is hardly an animal; the median, `r round(gfap_med_day["30"])`, lands in the upper group. Neither describes a typical animal, and the mean is the worse of the two (@fig-eda-ggplot-raincloud). The same drift shows for PDGFR-β at 14 DPI, where the mean (`r round(pdgfrb_mean_day["14"])`) and the median (`r round(pdgfrb_med_day["14"])`) have separated, while at 0 and 3 DPI they nearly coincide.
 
 ![A raincloud with two humps. The mean, the little diamond, floats in the gap between them, exactly where there is no cloud, no rain, and no data.](images/eda-ggplot_two-hump-raincloud.png){#fig-eda-ggplot-raincloud fig-align="center" width="90%" fig-alt="Watercolor sketch of two pale teal clouds side by side with a gap between them, each raining teal and ochre drops onto a strip of grass below. An ochre diamond-shaped kite floats alone in the gap, where there is neither cloud nor rain."}
 
-Additionally, we notice that the median (black line) and mean (green diamond) are closely aligned at 0 and 3 DPI, where the distributions are symmetric and narrow.
-However, at later time points, especially at 30 DPI for GFAP and 14 DPI for PDGFR-β, the two measures diverge considerably.
-I think that the advantage of treating DPI as a categorical variable here is clear: we can more intuitively compare distributions across time points, rather than focusing solely on trends.
+### Revisiting the question: is the data normally distributed?
 
-::: {style="text-align: left"}
-**Revisiting the Question: Is the Data Normally Distributed?**
-:::
+We can now answer the question we left open, and answer it better. Within each day the shapes are mostly not bell-like either, and the clearest sign is the GFAP distribution at 30 DPI. But I want to keep the reason for asking straight. We do not ask about shape to satisfy a rule written by statisticians whose names we cannot recall, or a reviewer's checklist. We ask because the shape decides how we should *summarize* the group and compare groups: a mean and a standard deviation are a fair summary of a hill and a poor one of two hills or a long tail. If the data do not behave, the remedy is a different model (one with a family and a spread that suit them), not a different test run on the same assumptions. The book returns to this question as we choose likelihoods for counts, proportions and skewed positive values, starting in @sec-count-regression and @sec-beta-robust-regression, and it checks the modeling assumptions properly, on the residuals, in @sec-mcmc-model-checking and @sec-linear-regression-assumptions.
 
-Let us return to a question that arose during our initial analysis: **Is our data normally distributed if we consider DPIs?** The answer, unequivocally, is no, and this is not a trivial realization.
-Here, I want to emphasize common sense.
-We do not ask whether our data are normally distributed simply to adhere to some ["rules"]{style="color:red;"} established by statisticians whose names we cannot recall, or to [satisfy reviewers]{style="text-decoration: underline;"} demanding [non-informative tests]{style="color:red;"} like the Kolmogorov-Smirnov or Shapiro-Wilk tests.
-Such [dogmatic rituals]{style="color:red;"} serve little purpose beyond ticking boxes in a review process.
-Instead, we ask this question because, as scientists, our goal is to answer research questions as [rigorously and accurately]{style="text-decoration: underline;"} as possible, using the [best tools]{style="text-decoration: underline;"} at our disposal, right?
-Thus, understanding whether our data approximate a normal distribution matters because it informs how we summarize and compare our groups.
-If the data are not normal (and I contend that in neurobiology they almost never are), then measures like the mean and standard deviation fail to represent what we have in our hands.
-Comparing means between groups only makes sense if we can be confident that the means and their associated variability [accurately reflect the underlying data]{style="text-decoration: underline;"}.
-If our data are non-normal, we need to acknowledge it and consider [alternative strategies]{style="text-decoration: underline;"} that better respect the data’s structure.
+No statistical model is perfect, and none describes a tissue with infinite precision. Some are more useful than others for the data in front of you, and exploring with your eyes first is how you pick.
 
-Will we ever achieve a perfect statistical model?
-No statistical model is perfect, nor can it describe the natural phenomena we study with infinite precision.
-However, there are undoubtedly some models that are more [useful]{style="text-decoration: underline;"} or [appropriate]{style="text-decoration: underline;"} than others, depending on the data available.
-What we can do as scientists is to ensure that our conclusions are **reliable**, **transparent**, and **reflective** of the biological reality we are studying.
+## Do the two markers move together? An interactive scatter plot
 
-Our raincloud plots have reinforced key observations: our data by time points is not normally distributed, and there is non-uniform variability across DPI levels.
-This will be extremely helpful when considering further modelling strategies, and it's exactly the kind of observation @sec-linear-regression-assumptions will teach you to check formally rather than eyeball.
-
-## Analyzing variable covariance
-
-Another essential step during EDA is analyzing covariance between variables.
-This is particularly relevant when exploring relationships between potential predictors in a regression model.
-As discussed in @sec-eda-ggpairs, we can rely in engaging tools from the R universe to examine the covariance between multiple pairs of variables.
-
-With this dataset, another meaningful question might be:
+The last question connects the two markers we have been drawing side by side.
 
 ::: {style="text-align: center"}
-***What is the association between PDGFR-β and GFAP***
+***What is the association between PDGFR-β and GFAP?***
 :::
 
-In other words, are PDGFR-β and GFAP intensities increasing simultaneously, or do they behave independently over time?
-Based on our previous visualizations, we may hypothesize that these two markers are strongly correlated.
-Thus, visualizing the relationship between them is a straightforward and effective way to verify this intuition and assess the strength and nature of their association.
+Both rise with time, so I expect them to correlate. But the correlation across the whole dataset is a blend of two things: the markers moving together *within* a day, and both moving with the day. Let us plot one marker against the other and color the animals by `DPI`, so the blend comes apart. (If you want to compare *every* pair of variables rather than this one, @sec-eda-ggpairs does that with a single call.)
 
-A static scatter plot would already show us the overall trend, but it would hide something we actually care about here: *which* points belong to which DPI, and which specific animal or slide a suspicious-looking point came from, exactly the kind of anomaly-hunting we flagged early on as one of EDA's core jobs. Rather than cluttering the plot with fifty text labels, we can let the reader hover to ask. That's the actual justification for reaching for interactivity here, not novelty for its own sake: to expand the use of visualization tools from the ggplot universe, we will make our graph interactive using the [`ggiraph`](https://davidgohel.github.io/ggiraph/index.html) package [@ggiraph]. So, our plot contains  the following features:
+A static scatter plot would already show the trend, but it hides something we care about: *which* dot is which animal and day, and where a suspicious one came from, the anomaly-hunting that is one of the core jobs of EDA. Instead of cluttering the plot with fifty labels, we let the reader hover. That is the only reason to reach for interactivity here, and the tool is `ggiraph` [@ggiraph], which turns ggplot layers into hoverable ones. The ingredients are `tooltip` (the text shown on hover, here GFAP, PDGFR-β and DPI), `data_id` (a unique tag for each point), and the `_interactive` versions of `geom_point()` and `geom_smooth()`. For color we use a viridis scale [@viridis], which is perceptually uniform, readable for colorblind viewers, and a natural fit for an ordered quantity such as the day.
 
-- `tooltip` (from ggiraph) defines the content displayed when we hover over a point. In our case, this include three variables: `Gfap_IntDen`, `Pdgfrb_IntDen`, and `DPI`.
-- `data_id` (from ggiraph) uniquely identifies each point for interactivity.
-- `geom_smooth_interactive` is the interactive layer for `geom_smooth` provided by ggiraph.
-- `geom_point_interactive` is the interactive layer for `geom_point` provided by ggiraph.
--   `scale_color_viridis`: applies the viridis color scale, which is perceptually uniform and visually appealing (and colorblind-safe, unlike a rainbow palette), to differentiate observations by DPI, a natural fit here since DPI is an ordered/continuous quantity, not an unordered category.
--   `theme`: to customize the legend position and orientation to make the plot more readable.
-
-This is also the first figure in the book where the HTML and PDF editions genuinely diverge: the PDF page can't hover, so it gets a plain static equivalent instead of a broken interactive widget or a blank gap.
+This is also the first figure in the book where the web and PDF editions truly differ. A page cannot hover, so the PDF gets the same plot without tooltips, in a twin chunk, instead of a broken widget or a blank gap.
 
 ::: {.content-visible when-format="html"}
 
 ```{r}
 #| label: fig-cell_data_scatter_covariance_EDA
-#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP covariation (scatter plot)
+#| fig-cap: GFAP against PDGFR-β integrated density, colored by day post-ischemia (interactive; hover over a point to see its values)
+#| fig-alt: Scatter plot of PDGFR-β against GFAP integrated density with points colored from dark purple (day 0) to yellow (day 30) and one black straight line. Day 0 and day 3 points are near the origin and tightly packed; later days spread widely and mostly lie above the line at the upper end.
 #| fig-width: 4
 #| fig-height: 4
 #| warning: false
 #| message: false
 
-library(ggplot2)
 library(ggiraph)
 library(viridis)
 
-# Create the ggplot object with interactive elements
+# Interactive scatter: each point carries a tooltip and an id
 Pdgfrb_Gfap_scatter <- ggplot(
   data = cell_data,
   aes(
     x = Gfap_IntDen,
     y = Pdgfrb_IntDen,
-    color = DPI,
-    tooltip = paste("GFAP:", Gfap_IntDen, "<br>PDGFR-β:", Pdgfrb_IntDen, "<br>DPI:", DPI),
+    color = DPI_f,
+    tooltip = paste("GFAP:", round(Gfap_IntDen), "<br>PDGFR-β:", round(Pdgfrb_IntDen),
+                    "<br>DPI:", DPI),
     data_id = rownames(cell_data)
   )
 ) +
-
   geom_point_interactive(size = 3) +
-  scale_color_viridis(discrete = TRUE, option = "viridis") +
-  labs(
-    title = "",
-    subtitle = "Scatterplot",
-    x = "GFAP intensity",
-    y = "PDGFR-β intensity"
-  ) +
-
+  scale_color_viridis(discrete = TRUE, option = "viridis", name = "DPI") +
   geom_smooth_interactive(
-    tooltip="Linear relation",
-    data_id="Linear relation",
-    method = "lm",
-    color = "black",
-    se = FALSE
+    tooltip = "Linear relation",
+    data_id = "Linear relation",
+    method = "lm", color = "black", se = FALSE
   ) +
-
+  labs(x = "GFAP integrated density", y = "PDGFR-β integrated density") +
   Plot_theme +
   # Legend above the plot, in one row
   legend_top()
 
-# Render the interactive graph using girafe()
-girafe(ggobj = Pdgfrb_Gfap_scatter,
-       width_svg = 5,
-       height_svg = 5)
-
+# Turn the ggplot into a hoverable widget
+girafe(ggobj = Pdgfrb_Gfap_scatter, width_svg = 5, height_svg = 5)
 ```
 
-@fig-cell_data_scatter_covariance_EDA reveals that the covariation between PDGFR-β and GFAP intensities varies substantially depending on DPI. For example, at 0 DPI (dark purple), the points are tightly clustered near zero on both axes, indicating low variability and a lack of strong covariance at this baseline time point. In contrast, at 14 and 30 DPI (yellow-green tones), the points are more widely dispersed, suggesting greater variability and a different relationship between the markers at later stages of recovery (hover over any point to check its exact values and DPI). These aspects highlight the evolving nature of our markers in the dataset.
-
-Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction, an idea @sec-linear-regression-multiple takes up directly.
+Hover over any point in @fig-cell_data_scatter_covariance_EDA to read its exact values and day.
 
 :::
 
@@ -568,56 +358,212 @@ Once again, we observe that the linear trend line does not adequately capture th
 
 ```{r}
 #| label: fig-cell_data_scatter_covariance_EDA-pdf
-#| fig-cap: Exploratory data visualization for PDGFR-$\beta$ and GFAP covariation (scatter plot, static edition)
+#| fig-cap: GFAP against PDGFR-β integrated density, colored by day post-ischemia (static edition; the web edition lets you hover over each point)
+#| fig-alt: Scatter plot of PDGFR-β against GFAP integrated density with points colored from dark purple (day 0) to yellow (day 30) and one black straight line. Day 0 and day 3 points are near the origin and tightly packed; later days spread widely.
 #| fig-width: 5
 #| fig-height: 5
 #| warning: false
 #| message: false
 
-library(ggplot2)
 library(viridis)
 
-# Same plot as the interactive one, minus the hover tooltips, for the PDF edition
+# Same plot as the interactive one, without tooltips, for the PDF edition
 Pdgfrb_Gfap_scatter_static <- ggplot(
   data = cell_data,
-  aes(x = Gfap_IntDen, y = Pdgfrb_IntDen, color = DPI)
+  aes(x = Gfap_IntDen, y = Pdgfrb_IntDen, color = DPI_f)
 ) +
   geom_point(size = 3) +
   geom_smooth(method = "lm", color = "black", se = FALSE) +
-  scale_color_viridis(discrete = TRUE, option = "viridis") +
-  labs(
-    title = "",
-    subtitle = "Scatterplot",
-    x = "GFAP intensity",
-    y = "PDGFR-β intensity"
-  ) +
+  scale_color_viridis(discrete = TRUE, option = "viridis", name = "DPI") +
+  labs(x = "GFAP integrated density", y = "PDGFR-β integrated density") +
   Plot_theme +
-  # Legend above the plot, in one row
   legend_top()
 
 Pdgfrb_Gfap_scatter_static
 ```
 
-@fig-cell_data_scatter_covariance_EDA-pdf reveals that the covariation between PDGFR-β and GFAP intensities varies substantially depending on DPI. At 0 DPI (dark purple), the points are tightly clustered near zero on both axes, indicating low variability and a lack of strong covariance at this baseline time point. In contrast, at 14 and 30 DPI (yellow-green tones), the points are more widely dispersed, suggesting greater variability and a different relationship between the markers at later stages of recovery. (The online edition of this book lets you hover over individual points to inspect their exact values.)
-
-Once again, we observe that the linear trend line does not adequately capture the data's structure, particularly across different DPI levels. Based on this, it would be more insightful to fit separate lines for each DPI, what we call a model with interaction, an idea @sec-linear-regression-multiple takes up directly.
+@fig-cell_data_scatter_covariance_EDA-pdf is the static twin of the interactive figure in the web edition, where you can hover over each point.
 
 :::
 
-## What we have learned about our data using EDA?
+Pooled over all animals the two markers correlate moderately (r = `r sprintf("%.2f", r_pooled)`), but look at the colors. The day-0 animals (dark purple) are packed near the origin and the day-3 animals just beyond them; the later days (green to yellow) spread across the plot. Within a single day the relationship is far from uniform: the correlation is `r sprintf("%.2f", r_day["0"])` at day 0, `r sprintf("%.2f", r_day["3"])` at day 3, `r sprintf("%.2f", r_day["7"])` at day 7, `r sprintf("%.2f", r_day["14"])` at day 14 and `r sprintf("%.2f", r_day["30"])` at day 30. With ten animals per day these within-day correlations are rough, and I would not read much into a single one. But the pattern they make is the point: the straight line summarizes a relationship that is mostly *time moving both markers*, and it does not describe any one day well. Letting the line differ by day is what we call an interaction, and @sec-linear-regression-multiple fits the one the design allows.
 
-After applying these visualization strategies, we can summarize key observations that will guide our modeling strategy and interpretation:
+## Two more shapes, borrowed: when the smoothing and the pooling matter
 
-- **Marker intensities:** The intensity values for both PDGFR-β and GFAP range approximately up to 1500.
-- **Temporal trends:** The intensities of both markers show a clear tendency to increase over time (DPI), consistent with the biological response following ischemic injury.
-- **Nonlinearity:** The increase in marker intensities with time deviates substantially from linearity, suggesting that a simple linear model may not fully capture the underlying trends.
-- **Variability Across DPI:** There is substantial variability in the data’s spread at different time points.
-  a. Early time points (0 and 3 DPI) exhibit low variability, likely due to baseline conditions and stable biological states.
-  b. Later time points (14 and 30 DPI) show high variability, reflecting the evolving biological processes such as neurodegeneration, recovery, and animal-specific factors.
-- **Covariance Between Markers:** The relationship (covariance) between PDGFR-β and GFAP intensities is variable and appears to be influenced by DPI or other grouping factors.
+`cell_data` has taught us a lot, but two lessons are easier to see in other people's data, and a package I used in @sec-eda-missing-data, `NeuroDataSets` [@neurodatasets], has two small real datasets that make them vivid. I use them only in this section. The first is about how much a histogram or a density can *invent* or *hide*. The second is about what happens when a figure pools regions that behave differently, a cousin of pooling days.
+
+```{r}
+#| include: false
+
+library(NeuroDataSets)
+
+# Two real datasets shipped with the NeuroDataSets package
+data("guineapig_neuro_df", package = "NeuroDataSets")
+data("aba_phenotype_data_df", package = "NeuroDataSets")
+gp <- guineapig_neuro_df
+aba <- aba_phenotype_data_df
+
+# Order the regions by their median GFAP so the figures read from low to high
+aba$region <- reorder(aba$structure_acronym.x, aba$ihc_gfap_ffpe,
+                      FUN = median, na.rm = TRUE)
+
+# Numbers quoted in the text, computed from the data so they cannot drift
+dens_peaks <- function(x, ...) {
+  d <- density(x, ...)
+  d$x[which(diff(sign(diff(d$y))) == -2) + 1]
+}
+gp_n <- nrow(gp)
+gp_mean <- mean(gp$y)
+gp_sd <- sd(gp$y)
+gp_median <- median(gp$y)
+gp_peaks <- dens_peaks(gp$y)
+gp_peaks_narrow <- dens_peaks(gp$y, adjust = 0.4)
+gp_n_top <- sum(gp$y > 26)
+gp_max <- max(gp$y)
+aba_n <- nrow(aba)
+aba_n_region <- table(aba$region)
+aba_gfap_med <- tapply(aba$ihc_gfap_ffpe, aba$region, median, na.rm = TRUE)
+aba_iba1_med <- tapply(aba$ihc_iba1_ffpe, aba$region, median, na.rm = TRUE)
+aba_na_gfap <- sum(is.na(aba$ihc_gfap_ffpe))
+aba_na_iba1 <- sum(is.na(aba$ihc_iba1_ffpe))
+aba_complete <- sum(complete.cases(aba))
+aba_r_pooled <- cor(aba$ihc_gfap_ffpe, aba$ihc_iba1_ffpe, use = "complete.obs")
+aba_r_region <- sapply(split(aba, aba$region), function(s)
+  cor(s$ihc_gfap_ffpe, s$ihc_iba1_ffpe, use = "complete.obs"))
+```
+
+### Peaks that depend on the settings: spontaneous synaptic currents
+
+Imagine you record from a neuron in a brain slice and, with no stimulation at all, collect the small currents that appear on their own. Each one is the response to neurotransmitter released from a presynaptic terminal. The old question behind this dataset [@paulsen1994] is whether release comes in units. If a synapse releases whole vesicles, amplitudes should come in multiples of one unit: many events of size *q*, fewer of size 2*q*, fewer of 3*q*. Think of buying eggs, which come by the half dozen and the dozen, never by the single yolk. A histogram of amplitudes should then show humps at regular spacing. `guineapig_neuro_df` holds the amplitudes of `r gp_n` spontaneous currents recorded in guinea-pig thalamic slices (the package labels the unit "pA or similar", and I leave the axes in the same words).
+
+This is a dataset where a plain histogram can mislead in both directions, and I want you to see why. A histogram counts events in bins, so you choose the bin width; a density smooths the counts, so you choose the bandwidth. Too wide and a real hump vanishes; too narrow and noise looks like a hump. @fig-eda-ggplot-guineapig draws the same `r gp_n` numbers four ways with `geom_histogram()` and `geom_density()`, changing only that choice.
+
+```{r}
+#| label: fig-eda-ggplot-guineapig
+#| fig-cap: "Amplitude of spontaneous synaptic currents, drawn four ways. A to C: histograms with bins of 4, 1.5 and 0.3. D: densities with the default smoothing (solid) and with less smoothing (dashed)."
+#| fig-alt: "Four panels. A: a coarse histogram with a single hill and a long right tail. B: a medium histogram with a main peak near 7 to 8 and a smaller hump near 15. C: a very fine histogram that looks jagged, with many small spikes. D: two density curves, a smooth one with peaks near 7.5 and 15 and a wavier dashed one with extra small bumps."
+#| fig-width: 10
+#| fig-height: 7
+#| warning: false
+#| message: false
+
+# One neutral color for this dataset (not a marker color of this chapter)
+gp_color <- "#E69F00"
+
+# A function that draws a histogram of the amplitudes for a chosen bin width
+gp_hist <- function(bw, title) {
+  ggplot(gp, aes(x = y)) +
+    geom_histogram(binwidth = bw, boundary = 0, fill = gp_color,
+                   color = "white", alpha = 0.8) +
+    labs(title = title, x = "Amplitude", y = "Count") +
+    Plot_theme
+}
+
+# Three bin widths: too wide, a reasonable middle, too narrow
+p_h1 <- gp_hist(4, "Bins of 4")
+p_h2 <- gp_hist(1.5, "Bins of 1.5")
+p_h3 <- gp_hist(0.3, "Bins of 0.3")
+
+# Two smoothing levels of the density, drawn with different line types
+p_d <- ggplot(gp, aes(x = y)) +
+  geom_density(aes(linetype = "default smoothing"), fill = gp_color, alpha = 0.5) +
+  geom_density(aes(linetype = "less smoothing"), adjust = 0.4) +
+  scale_linetype_manual(name = NULL,
+                        values = c("default smoothing" = "solid",
+                                   "less smoothing" = "dashed")) +
+  labs(title = "Density", x = "Amplitude", y = "Density") +
+  Plot_theme + legend_top()
+
+# Four panels, tagged A to D
+(p_h1 | p_h2) / (p_h3 | p_d) + plot_annotation(tag_levels = "A")
+```
+
+::: {.callout-tip title="How to read this figure"}
+Compare the panels as if they were four photographs of the same animal taken with different lenses. Ask first what stays the same in all four (here, a big pile at low amplitudes and a long right tail). Then ask which features appear with only one setting. A feature that survives a sensible range of bins or bandwidths deserves attention; one that appears only at the narrowest setting is probably noise, and one that disappears only at the widest is probably just blurred. Never report a hump you found with one setting and could not find with a neighboring one.
+:::
+
+What does the dataset say? In panel A the data look like one hill with a tail. In panel B a second hump appears near `r round(gp_peaks[2], 1)`, about twice the position of the main peak at `r round(gp_peaks[1], 1)`, which is the spacing a quantal release would predict. Panel C shows what too little smoothing does: a jagged comb of narrow spikes that tempts you to count peaks that are mostly noise. In panel D the default density keeps the first two humps (at `r round(gp_peaks[1], 1)` and `r round(gp_peaks[2], 1)`), and its third little bump at `r round(gp_peaks[3], 1)` stands on a single measurement (the largest, `r gp_max`; only `r gp_n_top` current exceeds 26), so I do not count it. With less smoothing the dashed curve finds `r length(gp_peaks_narrow)` peaks, and I cannot tell from `r gp_n` currents which of the extra ones are real. That is an honest EDA conclusion: the first two humps are supported, the rest is not, and a stronger claim needs another tool (a mixture model, for instance) and probably more recordings.
+
+One more point about the summary. The mean is `r round(gp_mean, 1)`, the standard deviation `r round(gp_sd, 1)` and the median `r round(gp_median, 1)`. The mean sits between the first and the second hump, in a valley where few currents live, the same trap we met with GFAP at 30 DPI (@fig-eda-ggplot-raincloud). A mean and a standard deviation would tell a reader that the typical current is about `r round(gp_mean)`, and almost no recorded current is typical in that sense.
+
+### Pooling regions: GFAP and IBA1 in human brain tissue
+
+The second dataset brings back our favorite marker in a different tissue. `aba_phenotype_data_df` comes from the Allen Brain Atlas study of aging, dementia and traumatic brain injury [@miller2017]. It has `r aba_n` brain tissue samples from four regions, each quantified by immunohistochemistry for GFAP (astrocytes, as in our mice) and IBA1 (microglia). The package gives only the acronyms, which I read as hippocampus (`HIP`), parietal and temporal neocortex (`PCx`, `TCx`) and forebrain white matter (`FWM`). The staining values have no documented unit, so I keep the axes named after the columns and compare only *between regions*, never against `cell_data`.
+
+The question is the one we asked of time, now asked of region: does the shape of the distribution change from one region to the next? Think of four neighborhoods and their housing prices. A single histogram of the city hides that one neighborhood is cheap and tight and another expensive and spread out. With `r min(aba_n_region)` to `r max(aba_n_region)` samples per region we are well past the thirty-observation rule I gave for showing every point, but the rain is still useful, since it shows where the samples actually fall, and the half-density next to it keeps the shape visible. We use the same raincloud recipe as before, with the regions ordered by median GFAP, blue for GFAP as in the rest of the chapter and a new green for IBA1.
+
+```{r}
+#| label: fig-eda-ggplot-aba
+#| fig-cap: GFAP and IBA1 immunohistochemistry by brain region in the Allen aging, dementia and TBI samples (raincloud plots; the diamond is the group mean)
+#| fig-alt: Two raincloud plots by region (TCx, PCx, HIP, FWM). A, GFAP, climbs from TCx to FWM, with the white matter highest and widest. B, IBA1, is highest and most spread out in the hippocampus, with the other three regions similar. Individual samples appear as points beside each cloud.
+#| fig-width: 10
+#| fig-height: 5
+#| warning: false
+#| message: false
+
+Iba1_color <- "#009E73"
+
+# GFAP by region: cloud, box, rain and mean
+aba_gfap <- ggplot(aba, aes(x = region, y = ihc_gfap_ffpe)) +
+  stat_halfeye(adjust = 0.5, width = 0.6, .width = 0,
+               justification = -0.3, point_colour = NA) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  geom_half_point(side = "l", range_scale = 0.4, alpha = 0.4) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4, color = Gfap_color) +
+  labs(x = "Brain region", y = "GFAP (ihc_gfap_ffpe)") +
+  Plot_theme
+
+# IBA1 by region, same layers
+aba_iba1 <- ggplot(aba, aes(x = region, y = ihc_iba1_ffpe)) +
+  stat_halfeye(adjust = 0.5, width = 0.6, .width = 0,
+               justification = -0.3, point_colour = NA) +
+  geom_boxplot(width = 0.2, outlier.shape = NA) +
+  geom_half_point(side = "l", range_scale = 0.4, alpha = 0.4) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4, color = Iba1_color) +
+  labs(x = "Brain region", y = "IBA1 (ihc_iba1_ffpe)") +
+  Plot_theme
+
+aba_gfap + aba_iba1 + plot_annotation(tag_levels = "A")
+```
+
+@fig-eda-ggplot-aba says different things for the two markers. GFAP climbs from region to region: the median goes from `r sprintf("%.3f", aba_gfap_med[1])` in `r names(aba_gfap_med)[1]` to `r sprintf("%.3f", aba_gfap_med[4])` in `r names(aba_gfap_med)[4]`, and the white matter is also the widest. IBA1 is organized differently: the hippocampus stands out (median `r sprintf("%.3f", aba_iba1_med["HIP"])`, against `r sprintf("%.3f", min(aba_iba1_med[names(aba_iba1_med) != "HIP"]))` to `r sprintf("%.3f", max(aba_iba1_med[names(aba_iba1_med) != "HIP"]))` in the other three regions). A single ranking of "regions by marker" would have been wrong for one of the two. This is the same lesson as the days of `cell_data`: the group is part of the answer, and a pooled figure answers a question nobody asked.
+
+Two checks deserve a place in every EDA of this kind, because the figure alone would not tell you. First, ggplot2 drops missing values silently (we suppressed the warning above): `r aba_na_gfap` samples have no GFAP and `r aba_na_iba1` no IBA1, which leaves `r aba_complete` complete rows out of `r aba_n`, and whether those gaps are harmless is the question of @sec-eda-missing-data. Second, the table has one row per sample and no donor identifier, so I cannot tell which samples came from the same person. If several regions come from one brain, the rows are not independent, and a model that treats them as if they were commits the pseudoreplication that @sec-multilevel-varying-intercepts is about. A figure cannot warn you of that; you have to ask how the data were collected.
+
+For one last look, the scatter of the two markers, split by region (@fig-eda-ggplot-aba-scatter). `facet_wrap()` gives each region its own panel on shared scales, the grown-up version of coloring by day in @fig-cell_data_scatter_covariance_EDA, and it needs no legend because the panel titles already say which region is which.
+
+```{r}
+#| label: fig-eda-ggplot-aba-scatter
+#| fig-cap: GFAP against IBA1 in each brain region (one point per sample; the line is a straight-line fit)
+#| fig-alt: Four scatter plots, one per region (TCx, PCx, HIP, FWM), of GFAP against IBA1. The clouds are broad and sit at different heights in different regions. The straight lines are nearly flat in three regions and slope downward in FWM.
+#| fig-width: 8
+#| fig-height: 6
+#| warning: false
+#| message: false
+
+# One panel per region, same axes, so the clouds can be compared
+ggplot(aba, aes(x = ihc_iba1_ffpe, y = ihc_gfap_ffpe)) +
+  geom_point(color = Gfap_color, alpha = 0.6) +
+  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 0.8) +
+  facet_wrap(~ region) +
+  labs(x = "IBA1 (ihc_iba1_ffpe)", y = "GFAP (ihc_gfap_ffpe)") +
+  Plot_theme
+```
+
+In @fig-eda-ggplot-aba-scatter each region's cloud sits at its own height, and the lines are nearly flat except in `FWM`, where GFAP drifts down as IBA1 rises. Across all samples the correlation between the markers is `r sprintf("%.2f", aba_r_pooled)`; within the regions it is `r paste(sprintf("%.2f", aba_r_region), collapse = ", ")` (in the order `r paste(names(aba_r_region), collapse = ", ")`). None of these is large (the strongest, in `FWM`, is `r sprintf("%.2f", aba_r_region["FWM"])`), and with about 85 samples per region I would not lean on any single one. The lesson is the quieter one: a correlation computed on pooled groups mixes differences *between* groups with association *within* them. We saw the same in `cell_data`, where the days made the two markers move together, and it is why a coefficient on pooled data should be read only after looking at the groups.
+
+## What we have learned about our data
+
+Three questions, three kinds of figure, and one list of findings that will guide every model that follows. These are leads from looking, not results, and they are collected with the rest of the part's findings in @sec-eda-summary.
+
+-   **Scale and shape.** PDGFR-β ranges from `r round(pdgfrb_range[1])` to `r round(pdgfrb_range[2])` and GFAP from `r round(gfap_range[1])` to `r round(gfap_range[2])`, both right-skewed when pooled across days (@fig-cell_data_dens_EDA).
+-   **Time trend.** Both markers rise with days post-ischemia, but not along a straight line: PDGFR-β keeps climbing, GFAP plateaus and dips at 30 DPI (@fig-cell_data_scatter_EDA, @fig-cell_data_rain_EDA).
+-   **Unequal spread.** Early days (0 and 3 DPI) are tight, later days are widely scattered, which anticipates heteroskedasticity and means one common variance is a poor description.
+-   **A summary that misleads.** At 30 DPI, GFAP has two groups of animals and a mean that falls in the gap between them (@fig-cell_data_rain_EDA).
+-   **Covariation depends on the day.** The association between the two markers is moderate overall but varies by day, mostly because both markers share the effect of time (@fig-cell_data_scatter_covariance_EDA).
 
 ::: {.callout-note title="How to report it"}
-**Methods.** Before modeling, we explored the raw data graphically (density plots, scatter plots against days post-ischemia and raincloud plots showing every animal; n = `r n_obs`). Both markers were right-skewed rather than normally distributed. The standard deviation of GFAP integrated density rose from `r round(gfap_sd_day["0"])` at day 0 to `r round(gfap_sd_day["30"])` at day 30, and that of PDGFR-β integrated density from `r round(pdgfrb_sd_day["0"])` to `r round(pdgfrb_sd_day["30"])`, so a model with one common variance and a straight-line trend over the whole range would describe these data poorly, and we checked those assumptions explicitly before relying on any such model.
+**Methods.** Before modeling, we explored the raw data graphically (density plots, scatter plots against days post-ischemia, and raincloud plots showing every animal; n = `r n_obs`, `r min(n_day)` to `r max(n_day)` per day). The standard deviation of GFAP integrated density rose from `r round(gfap_sd_day["0"])` at day 0 to `r round(gfap_sd_day["7"])` at day 7, and that of PDGFR-β integrated density from `r round(pdgfrb_sd_day["0"])` at day 0 to `r round(pdgfrb_sd_day["30"])` at day 30. Because the spread was not constant across days and the trend was not a straight line, we did not rely on a model with one common variance and a linear time trend without checking those assumptions explicitly.
 :::
 
-These insights are crucial for informing our next steps. We know that our modeling strategy must recognize the nonlinearity, heteroskedasticity (unequal variance), and DPI-driven covariance.  
+These findings fix the plan. We know that the modeling strategy must allow a trend that is not straight, a variance that changes with time, and a relationship between the markers that depends on the day. Two more tools complete the exploration before we start fitting: @sec-eda-gwalkr lets you explore the same data by dragging variables around, and @sec-eda-ggpairs screens all the pairs of variables at once.

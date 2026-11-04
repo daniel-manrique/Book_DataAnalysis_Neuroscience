@@ -48,10 +48,10 @@
 
 ## D {.unnumbered .unlisted}
 
+- **density plot**: [EDA using graphics](eda-ggplot.qmd#ix-density-plot-1)
 - **derived quantity** ([glossary](glossary.qmd#gl-derived-quantity)): [Following the scar over thirty days](longitudinal-timeseries.qmd#ix-derived-quantity-1)
 - **design effect** ([glossary](glossary.qmd#gl-design-effect)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-design-effect-1) ([2](multilevel-intro.qmd#ix-design-effect-2))
 - **dispersion statistic**: [Estimating how likely a mouse is to cross the wire](logistic-regression.qmd#ix-dispersion-statistic-1); [Counting cells and spikes](count-regression.qmd#ix-dispersion-statistic-1); [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-dispersion-statistic-1)
-- **distribution**: [EDA using graphics](eda-ggplot.qmd#ix-distribution-1) ([2](eda-ggplot.qmd#ix-distribution-2))
 - **distributional regression** ([glossary](glossary.qmd#gl-distributional-regression)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-distributional-regression-1)
 - **divergent transition**: [MCMC and model checking](mcmc-model-checking.qmd#ix-divergent-transition-1)
 - **divergent transitions**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-divergent-transitions-1)
@@ -167,8 +167,7 @@
 
 ## R {.unnumbered .unlisted}
 
-- **raincloud plot**: [EDA using graphics](eda-ggplot.qmd#ix-raincloud-plot-1) ([2](eda-ggplot.qmd#ix-raincloud-plot-2))
-- **raincloud plots**: [EDA using graphics](eda-ggplot.qmd#ix-raincloud-plots-1)
+- **raincloud plot**: [EDA using graphics](eda-ggplot.qmd#ix-raincloud-plot-1)
 - **random intercept**: [Counting cells and spikes](count-regression.qmd#ix-random-intercept-1)
 - **ratio of standard deviations** ([glossary](glossary.qmd#gl-ratio-of-standard-deviations)): [Modeling two markers and their spread together](multivariate-distributional-regression.qmd#ix-ratio-of-standard-deviations-1)
 - **reallocation of credibility**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-reallocation-of-credibility-1)
@@ -186,12 +185,11 @@
 
 ## S {.unnumbered .unlisted}
 
-- **scatter plots**: [EDA using graphics](eda-ggplot.qmd#ix-scatter-plots-1) ([2](eda-ggplot.qmd#ix-scatter-plots-2))
+- **scatter plots**: [EDA using graphics](eda-ggplot.qmd#ix-scatter-plots-1)
 - **shrinkage** ([glossary](glossary.qmd#gl-shrinkage)): [The book's shared plot theme (this also loads the legend helpers)](multilevel-intro.qmd#ix-shrinkage-1) ([2](multilevel-intro.qmd#ix-shrinkage-2))
 - **simulation-based calibration**: [Bayesian core concepts and statistical workflow](bayesian-core-workflow.qmd#ix-simulation-based-calibration-1)
 - **skew**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-skew-1)
 - **slope**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-slope-1); [Describing the effect of ischemia with a line](linear-regression-what.qmd#ix-slope-1)
-- **smooth density plot**: [EDA using graphics](eda-ggplot.qmd#ix-smooth-density-plot-1)
 - **softmax**: [Grading neurological deficit](ordinal-nominal-regression.qmd#ix-softmax-1)
 - **spline** ([glossary](glossary.qmd#gl-spline)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-spline-1)
 - **standard deviation**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-standard-deviation-1)
