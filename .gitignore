@@ -35,3 +35,6 @@ _book/
 
 # knitr intermediate left in the project root by a direct knit or a failed render
 /*.rmarkdown
+
+# Cached brms fits live outside git (large; Daniel stores them elsewhere)
+models/*.rds
