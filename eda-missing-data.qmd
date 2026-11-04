@@ -37,7 +37,7 @@ In @sec-eda-first-look, `skim()` told us that exactly one value in `cell_data` i
 ***Is this NA an accident, a clue, or a problem?***
 :::
 
-An accident is a value that went missing for a reason that has nothing to do with the biology (a dropped slide), and that costs you a little precision and nothing else. A clue is a missing value that tells you something about how the data were produced, and therefore about whether the rest of the numbers can be trusted. A problem is a missing value that, if you handle it carelessly, changes your answer. A single `NA` could in principle be any of the three, and the honest thing to say at the outset is that one cell cannot tell us which. What I can do is show you how to look, what the standard ways of thinking about missingness assume, and what each way of dealing with it costs. I should also warn you that this particular `NA` is a very small stage for a very large topic: several of the plots below will illustrate a method more than they will discover anything, and I will say so when that happens.
+An accident is a value that went missing for a reason that has nothing to do with the biology (a dropped slide), and that costs you a little precision and nothing else. A clue is a missing value that tells you something about how the data were produced, and therefore about whether the rest of the numbers can be trusted. A problem is a missing value that, if you handle it carelessly, changes your answer. A single `NA` could in principle be any of the three, and the honest thing to say at the outset is that one cell cannot tell us which. What I can do is show you how to look, what the standard ways of thinking about missingness assume, and what each way of dealing with it costs. I should also warn you that this particular `NA` is a very small stage for a very large topic: several of the plots below will illustrate a method more than they will discover anything, and I will say so when that happens. Near the end of the chapter I borrow a real MRI dataset to show you a second, very different kind of `NA`, one that is not an accident at all, so that you can tell them apart in your own tables.
 
 ## Looking at a single missing value
 
@@ -132,7 +132,7 @@ tryCatch(
 )
 ```
 
-It refuses, and for a sound reason: a combination needs at least two variables with missing values, and we have one. I would rather show you the error than draw an empty plot. The takeaway is that `gg_miss_upset()` is a tool for the day your dataset has many `NA`s in several columns, and for that day you now know it exists.
+It refuses, and for a sound reason: a combination needs at least two variables with missing values, and we have one. I would rather show you the error than draw an empty plot. The takeaway is that `gg_miss_upset()` is a tool for the day your dataset has many `NA`s in several columns, and for that day you now know it exists. That day arrives in @sec-missing-structural, where the same function works.
 
 ### The clue hiding in a derived column
 
@@ -272,6 +272,208 @@ ggplot(sims, aes(x = mean, y = method, color = method, shape = method)) +
 ```
 
 Read it from top to bottom. Under MCAR, both estimators land on the truth: throwing away a random 30% of the animals costs you precision (the bars are wider than they would be with everything) but not accuracy. Under MAR, the complete-case mean is wrong, and by a lot, because the animals with a high $z$ are lost more often and they are also the ones with a high $y$; the estimator that uses the recorded $z$ repairs it. Under MNAR, *both* are wrong, and neither tells you that. This is the figure I would put on a slide titled "why the mechanism matters": the choice of method is only as good as the assumption about how the values were lost, and the assumption cannot be read off the data.
+
+## Missing by design: a second kind of NA {#sec-missing-structural}
+
+Every missing value so far has been a value that *exists* and was not recorded. Animal `Td79` has a number of PDGFR-β-negative cells; it just did not make it into the spreadsheet. There is a second kind of `NA` that looks identical in the table and asks for a completely different response, and I would like you to meet it before you meet it in your own data. Picture a table with ischemic and sham animals and a column for infarct volume. Every sham animal has an `NA` there, and nobody dropped a slide: there is no infarct to measure. Asking a sham mouse for its lesion volume is like asking a naive cage-mate for its latency to find a platform it has never been trained on. The value is not lost, it does not exist. I will call this [structural missingness]{style="color:green; font-weight:bold;"}: the `NA` is produced by the design of the study, by a variable you recorded, and not by a mishap.
+
+`cell_data` has no example of this, so I borrow a real one. The R package `NeuroDataSets` [@neurodatasets] ships `OASIS_cross_tbl_df`, the cross-sectional release of the Open Access Series of Imaging Studies [@marcus2007]: structural MRI and clinical assessments of 416 people aged 18 to 96, plus 20 of them scanned a second time, for 436 rows. I use it only for this section. The columns that matter here are `Age`, `Educ` (education, in five categories), `SES` (socioeconomic status, five categories), `MMSE` (Mini-Mental State Examination, a cognitive screening score), `CDR` (Clinical Dementia Rating: 0 none, 0.5 very mild, 1 mild, 2 moderate), `nWBV` (the volume of the brain as a fraction of the intracranial volume) and `Delay` (days between the two scans of the same person).
+
+```{r}
+#| label: load-oasis
+
+library(NeuroDataSets)
+
+# Real MRI and clinical table (OASIS-1) shipped with the NeuroDataSets package
+data("OASIS_cross_tbl_df", package = "NeuroDataSets")
+oasis <- as.data.frame(OASIS_cross_tbl_df)
+
+# Numbers quoted in the text below
+n_oasis   <- nrow(oasis)
+n_people  <- length(unique(sub("_MR[0-9]+$", "", oasis$ID)))
+no_clinic <- is.na(oasis$CDR)                  # CDR not recorded
+n_block   <- sum(no_clinic)
+
+# Are CDR, MMSE and Educ missing in exactly the same rows?
+same_rows <- all(no_clinic == is.na(oasis$MMSE) & no_clinic == is.na(oasis$Educ))
+```
+
+I look at it the way we looked at `cell_data`: first the whole table as a grid. Here I ask `vis_miss()` to cluster the rows that share a pattern of missingness (`cluster = TRUE`), because with `r n_oasis` rows I want similar rows next to each other and not scattered in file order (@fig-missing-oasis-vismiss).
+
+```{r}
+#| label: fig-missing-oasis-vismiss
+#| fig-cap: "The OASIS-1 table as a grid, rows clustered by their pattern of missingness. Dark cells are missing. Education, SES, MMSE and CDR are missing together in one large block of rows; SES alone is missing in a smaller set."
+#| fig-alt: "Grid of 436 rows and 12 columns. Most cells are pale. In the columns Educ, MMSE and CDR, a large block of about 200 rows at one end is dark; the SES column is dark for those same rows and for a short additional stretch of about twenty rows."
+#| fig-width: 9
+#| fig-height: 6
+
+# Whole table, rows grouped by missingness pattern; dark orange = missing
+vis_miss(oasis, cluster = TRUE, show_perc = FALSE) +
+  scale_fill_manual(
+    values = c("grey85", okabe_ito[["missing"]]),
+    labels = c("Present", "Missing")
+  ) +
+  labs(x = NULL, y = "Row (clustered)", fill = NULL) +
+  Plot_theme +
+  theme(axis.text.x = element_text(angle = 60, hjust = 0, size = 10),
+        axis.text.y = element_text(size = 10),
+        plot.margin = margin(5, 40, 5, 5)) +
+  legend_top()
+```
+
+This time the grid *does* discover something, and the contrast with @fig-missing-vismiss is the point of the section. There is no lone orange cell to hunt for: there is a slab. `r n_block` of the `r n_oasis` rows (`r round(100 * n_block / n_oasis)`%) have no `CDR`, and they are the same rows that have no `MMSE` and no `Educ` (are the three columns missing together in every one of them? `r same_rows`). `SES` is missing in those rows too, and in a few more. When several columns go dark in exactly the same rows, you are rarely looking at several accidents. You are looking at one decision.
+
+The tool built for that question is the UpSet plot, which I could not use on `cell_data`. It counts how often each *combination* of missing variables occurs (@fig-missing-oasis-upset).
+
+::: callout-tip
+### How to read this figure
+
+Read it from the bottom matrix up. Each column of dots is one *combination* of variables: a filled dot means "missing in this combination", and dots joined by a line are missing together. The bar above a column says how many rows have exactly that combination, and the small bars on the left give the total missing per variable. Look for tall bars with several joined dots: that is a block that fails as a unit. Short bars with a single dot are the ordinary, isolated `NA`s.
+:::
+
+```{r}
+#| label: fig-missing-oasis-upset
+#| fig-cap: "Combinations of missing variables in OASIS-1. The tall bar is the block of rows missing Educ, MMSE, CDR and SES together; the short bar is SES missing on its own."
+#| fig-alt: "UpSet plot. The tallest bar, about 200, joins four dots for the variables CDR, MMSE, Educ and SES. A much shorter bar of about 19 has a single dot for SES. Horizontal bars on the left show 220 missing for SES and 201 each for Educ, MMSE and CDR."
+#| fig-width: 7
+#| fig-height: 4.5
+
+# Count each combination of missing variables (drawn with the UpSetR package)
+gg_miss_upset(oasis, main.bar.color = okabe_ito[["observed"]],
+              sets.bar.color = okabe_ito[["observed"]], text.scale = 1.4)
+```
+
+Two combinations explain the whole table: a block of `r n_block` rows where four variables are missing together, and `r sum(is.na(oasis$SES) & !no_clinic)` rows where only `SES` is missing. They are different problems, and I take them one at a time, starting with the block. What decides which rows are in it? The first suspect is whatever the study recorded about each person, and the obvious candidate is `Age` (@fig-missing-oasis-age).
+
+```{r}
+#| label: fig-missing-oasis-age
+#| fig-cap: "People in OASIS-1 by age band, split by whether the clinical rating (CDR) was recorded. Numbers inside the bars are counts (the two people in their thirties with a rating are too few to label). Every person under 30 lacks it; every person aged 60 or over has it."
+#| fig-alt: "Stacked bar chart with seven age bands from 18-29 to 80-96. In the 18-29 band all 157 people are in the orange group without a clinical rating. The orange share shrinks across the 30s, 40s and 50s, and from 60 onward all bars are entirely blue, meaning a rating was recorded."
+#| fig-width: 7.5
+#| fig-height: 4.5
+
+# Count people per age band, by CDR recorded or not
+age_bands <- oasis |>
+  mutate(band = cut(Age, c(17, 29, 39, 49, 59, 69, 79, 100),
+                    labels = c("18-29", "30-39", "40-49", "50-59",
+                               "60-69", "70-79", "80-96")),
+         status = ifelse(is.na(CDR), "CDR not recorded", "CDR recorded")) |>
+  count(band, status)
+
+# Stacked bars from zero (an amount per band) with the counts written inside
+ggplot(age_bands, aes(x = band, y = n, fill = status)) +
+  geom_col(color = "black", linewidth = 0.4) +
+  # Label only segments tall enough to hold a number
+  geom_text(aes(label = ifelse(n >= 5, n, "")),
+            position = position_stack(vjust = 0.5), size = 5) +
+  scale_fill_manual(values = c("CDR recorded" = okabe_ito[["observed"]],
+                               "CDR not recorded" = okabe_ito[["missing"]])) +
+  labs(x = "Age band (years)", y = "People (rows)", fill = NULL) +
+  Plot_theme +
+  legend_inside(0.70, 0.85)
+```
+
+@fig-missing-oasis-age is the answer. The block is not scattered at random: it is the young. Nobody under 30 has a rating (`r sum(oasis$Age < 30 & no_clinic)` of `r sum(oasis$Age < 30)`), only two people in their thirties do, and from 60 onward everybody does (`r sum(oasis$Age >= 60 & !no_clinic)` of `r sum(oasis$Age >= 60)`). The `r sum(oasis$Age < 60 & !no_clinic)` people younger than 60 who *do* have a rating all have `CDR` equal to 0, that is, no dementia. I read this as a study in which the clinical assessment was collected where dementia could plausibly be present and left blank for most healthy young adults. That is my reading of the pattern, not a documented rule; the description of the release [@marcus2007] is where I would confirm the exact criterion before putting it in a methods section.
+
+Whatever the exact rule, the nature of the `NA` is clear. The probability of being missing is close to a function of a variable we *did* record, `Age`. In the vocabulary of @eq-mar this is as MAR as it gets: given what we observed, the missingness has nothing left to say about the unseen value. And yet that does not rescue you, and the reason is the most useful idea of this section.
+
+### Why you cannot fill these in
+
+The MAR argument licenses imputation *when the values you would borrow from exist*. For a 20-year-old with no `CDR`, an imputation model must borrow from people like them who *do* have a `CDR`, and there is nobody: the youngest person with a recorded rating is `r min(oasis$Age[!no_clinic])`, and `r sum(oasis$Age < min(oasis$Age[!no_clinic]))` rows are younger than that. Any method (`mice`, `mi()`, anything) would be extrapolating from people in their seventies to people in their twenties, and would hand back a number for every young adult that looks like data and is not. When the missingness is a function of a variable and the observed rows do not overlap the missing ones in that variable, the data hold no information about what the values *would* have been, and no amount of modeling creates it.
+
+Complete-case analysis has the opposite problem, and it is quieter. Dropping rows with an `NA` is not neutral here: it changes who the analysis is about. @tbl-missing-two-groups shows how different the two groups of rows are.
+
+```{r}
+#| label: tbl-missing-two-groups
+#| tbl-cap: "The rows that have a clinical rating and the rows that do not are two different populations. Any analysis of CDR, MMSE or education done on complete cases describes only the first."
+
+# Compare the two groups of rows on age and on brain volume (nWBV is never missing)
+oasis |>
+  mutate(Group = ifelse(is.na(CDR), "CDR not recorded", "CDR recorded")) |>
+  group_by(Group) |>
+  summarise(Rows = n(),
+            `Median age` = median(Age),
+            `Age range` = paste(min(Age), max(Age), sep = " to "),
+            `Mean nWBV` = round(mean(nWBV), 3)) |>
+  gt()
+```
+
+The complete cases are people with a median age in the seventies; the rest are people in their twenties. The brain volume fraction `nWBV` is recorded for everyone, and it differs between the groups (`r round(mean(oasis$nWBV[!no_clinic]), 2)` against `r round(mean(oasis$nWBV[no_clinic]), 2)`), because it falls with age. A study that related `nWBV` to `CDR` on the complete cases would be a study of older adults, and its conclusions would not extend to the young, with or without a missing-data package.
+
+So what *do* you do with a structural `NA`? Not impute, and not drop silently. You change the question, or the population, to match what exists. Either you restrict the analysis to the rows where the variable is defined (here, adults aged 60 or over, where the rating is always present) and say so in the title of the analysis; or you analyze only the variables that exist for everyone (`Age`, `nWBV`, `eTIV`); or you model the two parts separately. What you must not do is let a default (`na.omit`, an imputation routine) make that decision for you without telling the reader.
+
+### The ordinary NAs next to the structural ones
+
+The second combination in @fig-missing-oasis-upset, `SES` missing on its own, is a different animal, and it looks like `Td79`'s cousin: a value that should exist and does not. There are `r sum(is.na(oasis$SES) & !no_clinic)` of them, all in people who have a clinical rating. With 19 rows, and not 1, I can finally do what I could not do for `Td79`: ask whether the missing values are related to something I observed. @tbl-missing-ses cross-tabulates them with the clinical rating.
+
+```{r}
+#| label: tbl-missing-ses
+#| tbl-cap: "Among people with a clinical rating, how often SES is missing, by CDR. Missing SES is rare in people without dementia and much more common in people with a rating above 0."
+
+# Among rows with a CDR, count how many lack SES, per CDR level
+oasis |>
+  filter(!is.na(CDR)) |>
+  group_by(CDR) |>
+  summarise(People = n(),
+            `SES missing` = sum(is.na(SES)),
+            `% missing` = round(100 * mean(is.na(SES)), 1)) |>
+  gt()
+```
+
+```{r}
+#| label: ses-facts
+#| include: false
+
+# Rows with CDR 0 and rows with CDR above 0, for the numbers in the text
+ses_cdr0 <- oasis |> filter(CDR == 0)
+ses_cdrp <- oasis |> filter(CDR > 0)
+```
+
+The pattern is clear enough to say something: `SES` is missing in `r sum(is.na(ses_cdr0$SES))` of `r nrow(ses_cdr0)` people with `CDR` 0 (`r round(100 * mean(is.na(ses_cdr0$SES)), 1)`%) and in `r sum(is.na(ses_cdrp$SES))` of `r nrow(ses_cdrp)` people with `CDR` above 0 (`r round(100 * mean(is.na(ses_cdrp$SES)), 1)`%). So these `NA`s are *not* MCAR: they depend on something observed. That is the situation where the machinery of the next section is appropriate, provided the imputation model includes the rating (and age and education) so that the dependence is accounted for, which is exactly the MAR bet. What the table cannot tell you is whether, within a given `CDR`, people with a lower or higher unseen `SES` were the ones left blank. That is the MNAR question and, as before, only the study's procedures can answer it.
+
+### An NA that `is.na()` cannot see
+
+One more structural `NA` hides in plain sight, and it is the sneakiest. `Delay`, the days between two scans, is recorded for the people who were scanned twice. Everyone else has the text `"N/A"`. Because it is text and not a true `NA`, `is.na()` reports zero missing values in the whole column, and every plot in this section so far has treated it as complete. `naniar` has a function for exactly this: `miss_scan_count()` searches columns for strings that *mean* missing, and `replace_with_na()` converts them.
+
+```{r}
+#| label: oasis-delay
+
+# Before: is.na() sees nothing, because "N/A" is text
+sum(is.na(oasis$Delay))
+
+# Count how many cells hold the string "N/A" in each column
+miss_scan_count(oasis, search = list("N/A")) |> filter(n > 0)
+
+# Convert the string into a real NA and count again
+oasis <- oasis |> replace_with_na(replace = list(Delay = "N/A"))
+sum(is.na(oasis$Delay))
+```
+
+This is structural in the strictest sense: a second scan did not happen, so there is no delay to record. I mention it for one more reason. The `r sum(!is.na(oasis$Delay))` rows that do have a `Delay` belong to people who already appear earlier in the table (their IDs end in `_MR2`), so the table has `r n_oasis` rows but only `r n_people` people. Rows are not independent observations of different individuals, a fact that the `NA` pattern gave away and that matters for every model that treats a row as a person. Keep it in mind for the chapters on repeated measurements later in the book.
+
+@tbl-missing-two-kinds puts the kinds side by side, since the whole point of this section is that you need to tell them apart before you pick a tool.
+
+```{r}
+#| label: tbl-missing-two-kinds
+#| tbl-cap: "The single NA of `cell_data` and the two kinds of NA in OASIS-1 are different problems."
+
+# One column per kind of NA; the rows are questions to ask of any NA
+tibble::tribble(
+  ~Question, ~`Td79 in cell_data`, ~`CDR, MMSE, Educ in OASIS-1`, ~`SES alone in OASIS-1`,
+  "Does the value exist?", "Yes, it was not recorded", "No, not assessed by design", "Yes, it was not recorded",
+  "How many?", "1 of 49 animals", "201 of 436 rows", "19 of 235 rows with a CDR",
+  "What explains it?", "Unknown (lab notes)", "Age, which we recorded", "Partly CDR, which we recorded",
+  "Can we impute it?", "Yes, little is at stake", "No, nothing to borrow from", "Yes, if CDR and age are in the model",
+  "What to do?", "Complete cases or imputation, report both", "Change the population or the question", "Impute under MAR, with a sensitivity check"
+) |>
+  gt()
+```
+
+::: {.callout-note title="How to report it"}
+**Methods.** The clinical rating (CDR), the cognitive score (MMSE) and education were not recorded for `r n_block` of `r n_oasis` rows (`r round(100 * n_block / n_oasis)`%), all of them people aged 58 or younger, and their absence follows age: no person under 30 has them and every person aged 60 or over does. Because there are no recorded values at these ages from which to impute, we did not impute them; analyses involving these variables were restricted to the `r sum(oasis$Age >= 60)` participants aged 60 or older. The text `"N/A"` in the scan-delay column was recoded as missing, and the `r sum(!is.na(oasis$Delay))` repeat scans were identified as belonging to people already in the table.
+
+**Results.** Among people with a recorded rating, SES was missing in `r round(100 * mean(is.na(ses_cdr0$SES)), 1)`% of those with CDR 0 and `r round(100 * mean(is.na(ses_cdrp$SES)), 1)`% of those with CDR above 0, so we modeled the missing SES conditional on rating, age and education.
+:::
 
 ## What to do about it
 
@@ -525,6 +727,6 @@ Where would they diverge? When there is more to lose. With many missing values, 
 
 ## Take home message
 
-We started with one `NA` and a question: accident, clue, or problem? My answer, after looking, is "a bit of all three, in different places." As far as the analysis goes, it was an accident: with 1 row in 49, complete cases, imputation inside `brms`, `mice` and even deliberately extreme fills all gave the same answer, which is what the textbooks predict when the missing fraction is below a few percent. As far as the data goes, it was a clue: the `Pdgfrb_Total` of animal `Td79` equals its `Pdgfrb_Pos`, so the total was computed as if the missing negative count were zero, which means the *derived* column is wrong while looking complete, unless the count really was zero (a possibility that I take up in @sec-missing-data-measurement-error). And that is the problem: any analysis that uses `Pdgfrb_Total`, such as the proportion `Pdgfrb_Pos / Pdgfrb_Total` that @sec-logistic-regression models (and from which it leaves this animal out), gives this animal a share of exactly 100%, and that number is an artifact of how the total was filled in. Checking what is *derived from* a column with an `NA` is the habit I would take from this chapter before any of the packages.
+We started with one `NA` and a question: accident, clue, or problem? My answer, after looking, is "a bit of all three, in different places." As far as the analysis goes, it was an accident: with 1 row in 49, complete cases, imputation inside `brms`, `mice` and even deliberately extreme fills all gave the same answer, which is what the textbooks predict when the missing fraction is below a few percent. As far as the data goes, it was a clue: the `Pdgfrb_Total` of animal `Td79` equals its `Pdgfrb_Pos`, so the total was computed as if the missing negative count were zero, which means the *derived* column is wrong while looking complete, unless the count really was zero (a possibility that I take up in @sec-missing-data-measurement-error). And that is the problem: any analysis that uses `Pdgfrb_Total`, such as the proportion `Pdgfrb_Pos / Pdgfrb_Total` that @sec-logistic-regression models (and from which it leaves this animal out), gives this animal a share of exactly 100%, and that number is an artifact of how the total was filled in. Checking what is *derived from* a column with an `NA` is the habit I would take from this chapter before any of the packages. The second habit is to ask, before you reach for a tool, whether the value *exists*. A structural `NA`, like the clinical rating that OASIS-1 never collected for most young adults (@sec-missing-structural), cannot be imputed or ignored: it changes who your analysis is about, and the honest response is to change the question or the population and to say so.
 
 The rest is a way of thinking. MCAR, MAR and MNAR are claims about how the values were lost, they cannot be read off the data (certainly not from one missing value), and they are settled by knowing how the experiment was run. Complete cases, multiple imputation and `mi()` are not rival answers; they are different assumptions, and @tbl-missing-options says which. When the missing fraction is tiny, choose the simplest one you can defend and report that you checked the others. When it is not, the choice starts to matter, and then the lab notes matter more than the package. The next chapter, @sec-eda-ggplot, goes back to the thing EDA is really for, which is to *draw* the data.

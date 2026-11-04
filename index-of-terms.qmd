@@ -196,6 +196,7 @@
 - **spline** ([glossary](glossary.qmd#gl-spline)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-spline-1)
 - **standard deviation**: [Why model? A first worked example](intro-applied-modeling.qmd#ix-standard-deviation-1)
 - **standardization** ([glossary](glossary.qmd#gl-standardization)): [Asking what causes what, and drawing curves](causal-inference-splines.qmd#ix-standardization-1)
+- **structural missingness**: [One missing value: accident, clue, or problem?](eda-missing-data.qmd#ix-structural-missingness-1)
 - **structural zero** ([glossary](glossary.qmd#gl-structural-zero)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-structural-zero-1)
 - **student-t distribution**: [Measuring behavior: attempts, crossing times and shares of time](beta-robust-regression.qmd#ix-student-t-distribution-1)
 - **survival curve** ([glossary](glossary.qmd#gl-survival-curve)): [Dealing with values the microscope cannot see](missing-data-measurement-error.qmd#ix-survival-curve-1)

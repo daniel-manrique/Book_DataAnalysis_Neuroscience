@@ -175,6 +175,17 @@
       ],
       "Hash": "0776bf7526869e0286b0463cb72fb211"
     },
+    "NeuroDataSets": {
+      "Package": "NeuroDataSets",
+      "Version": "0.3.1",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "utils"
+      ],
+      "Hash": "0f0577d2f5f7159b18c1fb6e273bf762"
+    },
     "QuickJSR": {
       "Package": "QuickJSR",
       "Version": "1.4.0",
