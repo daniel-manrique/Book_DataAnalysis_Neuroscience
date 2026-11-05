@@ -5,9 +5,6 @@ on:
     branches: main
   # to be able to trigger a manual build
   workflow_dispatch:
-  schedule:
-    # run every day at 11 PM
-    - cron: '0 23 * * *'
 
 name: Render and deploy Book to Netlify
 
@@ -31,8 +28,22 @@ jobs:
           # uncomment below and fill to pin a version
           # version: 0.9.105
 
+      # R is needed because scripts/build-index.R runs before every render
+      # (glossary and index). The brms fits are NOT needed: chapters are
+      # restored from _freeze/, so no model is fitted here.
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Set up renv
+        uses: r-lib/actions/setup-renv@v2
+        with:
+          cache-version: 1
+
       - name: Render book to all format
-        # Add any command line argument needed
+        # Fails if a chapter changed without its _freeze/ being committed
+        # (it would try to refit the models). Render locally and push _freeze/.
         run: |
           quarto render
 

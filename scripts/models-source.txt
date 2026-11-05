@@ -1,0 +1,5 @@
+# Where the cached brms fits (models/*.rds) are archived.
+# Fill in the Zenodo record id after the first upload (the number at the end of
+# the record URL, for example https://zenodo.org/records/1234567). Update it
+# whenever you publish a new version of the record.
+record:

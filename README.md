@@ -15,6 +15,14 @@ The book project sets [`freeze` to `auto`](https://github.com/mine-cetinkaya-run
 
 Since the GitHub action that renders the book does not execute any code, forgetting to commit to `_freeze` will result in a failed check on the PR.
 
+### Cached `brms` fits (`models/*.rds`)
+
+The fits are too large for GitHub (214 files, about 2 GB), so they are **not in git**. The web edition does not need them: chapters are restored from `_freeze/`, which is committed. They are archived on Zenodo for anyone who wants to re-execute a chapter.
+
+- To get them back: `Rscript scripts/fetch-models.R` (everything) or `Rscript scripts/fetch-models.R count-regression` (one chapter). It checks every file against `models/MANIFEST.csv`. The Zenodo record id is in `scripts/models-source.txt`.
+- To publish a new version of the archive: `Rscript scripts/models-pack.R` rewrites `models/MANIFEST.csv` and writes one `.tar` per chapter to `models-archive/` (ignored by git); upload those to a new version of the Zenodo record, update `record:` in `scripts/models-source.txt`, and commit the manifest.
+- Never commit `models/*.rds`.
+
 ### Reproducing the R environment locally
 
 The R environment is managed with [renv](https://rstudio.github.io/renv/articles/renv.html). This should work automatically when opening the book project, and you'll be prompted by renv to get the required packages with `renv::restore()`.

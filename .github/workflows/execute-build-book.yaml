@@ -42,6 +42,11 @@ jobs:
       - name: Install Python Packages
         run: pip install -r requirements.txt
 
+      # Restores the cached brms fits from Zenodo (record id in scripts/models-source.txt)
+      # so that brm() loads them instead of refitting for hours.
+      - name: Fetch cached brms fits
+        run: Rscript scripts/fetch-models.R
+
       - name: Remove freezer
         run: |
           rm -rf _freeze/
