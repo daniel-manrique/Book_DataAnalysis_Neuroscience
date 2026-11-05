@@ -45,3 +45,6 @@ models/*.rds
 # Local R session files
 .RData
 .Rhistory
+
+# Editor settings
+.vscode/
