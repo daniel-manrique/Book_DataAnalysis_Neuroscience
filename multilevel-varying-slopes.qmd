@@ -111,8 +111,8 @@ pool_lines$fit <- predict(lm_pool, pool_lines)
 #| label: fig-slopes_spaghetti
 #| fig-cap: "Crossing time of each of 63 mice over the three training days in the hanging wire test. Each thin line is one mouse (the average of its completed attempts per day, geometric scale); thick lines are the single straight line per genotype that a model with one common slope would draw."
 #| fig-alt: "Sixty-three thin lines in orange (wild type) and blue (Klf4-KO) run across days 1, 2 and 3, on a logarithmic vertical axis from about 5 to 50 seconds. Most lines fall from left to right, but they start at very different heights and fall by very different amounts: some drop steeply, some are almost flat and a few rise. Two thick straight lines, one per genotype, fall gently through the middle of the bundle."
-#| fig-width: 7
-#| fig-height: 4.6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Thin line per mouse, thick line per genotype; the geometric scale makes a ratio a fixed vertical step
@@ -202,7 +202,7 @@ I drew every mouse as a dot with its interval, ordered from the largest loss to 
 #| fig-cap: "Left-minus-right difference of log density in each of the 31 mice (the average over its sections), with its 95% interval from the variation among sections, ordered from the largest loss to the smallest. Color and shape give the day after ischemia. The dashed line marks no difference between hemispheres."
 #| fig-alt: "Thirty-one points in increasing order from left to right, each with a vertical interval, around a dashed horizontal line at zero. The values run from about -0.9 on the left to about +0.3 on the right. Black squares (0 D) are at the right end, mostly above zero. Points for 5, 15 and 30 days are mixed along the left and middle of the figure, with the deepest losses mostly at 15 days. Many intervals are as long as 0.3 and several overlap zero."
 #| fig-width: 8
-#| fig-height: 4.4
+#| fig-height: 4.5
 #| warning: false
 
 # One dot and one interval per mouse; day coded by color and shape
@@ -301,8 +301,8 @@ share_contrast <- mean(abs(prior_contrast) < 1.5)
 #| label: fig-slopes_priors
 #| fig-cap: "Priors of the varying-slope model. Left: prior density of the correlation between baseline and response for three values of eta. Middle: prior predictive check on the log scale (faint curves are simulated datasets, dark curve is the observed log density). Right: contrast between hemispheres that a single mouse at 15 D could show under the priors (curve) against the 8 observed mice of that day (ticks)."
 #| fig-alt: "Three panels. Left: three curves on a horizontal axis from -1 to 1; the eta equal to 1 curve is flat, the eta equal to 2 curve is a gentle dome and the eta equal to 4 curve is a narrow dome centered on zero. Middle: about a hundred faint curves much wider than a dark observed curve, centered near 6.8. Right: a broad bell-shaped curve from about -2 to 2 on the left-minus-right axis with eight short ticks bunched between -0.9 and -0.1."
-#| fig-width: 11
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -488,8 +488,8 @@ ells <- do.call(rbind, lapply(seq_along(pick), function(i) {
 #| label: fig-slopes_cloud
 #| fig-cap: "Baseline and response of each of the 31 mice. Horizontal: deviation of the right-cortex level from the average mouse of the same day. Vertical: deviation of the left-minus-right contrast from the average mouse of the same day. Open circles are each mouse's own raw values, filled circles the partially pooled estimates, and the faint outlines (left panel) are 95% contours of the population of mice for 100 posterior draws. Right: posterior of the correlation, with the LKJ(2) prior as a dashed curve."
 #| fig-alt: "Left: a scatter of 31 open circles and 31 filled circles joined by short segments, with the filled circles closer to the center. Around them a bundle of 100 faint elliptical outlines, wider vertically than horizontally and slightly tilted upward to the right. Right: a broad half-eye of the correlation from about -0.6 to 0.8, centered near 0.1, with a dashed dome-shaped prior curve of similar breadth."
-#| fig-width: 11
-#| fig-height: 4.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: each mouse as a pair (baseline, response); raw (open) joined to pooled (filled)
@@ -579,7 +579,7 @@ pred_df$who <- factor(pred_df$who, levels = c("A new mouse", "Average mouse"))
 #| fig-cap: "Left-minus-right contrast (log scale) at 15 D. Top: where a mouse that has not been seen yet would fall (the average mouse plus the spread between mice). Bottom: the average mouse. Half-eyes show the posterior; the bars are the 66% and 95% intervals. Vertical ticks are the raw contrasts of the 8 mice measured at 15 D (they include the noise of their own sections). The dashed line marks no difference between hemispheres."
 #| fig-alt: "Two horizontal half-eye densities on an axis from -1.5 to 0.5. The lower one, for the average mouse, is narrow and centered near -0.5. The upper one, for a new mouse, is about three times as wide, centered at the same value, and its upper 95 percent bound reaches near zero. Eight vertical ticks below the half-eyes mark the observed mouse contrasts, between about -0.9 and -0.1. A dashed vertical line sits at zero."
 #| fig-width: 8
-#| fig-height: 3.4
+#| fig-height: 4.5
 #| warning: false
 
 # Half-eye of each of the two predictions, with the observed mice of 15 D as ticks along the bottom
@@ -634,7 +634,7 @@ kept <- sd(dev_pool) / sd(dev_raw)
 #| fig-cap: "Left-minus-right contrast (log scale) of each mouse, by day after ischemia. Open circles are the raw contrasts of each mouse, filled circles the partially pooled estimates with 95% credible intervals, and arrows run from raw to pooled. The dashed line in each panel is the population contrast of that day."
 #| fig-alt: "Four panels for 0, 5, 15 and 30 days. In each panel the mice are ordered along the horizontal axis by raw contrast. Each mouse has an open circle, an arrow to a filled circle and a vertical interval around the filled circle. Arrows point toward a dashed horizontal line that marks the population contrast of the day. The filled circles are packed closer to the dashed line than the open ones, and the intervals overlap each other and the line in most mice."
 #| fig-width: 10
-#| fig-height: 4.4
+#| fig-height: 5
 #| warning: false
 
 # Raw (open) to pooled (filled), with the interval of the pooled estimate, one panel per day
@@ -775,8 +775,8 @@ sd_slope_pool <- sd(ols$p_slope)
 #| label: fig-slopes_wire_lines
 #| fig-cap: "Practice lines of the 63 mice in the hanging wire test. Left: a straight line fitted to each mouse's own attempts. Right: the line the correlated varying-slope model gives each mouse. Thick lines are the population lines of the two genotypes. Orange: control; blue: Klf4-KO."
 #| fig-alt: "Two panels with the days 1, 2 and 3 on the horizontal axis and log crossing time on the vertical axis. In the left panel sixty-three thin lines fan out widely, with slopes from steeply falling to steeply rising, and some very steep ones. In the right panel the thin lines are visibly less spread, bunched closer to the two thick lines, and almost all fall from left to right."
-#| fig-width: 9.5
-#| fig-height: 4.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Thin lines per mouse, thick population lines by genotype; same vertical range in both panels
@@ -818,8 +818,8 @@ ells_w <- do.call(rbind, lapply(seq_along(pick_w), function(i) {
 #| label: fig-slopes_wire_cloud
 #| fig-cap: "Level and practice slope of each of the 63 mice. Horizontal: deviation of the mid-training level from the average mouse of the same genotype. Vertical: deviation of the practice slope from the average slope. Open circles are each mouse's own raw values, filled circles the partially pooled estimates; faint outlines are 95% contours of the population of mice for 100 posterior draws. Right: posterior of the correlation, with the LKJ(2) prior as a dashed curve."
 #| fig-alt: "Left: sixty-three open circles widely scattered and sixty-three filled circles clustered closer to the center, joined by short segments, inside a bundle of faint ellipses elongated along the vertical axis and tilted slightly upward to the right. Right: a half-eye of the correlation from about -0.4 to 0.7 centered near 0.15 with a dashed dome-shaped prior of broader spread."
-#| fig-width: 11
-#| fig-height: 4.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: raw (open) to pooled (filled) pairs, with the population outlines; color is the genotype
@@ -913,8 +913,8 @@ wt_days <- mouse_day[mouse_day$genotype == "WT", ]
 #| label: fig-slopes_wire_pred
 #| fig-cap: "Predicted log crossing time of a control mouse over the training days. Three nested 95% bands: the average mouse (dark), the expected time of a new mouse (medium) and a single new attempt of a new mouse (light). Points are the daily averages of the 28 control mice in the data."
 #| fig-alt: "Over days 1, 2 and 3 on the horizontal axis, three bands in grey shades around a falling line on a log crossing time axis. The innermost, darkest band is narrow. The middle band is several times as wide. The lightest band is wider again and covers almost all of the grey dots, which are the daily means of the control mice and scatter widely around the line."
-#| fig-width: 7.5
-#| fig-height: 4.6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Nested bands, widest first so that the narrower ones sit on top; data points on top of all
@@ -1128,8 +1128,8 @@ lv$panel <- factor(lv$panel, levels = unique(lv$panel))
 #| label: fig-slopes_qq
 #| fig-cap: "Normal quantile plots for each level of the two varying-slope models: the intercepts and slopes of the mice, the intercepts of the sections (injury data) and the residuals. Points close to the line mean that the level is close to normal."
 #| fig-alt: "Seven small panels of normal quantile-quantile plots with a diagonal line. The mouse intercepts and slopes of both datasets follow the line in the middle, with one or a few points off it at the ends. The injury section intercepts and the injury residuals bend away from the line with a tail of points at the low end. The wire residuals follow the line with a slight S-shaped bend."
-#| fig-width: 11
-#| fig-height: 5.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Quantile plots; the line passes through the quartiles

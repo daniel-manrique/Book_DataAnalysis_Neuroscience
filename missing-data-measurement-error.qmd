@@ -102,8 +102,8 @@ The second half is about values that are missing for other reasons. The chapters
 #| label: fig-mdme_attempts
 #| fig-cap: "Every attempt of the 63 mice in the hanging wire test (567 attempts), by training day and genotype. Grey circles: the mouse crossed. Orange triangles: the attempt reached the 60-second cap, where the clock stops. Black crosses: the mouse fell before the cap. The dotted line is the cap. Points are jittered sideways within each day."
 #| fig-alt: "Two panels, wild type on the left and Klf4-KO on the right, with training days 1, 2 and 3 on the horizontal axis and time on the wire in seconds from 0 to 60 on the vertical axis. Most points are grey circles between about 5 and 45 seconds. A row of orange triangles sits exactly on the dotted line at 60 seconds, a few in the wild-type panel and many more in the Klf4-KO panel on every day. Six black crosses, all in the Klf4-KO panel, lie between 12 and 32 seconds."
-#| fig-width: 8
-#| fig-height: 4.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Every attempt as a point; shape and color say how it ended, so the figure survives grayscale
@@ -234,8 +234,8 @@ Before any model, I want a picture in which *no attempt is dropped and none is i
 #| label: fig-mdme_km
 #| fig-cap: "Share of attempts not yet completed at each second of the hanging wire test, by genotype (Kaplan-Meier estimate with 95% confidence interval). Every one of the 567 attempts is used: attempts that reach the cap stay in the denominator until 60 seconds, and the six falls (crosses) leave at the moment they fell. The dotted line is the cap."
 #| fig-alt: "Two descending step curves from 1 at time 0. The orange curve (control) falls steeply to about 0.28 at 20 seconds and to about 0.04 at 60 seconds. The blue curve (Klf4-KO) falls more slowly, to about 0.58 at 20 seconds, 0.32 at 30 seconds and 0.12 at 60 seconds. Both curves stay flat after 60 seconds, which is the cap, marked with a dotted vertical line. Six small black crosses sit on the blue curve between 12 and 32 seconds."
-#| fig-width: 7
-#| fig-height: 4.4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Time to cross: an attempt that crossed is an event; the rest leave the risk set when their clock stops
@@ -483,7 +483,7 @@ fit_w9 <- brm(
 #| fig-cap: "Ratio of the typical crossing time of Klf4-KO mice to that of control mice, under different treatments of the attempts that did not produce a time. Points are posterior medians (the frequentist estimate in the last row); bars are 95% intervals. The dotted line is a ratio of 1 (no difference). The top three rows differ only in what is done with the 45 attempts that reached the cap; the next three are sensitivity analyses of the censored model."
 #| fig-alt: "A forest plot with eight rows and a logarithmic horizontal axis from 1 to 1.8. The first two rows, a Gaussian model and a Student-t model on completed attempts, have points at about 1.28, with intervals from about 1.18 to 1.39 (Gaussian, attempts independent) and from about 1.08 to 1.51 (Student-t with mouse levels). The third row, with the capped attempts entered as 60 seconds, is at about 1.40. The fourth row, the censored model, is at about 1.44 with an interval from about 1.13 to 1.80. Three sensitivity rows (falls censored at the moment of the fall, falls treated as reaching the cap, the two 60-second crossings as censored) lie at about 1.43 to 1.46, and the last row, the frequentist survival model, is at about 1.41."
 #| fig-width: 8
-#| fig-height: 4.6
+#| fig-height: 4.5
 #| warning: false
 
 # Ratios and intervals of the genotype effect under each treatment
@@ -558,8 +558,8 @@ A model for a limit should, at the least, reproduce *how often the limit is reac
 #| label: fig-mdme_wire_ppc
 #| fig-cap: "Share of attempts that reached the cap, by genotype and day: observed (black points) and expected under the censored model (blue points and lines are the median and 95% interval of the simulated share). Mice are those of the experiment, so the check is on the fitted mice."
 #| fig-alt: "Six groups of points along days 1, 2 and 3 in two panels, control on the left and Klf4-KO on the right. Black points show the observed share of attempts at the cap, about 1 to 6% in controls and about 10 to 15% in knockouts. Blue points with vertical lines show the model's expected share, close to the black points in every group, with intervals that contain them."
-#| fig-width: 7.5
-#| fig-height: 3.8
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Simulate a new log time for every analyzed attempt and flag the ones beyond the cap
@@ -649,8 +649,8 @@ There are `r n_of_an` animals in the four groups, `r 6 * n_of_an` possible sessi
 #| label: fig-mdme_of_lost
 #| fig-cap: "Day 1 of the open field. Left: the share of tracked time in the center for every session, by group; filled circles are sessions with at least 270 tracked seconds (kept by the rule) and open triangles are sessions with less. Right: the same share against the seconds tracked, for all days and groups (log scale for the share; sessions with no time in the center are not shown)."
 #| fig-alt: "Left panel: four groups on the horizontal axis (control sham, control ischemia, Klf4-KO sham, Klf4-KO ischemia) and the share of time in the center on the vertical axis from 0 to 0.95. Filled circles in the two ischemia groups spread from near zero to 0.93, with a median around 0.1 to 0.2. Open triangles for sessions that were lost sit low, mostly under 0.15. Right panel: share of tracked time in the center on a logarithmic axis against tracked seconds from 0 to 300; the open triangles with fewer than 270 tracked seconds lie in the lower part of the cloud."
-#| fig-width: 9
-#| fig-height: 4.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: every day-1 session; the lost ones are drawn open and labeled with the seconds that were tracked
@@ -801,7 +801,7 @@ jump_obs <- jump_fun(adj_means(m_kept, delta_obs))
 #| label: fig-mdme_tipping
 #| fig-cap: "Tipping-point analysis of the day-1 jump in the center share (ischemic minus sham, percentage points). The horizontal axis is delta, the shift on the logit scale that the lost sessions are assumed to have relative to the kept ones; delta = 0 means the lost sessions are like the kept ones. The line is the posterior median and the bands the 50% and 95% intervals. The leftmost value stands for a delta of minus infinity: every lost session with no time in the center. The dotted vertical lines mark delta = 0 and the shift suggested by the partly tracked sessions; the horizontal dashed line marks no difference."
 #| fig-alt: "A line on a plane with delta on the horizontal axis from minus infinity to 3 and the jump in percentage points on the vertical axis from 0 to 30. The line is flat at about 11 percentage points from minus infinity to about minus 3, rises to about 14.5 at delta zero and to about 20 at delta 2. Two shaded bands around it (50% and 95%) stay above the dashed horizontal line at zero everywhere; the lower limit of the 95% band is about 4.5. Two dotted vertical lines mark delta equal to zero and delta equal to minus 1.6."
-#| fig-width: 7.5
+#| fig-width: 6.5
 #| fig-height: 4.2
 #| warning: false
 
@@ -920,8 +920,8 @@ Regions inside a section can also be absent, and these are not accidents of cutt
 #| label: fig-mdme_structures
 #| fig-cap: "Share of sections in which each structure was annotated, by section number (1 anterior, 7 posterior). The number in each tile is how many sections had the structure. Empty tiles are structurally absent: the structure is not in that part of the brain."
 #| fig-alt: "A tile map with five structures on the vertical axis (cortex, cerebral nuclei, interbrain, midbrain, fiber tracts) and seven sections on the horizontal axis. Cortex and fiber tracts are present in nearly every section, from 31 in section 1 to 16 in section 7. Cerebral nuclei are present in 21 of 31 sections in section 1, in sections 2 to 6, and in none of section 7. Interbrain is absent from section 1, present in 6 sections of section 2 and in nearly all from section 3. Midbrain is absent from sections 1 to 4, present in one section of section 5, in 21 of 30 of section 6 and in all 16 of section 7."
-#| fig-width: 7
-#| fig-height: 3.6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # How many sections have each structure, out of the sections that exist for that scene number
@@ -1011,8 +1011,8 @@ summary(lmer_s1)
 #| label: fig-mdme_neun_sens
 #| fig-cap: "Ratio of the density of NeuN-positive cells in the left cortex to that in the right cortex, by day after ischemia, under three ways of handling the missing sections. Points are posterior medians and bars 95% credible intervals. A ratio of 1 (dotted line) means no difference between hemispheres."
 #| fig-alt: "Four rows (0, 5, 15 and 30 days after ischemia) and, in each, three points with horizontal intervals on a logarithmic axis from about 0.5 to 1.3. At day 0 the ratio is about 1.1. At 5 days it is about 0.75, at 15 days about 0.65 and at 30 days about 0.8. The three analyses (all sections, sections 1 to 6, without the two mice with lost sections) give almost the same point and interval in every row."
-#| fig-width: 7.5
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Left to right log-ratio at each day: the hemisphere coefficient plus the interaction of that day
@@ -1074,8 +1074,8 @@ spread_by <- sapply(levels(nz$structure), function(s) {
 #| label: fig-mdme_counting
 #| fig-cap: "Relative counting error of the NeuN count of every section (points; 1 divided by the square root of the count, logarithmic axis) by structure, against the spread of the log density between sections of the same day and hemisphere (black bars). The error of a count is small everywhere, and smallest in the cortex, where counts are in the thousands."
 #| fig-alt: "Five columns (cortex, cerebral nuclei, interbrain, midbrain, fiber tracts) and a logarithmic vertical axis from 0.5 to 100 percent. In each column, a cloud of grey points sits between about 0.7 and 25 percent, with a median near 1 percent for cortex and about 3.5 percent for fiber tracts. A black horizontal bar in each column sits much higher, between about 30 and 65 percent. A few points in the cerebral nuclei and fiber tracts rise above 10 percent, and one reaches about 25 percent."
-#| fig-width: 7.5
-#| fig-height: 4.4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Counting error of every section as a point, and the spread between sections as a bar
@@ -1185,8 +1185,8 @@ The first thing I look at is `sigma`. In the plain model `sigma` is `r qs(as_dra
 #| label: fig-mdme_se_compare
 #| fig-cap: "Ratio of the density of NeuN-positive cells in the left fiber tracts to that in the right, by day after ischemia, under three models: the log density as if it were exact, the log density with the known counting error of each section (se), and the counts with an area offset (negative binomial). Points are posterior medians and bars 95% credible intervals."
 #| fig-alt: "Four rows (0, 5, 15 and 30 days) with three points each on a logarithmic horizontal axis from about 0.6 to 1.6. The three models give nearly the same point and interval in every row. The ratios are close to 1 at all days, with intervals that cross 1 in most rows."
-#| fig-width: 7.5
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Left to right log-ratio by day, for each of the three models
@@ -1297,13 +1297,13 @@ The reliability of the log count at the same day is `r round(reliab, 3)`: `r rou
 The frequentist tools for an error in a predictor are regression calibration and SIMEX, in the packages `mecor` [@nab2021] and `simex` [@simex]. Neither is installed in this project, so I did not run them, and I will not describe their output. Both take the same ingredient as `me()`, the variance of the measurement error, and correct the slope by the reliability. The Bayesian version differs in that it propagates the uncertainty of the correction into the interval, instead of applying it afterwards.
 :::
 
-<!-- PENDING-DATA: Daniel has replicate sections of the same area in the same animal (to add later). Use them to compute the reliability of a count from the replicates, compare it with the Poisson counting error of the figure above, and run me() with the error variance estimated from the replicates. -->
+<!-- TODO(Daniel): replicate sections of the same area in the same animal (to add later). Use them to compute the reliability of a count from the replicates, compare it with the Poisson counting error of the figure above, and run me() with the error variance estimated from the replicates. -->
 
 ### Values below a limit of detection, which I can explain but not demonstrate {#sec-mdme-lod}
 
 The first-class case of a hidden value on the *low* side is a measurement below the limit of detection of an assay: an ELISA concentration below the lowest standard, a band too faint on the film, a qPCR reaction whose Ct is "undetermined". The practice that I see most often is to replace the value by half the limit (or by the limit divided by $\sqrt{2}$) and carry on. The books that this one follows are of one voice against it: it creates a spike of identical values that did not exist, shrinks the spread, and distorts the slopes and the correlations [@mcelreath2020; @gelman2020]. The alternative is the one that you already know from the wire: a [left-censored]{.ix ix="left-censored"} observation is a value that is *at most* the limit, and it contributes to the likelihood the probability of being below it, $F(\text{limit}\mid\mu,\sigma)$. In `brms` the only change is the left side of the formula, and `cens = "left"`.
 
-<!-- PENDING-DATA: Daniel has ELISA data somewhere (to add later). Replace the illustration below with a real left-censored analysis, compared with substituting half the limit. -->
+<!-- TODO(Daniel): ELISA data (to add later). Replace the illustration below with a real left-censored analysis, compared with substituting half the limit. -->
 
 I have no real dataset with detection limits in this book, and I do not simulate one; the chunk below shows the syntax and is **not run**. It is an illustration with invented names (`conc`, `lod`, `below`), nothing more.
 
@@ -1421,8 +1421,8 @@ pooled
 #| label: fig-mdme_td79
 #| fig-cap: "Coefficient for the number of negative cells (per 100 cells, on the log scale of the PDGFR-beta-positive count) under four treatments of animal Td79: dropped, imputed inside the model with mi(), multiple imputation with mice, and reconstructed as zero (total minus positive). Points are posterior medians or estimates and bars are 95% intervals."
 #| fig-alt: "A forest plot with four rows. All four points sit close to 0.04 to 0.06 per 100 negative cells, and all four intervals cross zero, from about minus 0.03 to about 0.13. The reconstructed row has a slightly different position and a slightly narrower interval than the dropped row."
-#| fig-width: 7.5
-#| fig-height: 3.2
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Coefficient of the negative count under each treatment

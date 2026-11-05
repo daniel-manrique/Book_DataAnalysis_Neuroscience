@@ -269,7 +269,7 @@ I keep the priors of @sec-count-regression for the intercept, the load coefficie
 #| fig-cap: Firing rate of a neuron at one picture implied by the priors alone (density, log scale), with the observed rate of each of the 190 neurons as ticks along the bottom. The priors allow rates from a few hundredths to a few tens of spikes per second and rule out the absurd.
 #| fig-alt: A smooth bell-shaped density over a logarithmic axis from 0.01 to 1000 spikes per second, centered near 1.6, with a long tail on both sides. Short ticks along the bottom, one per neuron, lie between 0.08 and 27 spikes per second, inside the bulk of the density.
 #| fig-width: 6.5
-#| fig-height: 3.4
+#| fig-height: 4.2
 #| warning: false
 
 # The priors alone: a typical log rate plus a patient deviation plus a neuron deviation
@@ -363,7 +363,7 @@ What did the levels do to the answer about load? @fig-glmm_rr puts the two fits 
 #| fig-cap: Firing-rate ratio (per second) for two and three pictures against one, from the model that pools all neuron-trials and from the model with varying intercepts for patients and neurons. Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
 #| fig-alt: Two pairs of horizontal intervals on a logarithmic axis between 0.8 and 1.25, around a dashed line at 1. The pooled model has wider intervals than the model with levels; in both, three pictures has a ratio slightly below one.
 #| fig-width: 6.5
-#| fig-height: 3.4
+#| fig-height: 4.2
 #| warning: false
 
 # Rate ratios (exponentiated load coefficients) from one set of draws
@@ -428,8 +428,8 @@ I draw the three shares as half-eyes (@fig-glmm_variance), the same form as in @
 #| label: fig-glmm_variance
 #| fig-cap: Share of the variance of the log firing rate that lies at each level, from the model with patients and neurons as levels. Each half-eye is the posterior of the share; the point is the median and the thick and thin bars are the 66% and 95% credible intervals.
 #| fig-alt: Three half-eye densities on an axis from 0 to 1. The share between neurons of the same patient is centered near 0.6, the share between patients near 0.3, and the share between trials of one neuron near 0.1.
-#| fig-width: 7
-#| fig-height: 3.4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Half-eye of each share
@@ -524,8 +524,8 @@ se_raw <- median(raw_sl$se)
 #| label: fig-glmm_slopes
 #| fig-cap: Left, the slope of each neuron (log rate ratio per extra picture) estimated from its own trials alone against the partially pooled estimate of the multilevel model; the dashed diagonal is no change and the horizontal line is the population slope. Right, posterior of the spread of slopes between neurons (solid) against its prior (dashed) and the spread of the raw slopes (dotted line).
 #| fig-alt: Left, a scatter of 190 points with raw slopes between about -0.5 and 0.5 on the horizontal axis and pooled slopes squeezed between about -0.05 and 0.03 on the vertical axis, nearly flat around the population slope. Right, a narrow density of the spread of slopes near 0.04, an exponential prior curve falling from 4 at zero, and a dotted vertical line at about 0.12 far to the right of the density.
-#| fig-width: 9
-#| fig-height: 4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: raw against pooled slope of each neuron
@@ -624,8 +624,8 @@ marg_df$panel <- factor(marg_df$panel, levels = c("Rate, one picture (spikes/s)"
 #| label: fig-glmm_spk_marginal
 #| fig-cap: The same model read three ways. Left, firing rate with one picture on screen for the typical neuron (the intercept), for the neurons we studied and for the average over the whole population of neurons and patients. Right, change in the rate from one to three pictures, in spikes per second. Points are posterior medians; bars are 50% and 95% credible intervals.
 #| fig-alt: Two panels with three horizontal intervals each. On the left, the typical neuron has a rate near 1.5 spikes per second and the other two near 2.9 and 3.4. On the right, the change from one to three pictures is a small negative number near minus 0.05 for the typical neuron and about twice as large for the other two.
-#| fig-width: 9
-#| fig-height: 3.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Point and interval for each reading, one panel per quantity
@@ -681,8 +681,8 @@ hemi_txt <- function(i) sprintf("%.2f [%.2f, %.2f]", hemi_df$ratio[i], hemi_df$l
 #| label: fig-glmm_hemi
 #| fig-cap: Firing-rate ratio of neurons recorded in the left hemisphere against the right, from the model that pools all neuron-trials and from the model with patients and neurons as levels (maximum likelihood; points and 95% Wald intervals). The dashed line is no difference.
 #| fig-alt: Two horizontal intervals on a logarithmic axis around a dashed line at 1. The pooled model gives a narrow interval just below 1 that excludes it; the model with levels gives a much wider interval that includes it.
-#| fig-width: 7
-#| fig-height: 2.6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Point and interval for the hemisphere effect under each model
@@ -725,8 +725,8 @@ ppc_pair <- function(fit) {
 #| label: fig-glmm_ppc_trials
 #| fig-cap: Posterior predictive checks of the slope model at the level of trials. Left, rootogram of the spike counts (the horizontal axis is cut at 40 spikes). Right, share of zeros in replicated data (histogram) against the observed share (line).
 #| fig-alt: Left, a hanging rootogram whose bars stay close to the zero line across counts from 0 to 40, with the expected curve inside a thin band. Right, a histogram of replicated zero shares around 0.22 with a vertical line at the observed share near 0.22.
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -752,8 +752,8 @@ glmm_zinb <- glmmTMB(spikes ~ load_f + offset(log(window_s)) + (1 | patient) + (
 #| label: fig-glmm_ppc_zeros
 #| fig-cap: Share of trials with no spikes in each of the 16 patients, in replicated data (histograms) against the observed share (line), from the slope model. Patient labels are on the panels.
 #| fig-alt: Sixteen small panels, one per patient, each with a histogram of replicated zero shares and a vertical line for the observed share. The line falls inside or near the histogram in most panels.
-#| fig-width: 9
-#| fig-height: 6.5
+#| fig-width: 10
+#| fig-height: 7
 #| warning: false
 #| message: false
 
@@ -783,8 +783,8 @@ obs_log10 <- log10(pmax(sapply(neuron_rows, function(i) sum(spk$spikes[i]) / sum
 #| label: fig-glmm_ppc_neurons
 #| fig-cap: Firing rate of the 190 neurons (log scale), as observed (dark curve) and in 100 replicated sets of new neurons in the same patients (faint curves). Rates below 0.01 spikes per second are set to 0.01.
 #| fig-alt: A dark observed density over log10 firing rate, with a peak near 0.2 and a long right tail, inside a bundle of faint replicated densities of similar shape and spread.
-#| fig-width: 6
-#| fig-height: 3.8
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 #| message: false
 
@@ -847,8 +847,8 @@ ladder$who <- factor(ladder$who, levels = rev(unique(ladder$who)))
 #| label: fig-glmm_ladder
 #| fig-cap: Posterior of the firing rate (one picture on screen) for a neuron already recorded, for a new neuron of the same patient and for a neuron of a new patient, from the model with levels. The intervals are the 66% and 95% credible intervals and the axis is logarithmic.
 #| fig-alt: Three half-eye densities on a logarithmic axis. The first is narrow around 1.5 spikes per second, the second is wide from 0.4 to 10, and the third is the widest from 0.2 to 20.
-#| fig-width: 7
-#| fig-height: 3.2
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Half-eye of the rate for each of the three questions
@@ -959,7 +959,7 @@ inj_df$day <- factor(inj_df$day, levels = c("30D", "15D", "5D"))
 #| fig-cap: Density ratio of the injured (left) to the uninjured (right) cortex, relative to the same ratio at 0 D, at each day after ischemia, from the Gaussian model of the first multilevel chapter and from the negative binomial model with an area offset. Points are posterior medians; bars are 50% and 95% credible intervals.
 #| fig-alt: Three rows for 30, 15 and 5 days, each with two intervals around 0.65 to 0.7 on a logarithmic axis for the two models, which nearly overlap.
 #| fig-width: 6.5
-#| fig-height: 3.4
+#| fig-height: 4.2
 #| warning: false
 
 # Point and interval for each day under the two families; dashed line at 1 = no injury effect
@@ -1056,7 +1056,7 @@ band_prior <- count_band(posterior_predict(fit_wire_prior, ndraws = 500, allow_n
 #| fig-cap: Number of completed attempts out of nine for the 63 mice (bars) against what the priors alone would generate (points and lines are the median and 95% interval over simulated sets of 63 mice).
 #| fig-alt: Grey bars for the observed number of mice with 0 to 9 completed attempts, with a tall bar at 9 and short bars elsewhere. Blue points with wide vertical lines for the prior expectation cover every count from 0 to 9 and include the observed bars.
 #| fig-width: 6.5
-#| fig-height: 3.6
+#| fig-height: 4.2
 #| warning: false
 
 # Observed counts as grey bars; the prior's median and 95% interval as points and lines
@@ -1133,8 +1133,8 @@ rho_df$what <- factor(rho_df$what, levels = rev(unique(rho_df$what)))
 #| label: fig-glmm_rho
 #| fig-cap: The correlation between two attempts of the same mouse, described four ways. Top, on the latent (log-odds) scale of the logistic model with levels. Middle, on the observed scale for the wild-type and the KO mice from the same model. Bottom, the observed-scale correlation of the beta-binomial of the chapter on behavior. Half-eyes with the median and 66% and 95% credible intervals.
 #| fig-alt: Four half-eye densities on an axis from 0 to 1. The latent-scale correlation is higher, near 0.6. The two observed-scale correlations of the logistic model and the beta-binomial correlation are lower and overlap, near 0.3 to 0.4.
-#| fig-width: 7.5
-#| fig-height: 3.6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Half-eye of each description of the same overdispersion
@@ -1193,8 +1193,8 @@ marg_wire$what <- factor(marg_wire$what, levels = rev(unique(marg_wire$what)))
 #| label: fig-glmm_wire_marginal
 #| fig-cap: Difference between KO and wild-type mice in the probability of completing an attempt, in percentage points, read five ways. The first row is the conditional effect (a typical mouse), the next two average over mice, and the last two are models without a mouse deviation, for reference. Points are posterior medians; bars are 50% and 95% credible intervals.
 #| fig-alt: Five horizontal intervals on an axis of percentage points. The typical-mouse estimate is small, near minus 3. The averages over the mice studied and over the population, the beta-binomial and the pooled logistic are close to each other near minus 8 to minus 10.
-#| fig-width: 7.5
-#| fig-height: 3.4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Point and interval for each reading of the genotype effect
@@ -1235,7 +1235,7 @@ band_new <- count_band(yrep_wire, new_att$mouse, "Logistic with levels")
 #| fig-cap: Number of mice with each number of completed attempts (bars) against the range the logistic model with levels expects for a new sample of 63 mice (points and lines are the median and 95% predictive interval).
 #| fig-alt: Grey bars of the observed counts, with a tall bar at 9, and blue points with vertical lines covering the bars at every count, including the perfect scores.
 #| fig-width: 6.5
-#| fig-height: 3.6
+#| fig-height: 4.2
 #| warning: false
 
 # Observed counts against the band for new mice
@@ -1328,8 +1328,8 @@ t_df$model <- factor(t_df$model, levels = rev(c("Attempts independent", "Mouse a
 #| label: fig-glmm_t_compare
 #| fig-cap: Effects on the crossing time as ratios of times, from the Student-t model that treats attempts as independent, the same model with a varying intercept for each mouse, and that model without the impossible record. Top, genotype (varies between mice). Bottom, one more day of training (varies within mice). Points are posterior medians; bars are 50% and 95% credible intervals.
 #| fig-alt: Two panels. In the top one the genotype ratio is about 1.3 in all three fits, but the interval of the independent model is narrow and those with a mouse level are about twice as wide. In the bottom one the ratio per day is about 0.79, and the intervals with a mouse level are narrower than the independent one.
-#| fig-width: 8
-#| fig-height: 4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Point and interval for each effect under the three fits
@@ -1399,8 +1399,8 @@ few_df$data <- factor(few_df$data, levels = c("3 patients", "16 patients"))
 #| label: fig-glmm_fewgroups
 #| fig-cap: Posterior of the spread between patients (standard deviation of the patient intercepts, log scale) with three patients and with sixteen, under the Exponential(2) prior (dashed). With three groups the data hardly move the prior; with sixteen they pin it down.
 #| fig-alt: Two stacked density plots on a horizontal axis from 0 to 3. The upper one, for three patients, is broad and similar in shape to the dashed exponential prior curve, with a long right tail. The lower one, for sixteen patients, is narrow and peaked near 0.75.
-#| fig-width: 7
-#| fig-height: 4.4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Posterior density of the patient spread, one panel per number of patients, with the prior dashed

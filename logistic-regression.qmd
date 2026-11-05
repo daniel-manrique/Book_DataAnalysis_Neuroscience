@@ -86,7 +86,7 @@ Before any model, let's look. With a binary outcome there isn't much to summariz
 #| label: fig-logistic_raw
 #| fig-cap: Each mouse's outcome on days 2 and 3 (1 = completed all six crossings) against its mean time on the wire on day 1, by genotype. Points are jittered vertically so overlapping mice remain visible.
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # One colour per genotype (colour-blind-safe); shape repeats the distinction
@@ -113,7 +113,7 @@ You already have a tool for "how does an outcome change with a predictor": the l
 #| label: fig-logistic_lpm
 #| fig-cap: A straight line fitted to the 0/1 outcome, with parallel lines for the two genotypes, extended to the fastest time a mouse could record. The dashed lines mark the only two values a probability can take at its extremes.
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # Linear probability model: a straight line fitted to the 0/1 outcome
@@ -191,8 +191,8 @@ Before fitting, one decision that I'm not going to leave to a default. [The intr
 ```{r}
 #| label: fig-logistic_prior_predictive
 #| fig-cap: What a prior on the intercept says about the probability of completing, before seeing data. A wide-looking prior (left) is strongly opinionated on the probability scale.
-#| fig-width: 7
-#| fig-height: 3.2
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Draw intercepts from two candidate priors and push them through the inverse logit
@@ -467,8 +467,8 @@ apc_genotype <- rowMeans(p_ko - p_wt)
 ```{r}
 #| label: fig-logistic_apc
 #| fig-cap: The effect of KO on the probability of completing, adjusted for day-1 time. Left, the difference between KO and wild-type for a mouse of each day-1 time. Right, the average predictive comparison across the mice we studied (half-eye with 50% and 95% intervals).
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 library(patchwork)
@@ -535,8 +535,8 @@ I'll start with the first, using `pp_check()` with `type = "stat"`, and a summar
 ```{r}
 #| label: fig-logistic_ppc
 #| fig-cap: Posterior predictive checks for the binary outcome. Histograms are the proportion of mice that complete all six crossings in replicated data; the line is the observed proportion. Left, all mice; right, by genotype.
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # The statistic to check: the proportion of mice that completed
@@ -563,8 +563,8 @@ For discrimination, the Bayesian move [@inchausti2023] is to compute the metric 
 ```{r}
 #| label: fig-logistic_metrics
 #| fig-cap: Posterior distribution of the Brier score for the model with genotype and day-1 time. The dashed line marks a model that ignores the predictors (base rate × (1 − base rate)). The score is computed on the same data the model was fitted on, so it is optimistic.
-#| fig-width: 6
-#| fig-height: 3.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # The observed outcomes
@@ -658,8 +658,8 @@ So does this family have the right idea about noise? Same question, same suspici
 ```{r}
 #| label: fig-logistic_binom_check
 #| fig-cap: Observed proportion of PDGFR-$\beta$+ cells per animal (points) against the binomial model's 95% predictive interval for that animal (grey bars), 48 animals. Animals outside their interval are marked with a triangle.
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Replicated counts for every animal, turned into proportions

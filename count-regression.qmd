@@ -90,7 +90,7 @@ The coefficients aren't wrong. What a model *believes* about the world lives in 
 #| label: fig-count_gauss_predictive
 #| fig-cap: Where the Gaussian model expects a new animal's count to fall on each day (bands are 50%, 80% and 95% predictive intervals), against the observed animals
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 #| warning: false
 
 # New simulated animals (not just new means) from the fitted Gaussian model
@@ -171,7 +171,7 @@ The floor problem is gone. What about the fan? Let's find out whether the Poisso
 #| label: fig-count_pois_variance
 #| fig-cap: Variance against mean for each day's counts (points), and the variance each family assumes (lines). Both axes are logarithmic.
 #| fig-width: 6.5
-#| fig-height: 4.5
+#| fig-height: 4.2
 #| warning: false
 
 # Mean and variance of the counts on each day
@@ -231,8 +231,8 @@ Ours is about `r round(disp_pois)`. To see what that means for the predictions, 
 ```{r}
 #| label: fig-count_pois_ppcheck
 #| fig-cap: Posterior predictive check for the Poisson model. The observed counts (dark line) are far more spread out than any replicate (light lines).
-#| fig-width: 6
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # 50 replicated datasets (light lines) against the observed counts (dark line)
@@ -289,8 +289,8 @@ The coefficient table looks almost the same as the Poisson's: the same log-scale
 ```{r}
 #| label: fig-count_ppcheck_compare
 #| fig-cap: Posterior predictive checks for the Poisson (left) and negative binomial (right) models
-#| fig-width: 8
-#| fig-height: 3.5
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: the Poisson check; the legend is kept only on the right-hand panel
@@ -316,7 +316,7 @@ Now the replicates are broad enough to cover the observed density instead of ign
 #| label: fig-count_nb_variance
 #| fig-cap: The same variance-against-mean plot, now with the negative binomial's variance function
 #| fig-width: 6.5
-#| fig-height: 4.5
+#| fig-height: 4.2
 #| warning: false
 
 # Add the negative binomial's variance function, mu + mu^2 / shape
@@ -355,7 +355,7 @@ Since the log link now gives us trustworthy uncertainty, let's finally read the 
 #| label: fig-count_fold_raw
 #| fig-cap: Posterior fold change in PDGFR-$\beta$+ cell count relative to day 0 (negative binomial model, raw counts). The dashed line at 1 means no change.
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # Posterior draws; exponentiating a log-scale day coefficient gives a fold change vs. day 0
@@ -464,7 +464,7 @@ Every scientist has had the following conversation. You report that treated anim
 #| label: fig-count_area
 #| fig-cap: Area of the counted tissue for each animal, by day after ischemia. The area is not constant, and it shrinks as the days go by.
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # Counted area of every animal, with each day's mean as a bar
@@ -548,7 +548,7 @@ What did change is the story about the time course. Here are the fold changes re
 #| label: fig-count_fold_offset
 #| fig-cap: Fold change relative to day 0 in PDGFR-$\beta$+ cells, as a raw count (the negative binomial model above) and as a density per mm² (offset model). Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 #| warning: false
 
 # Day coefficients from the raw-count model and from the density (offset) model
@@ -656,7 +656,7 @@ Let me look at the exposure first, since the whole first half of this chapter wa
 #| label: fig-count_spikes_window
 #| fig-cap: Length of the encoding window in each trial of each patient, by load. The window grows with the number of pictures, and the seconds per picture differ between patients (about 1 s for most, longer for a few).
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # One row per trial (not per neuron-trial), and the seconds per picture of each trial
@@ -763,8 +763,8 @@ ppc_pair <- function(fit) {
 ```{r}
 #| label: fig-count_ppc_nb
 #| fig-cap: Posterior predictive checks for the negative binomial model of the spike counts. Left, rootogram (bars hang from the expected counts; the horizontal axis is cut at 40 spikes). Right, share of zeros in replicated data (histogram) against the observed share (line).
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -859,7 +859,7 @@ slow <- neuron_tab$rate < 0.5
 #| label: fig-count_neuron_zeros
 #| fig-cap: For each of the 59 neurons, the share of its trials with no spikes against its overall firing rate (points). The curve is what a Poisson at that rate would give for a typical 2.2 s window. No neuron is silent in all its trials, and the zeros pile up exactly where the firing rate is low.
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 #| warning: false
 
 # The Poisson curve: share of empty trials expected at each rate for a typical window
@@ -947,7 +947,7 @@ rr_all$contrast <- factor(rr_all$contrast, levels = c("3 pictures vs 1", "2 pict
 #| label: fig-count_rate_ratios
 #| fig-cap: Firing-rate ratio (per second) for two and three pictures against one, from the model that pools all neuron-trials and from the model with a random intercept per neuron. Points are posterior medians; thick and thin bars are 50% and 95% credible intervals.
 #| fig-width: 6.5
-#| fig-height: 3.4
+#| fig-height: 4.2
 #| warning: false
 
 # Point and interval for each contrast under both models; dashed line at 1 = no change

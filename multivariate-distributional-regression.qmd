@@ -78,7 +78,7 @@ Let me show you the numbers that started this. @fig-mvdr_spread plots every one 
 #| fig-cap: "Every animal by day for tissue area and GFAP integrated density. Grey bars: mean plus and minus the one standard deviation that a model with an equal spread assumes for every day. Orange bars: mean plus and minus the standard deviation of the day itself. Circles are ischemic animals, triangles are shams (all at day 0)."
 #| fig-alt: "Two panels with the days 0, 3, 7, 14 and 30 on the horizontal axis. In the tissue area panel, the orange bar at day 3 is about three times longer than the grey bar, while at days 0, 7 and 14 the orange bars are shorter than the grey ones. In the GFAP panel, the orange bar at day 0 is a small fraction of the grey bar, and from day 7 onward the orange bars are similar to or longer than the grey ones. Points are spread around the day means."
 #| fig-width: 10
-#| fig-height: 4.6
+#| fig-height: 5
 #| warning: false
 
 # The two outcomes in one long table, with the animal's day and condition
@@ -213,7 +213,7 @@ share_area_neg <- mean(sim_area < 0)
 #| fig-cap: "Priors of the model of the spread. Left: prior density of the log ratio of a day's standard deviation to the reference day's for three widths (the horizontal axis is labeled as ratios; 1 means equal spreads). Right: prior predictive check, the tissue area that the priors give an animal of day 7 (curve) against the 49 observed areas (ticks)."
 #| fig-alt: "Left: three bell-shaped curves centered at a ratio of 1 on a horizontal axis labeled from one tenth to ten; the narrowest is tall and reaches roughly from one half to two, the widest is flat and reaches beyond one tenth and ten. Right: a single broad bell-shaped curve of simulated tissue area for day 7, centered near 14 and extending from about minus 20 to 50 square millimeters, with short black ticks of the observed areas bunched between about 6 and 20."
 #| fig-width: 10
-#| fig-height: 4
+#| fig-height: 5
 #| warning: false
 
 # Left: prior of the log ratio of SDs, drawn for three widths, with the axis labeled as ratios
@@ -336,7 +336,7 @@ All the sampler checks pass (Rhat below 1.01, effective sample sizes above 400, 
 #| fig-cap: "Posterior of the standard deviation of tissue area by day (A) and of its ratio to the standard deviation of the shams at day 0 (B), from the model with a spread per day. Dots are medians, thick and thin bars the 66% and 95% credible intervals. Black crosses in A mark the standard deviation observed in each day; the dashed line in B marks equal spreads."
 #| fig-alt: "Panel A: five half-eye densities of the standard deviation of tissue area for days 0, 3, 7, 14 and 30. The day 3 half-eye is centered near 3 mm² and is much wider than the others, which are centered near 1 mm². Black crosses mark the observed standard deviations, each close to the center of its density. Panel B: half-eyes of the ratio to day 0 on a logarithmic axis for days 3, 7, 14 and 30. The day 3 ratio is centered near 3.5 with an interval that excludes 1; the other three are centered near 1.2 with intervals that include 1."
 #| fig-width: 10
-#| fig-height: 4.6
+#| fig-height: 5
 #| warning: false
 
 # Long table of draws: one row per draw and day
@@ -491,7 +491,7 @@ gt(tbl_day3)
 #| fig-cap: "Ratio of the spread of day 3 to the spread of day 7 under three treatments of the unusual day-3 animal. Dots are medians, thick and thin bars the 66% and 95% credible intervals. The dashed line marks equal spreads."
 #| fig-alt: "Three half-eye densities of the ratio of day 3 to day 7 spread on a logarithmic axis from 0.5 to 20. The Gaussian model with all animals and the Student-t model are both centered near 2.7 with a long right tail, and their intervals stay above 1. The Gaussian model without the animal is centered lower, near 1.7, and its interval reaches just below 1. A dashed vertical line marks a ratio of 1."
 #| fig-width: 8
-#| fig-height: 3.6
+#| fig-height: 4.5
 #| warning: false
 
 # Ratio of day 3 to day 7 for each treatment, in one long table
@@ -549,8 +549,8 @@ pred_all$width_mean <- pred_all$mean_hi - pred_all$mean_lo
 #| label: fig-mvdr_predint
 #| fig-cap: "Intervals for tissue area by day from the model with one sigma (grey, diamonds) and the model with a sigma per day (orange, circles). The thick bar is the 95% interval of the mean of the day; the thin bar is the 95% interval of a new animal of that day. Blue dots are the observed animals."
 #| fig-alt: "For each of the days 0, 3, 7, 14 and 30, two pairs of vertical bars next to a cloud of blue dots. The thick bars, intervals of the mean, are short and nearly equal in the two models. The thin grey bars, intervals for a new animal under one sigma, have the same length of about 6 mm² on every day. The thin orange bars are short at days 0, 7, 14 and 30 (about 4 mm²) and very long at day 3, reaching from about 10 to 24 mm²."
-#| fig-width: 9
-#| fig-height: 4.6
+#| fig-width: 8
+#| fig-height: 4.5
 #| warning: false
 
 # Offsets so that the two models sit side by side within each day
@@ -604,8 +604,8 @@ Look at day 3. With one `sigma` the interval for a new animal is `r fx(w("One si
 #| label: fig-mvdr_ppc_sd
 #| fig-cap: "Posterior predictive checks of the standard deviation of tissue area, by day. Pale bars are the distribution of the standard deviation across 1,000 replicated datasets; the dark line is the real value. A: one sigma for every day. B: a sigma for each day."
 #| fig-alt: "Two rows of five small histograms, one per day. In the top row (one sigma) the observed standard deviation falls in the far left tail of the replicates at days 0, 7, 14 and 30 and in the right tail at day 3. In the bottom row (sigma by day) the observed standard deviation lies near the middle of the replicates on every day."
-#| fig-width: 11
-#| fig-height: 5.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Panel titles ("Day 3") and a theme piece that hides the meaningless count axis
@@ -806,8 +806,8 @@ Before the numbers, look at what each model *believes* about the spread of each 
 #| label: fig-mvdr_implied
 #| fig-cap: "What each model says about the spread of GFAP integrated density (A), and how the spread of each day relates to its mean for GFAP (B) and for tissue area (C). A: crosses are the observed standard deviations; colored bars are 95% credible intervals of the standard deviation that each model implies (medians as dots). B and C: one point per day, labeled with the day; the dashed line is a constant coefficient of variation, the grey line a constant standard deviation."
 #| fig-alt: "Panel A: for days 0, 3, 7, 14 and 30, black crosses of observed standard deviations of GFAP (about 25, 71, 319, 266 and 247) with intervals from four models. The Gaussian with one sigma is a single wide interval around 220 on every day. The Gaussian with a sigma per day and the lognormal and gamma models follow the crosses, but the lognormal and gamma intervals at day 3 are above the cross. Panel B: five labeled points on logarithmic axes of mean against standard deviation for GFAP, lying close to the dashed diagonal line of constant coefficient of variation and far from the horizontal grey line. Panel C: five labeled points for tissue area that do not follow the dashed diagonal; day 3 lies far above the horizontal grey line."
-#| fig-width: 13
-#| fig-height: 4.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Panel A: implied SD per day and model, long format with 95% intervals
@@ -969,7 +969,7 @@ res_r <- cor(cell_data$res_gfap, cell_data$res_pdgfr)
 #| fig-cap: "Log GFAP against log PDGFR-β integrated density in each of the 49 animals. A: the raw values, colored by day; the line is the fit across all animals. B: the same animals after subtracting the mean of their own day from each marker; the line is the fit through the leftovers. Circles are ischemic animals, triangles are shams."
 #| fig-alt: "Two scatter plots. Panel A: 49 points colored by day in five groups; the day 0 points are at the lower left, the days 7, 14 and 30 points at the upper right and the day 3 points at the lower middle; a straight line rises steeply across all of them. Panel B: the same animals centered on their own day, as a cloud around zero with a gently rising line, much flatter than in panel A."
 #| fig-width: 10
-#| fig-height: 4.6
+#| fig-height: 5
 #| warning: false
 
 # Panel A: the raw scatter, day by color, with a line fitted across all animals
@@ -1160,8 +1160,8 @@ chk_day <- mcmc_check(setNames(lapply(rho_day, `[[`, "fit"), paste("Two markers,
 #| label: fig-mvdr_rescor
 #| fig-cap: "Posterior of the residual correlation between log GFAP and log PDGFR-β (A), and the same correlation estimated separately within each day (B). In A the dashed curve is the LKJ(2) prior and the vertical line marks the raw correlation of all animals. In B the black line is the posterior median of the model with all days and the dashed line marks zero; the numbers are the animals per day. Dots are medians, thick and thin bars the 66% and 95% credible intervals."
 #| fig-alt: "Panel A: a half-eye of the correlation, centered near 0.3 with a 95% interval from about 0 to 0.55, with a dashed dome-shaped prior curve centered at zero and a vertical line at 0.58 to the right of the whole posterior. Panel B: six half-eyes in a row, one per day and one for the model with all days; the daily ones are very wide, reaching from about minus 0.6 to 0.95, with medians scattered between about minus 0.05 and 0.55, and the all-days one is narrower."
-#| fig-width: 11
-#| fig-height: 4.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Panel A: the posterior of rho, the LKJ(2) prior (a Beta(2, 2) stretched to -1..1), and the raw correlation as a line
@@ -1265,8 +1265,8 @@ stat_obs <- within_cor(cell_data$lgfap, cell_data$lpdgfr, cell_data$DPI_f)
 #| label: fig-mvdr_joint
 #| fig-cap: "Joint predictive checks. A: observed animals (dots) in each day against 100 outlines of the 95% ellipse of a new animal, one outline per posterior draw. B: the correlation of the two markers within a day, pooled over days, in 2,000 replicated datasets (histogram) and in the real animals (line)."
 #| fig-alt: "Panel A: five small scatter plots, one per day, each with a few black dots and a bundle of faint blue ellipses around them. Day 0 has a small ellipse bundle at the lower left, days 7, 14 and 30 have larger ones at the upper right, and day 3 is in the middle. The dots lie inside the bundles. Panel B: a histogram of replicated correlations centered near 0.3 and from about minus 0.1 to 0.6, with a black vertical line at 0.34 inside the histogram."
-#| fig-width: 12
-#| fig-height: 4.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Panel A: ellipses of new animals (one per draw), observed animals on top
@@ -1366,7 +1366,7 @@ raw_sd_day <- tapply(mouse_raw$contrast, mouse_raw$dpi, sd)
 #| fig-cap: "Left-minus-right difference of log NeuN density in each of the 31 mice (the average over its sections), by day after ischemia. Orange bars: mean plus and minus one standard deviation of the mice of that day. The number under each day is the number of mice. The dashed line marks no difference between hemispheres."
 #| fig-alt: "Four columns of points for 0, 5, 15 and 30 days. At 0 days five points sit around zero or slightly above it, with a mean near 0.1. At 5, 15 and 30 days the points are lower, with means near minus 0.4, minus 0.5 and minus 0.3, and are more spread out, especially at 15 days where they run from about minus 0.9 to minus 0.1. Orange bars are short at 0 days and longest at 15 days. A dashed horizontal line sits at zero."
 #| fig-width: 8
-#| fig-height: 4.4
+#| fig-height: 4.5
 #| warning: false
 
 # Mean and SD of the mouse contrasts of each day, for the orange bars
@@ -1485,8 +1485,8 @@ The sampler checks pass for both fits. The result is in @fig-mvdr_neun_sd: panel
 #| label: fig-mvdr_neun_sd
 #| fig-cap: "Spread of the hemisphere contrast among mice (the standard deviation of the varying effect) for each day (A), and its ratio to the spread among the naive mice at 0 D (B). In A the dashed line and band are the median and 95% interval of the single spread of the model of the previous chapter. Dots are medians, thick and thin bars the 66% and 95% credible intervals. Black crosses in A are the raw spreads of the mouse contrasts from the earlier figure."
 #| fig-alt: "Panel A: four half-eye densities of the standard deviation of the response for 0, 5, 15 and 30 days, all starting at zero and skewed to the right. The 0 D density is the widest relative to its location, centered near 0.1 with a 95% interval from about 0 to 0.4; the 15 D density is centered near 0.26 with an interval from 0.11 to 0.5; the 5 D and 30 D densities are in between. A dashed horizontal line and a grey band at about 0.17 mark the common spread. Panel B: three half-eyes of ratios on a logarithmic axis, wide, reaching from about 0.3 to more than 30 and centered at about 2, with intervals that include 1."
-#| fig-width: 11
-#| fig-height: 4.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Long table of draws of tau_z by day, and the ratios to the naive day

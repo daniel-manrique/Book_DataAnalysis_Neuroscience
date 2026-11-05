@@ -123,8 +123,8 @@ Here are the residuals by day (@fig-assumptions_linearity_residuals). Triangles 
 #| label: fig-assumptions_linearity_residuals
 #| fig-cap: Residuals from the straight line through tissue area, by day post-injury. Orange diamonds mark the mean residual of each day. If the line were right on average at every day, they would sit on the dashed line.
 #| fig-alt: Scatter of residuals in mm² against days post-injury at 0, 3, 7, 14 and 30. The orange group means fall below zero at days 0 and 14 and above zero at days 3 and 30.
-#| fig-width: 7
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # One residual per animal, with its day and condition
 resid_df <- data.frame(
@@ -171,8 +171,8 @@ Is `cell_data` at risk? Not here, and by design: it has `r nrow(cell_data)` rows
 #| label: fig-assumptions_independence
 #| fig-cap: "Completed crossing times of the hanging wire test (log scale), one column per mouse, ordered by the mouse's own average. The black bar is that average. Points of one mouse sit together, so they are not independent draws."
 #| fig-alt: "Strip chart with 63 mice along the horizontal axis, ordered from fastest to slowest on average. Each mouse has up to nine grey points and a short black bar at its mean. The columns of points rise from left to right, and within each column the points are much closer to each other than to the points of distant mice."
-#| fig-width: 9
-#| fig-height: 3.8
+#| fig-width: 8
+#| fig-height: 4.5
 #| warning: false
 #| message: false
 
@@ -233,7 +233,7 @@ What breaks when it fails is the margin the model reports. One $\sigma$ for all 
 #| fig-cap: Residual spread by DPI for two straight-line fits, one for tissue area and one for GFAP integrated density. Orange bars show the mean residual of each day plus and minus one standard deviation.
 #| fig-alt: Two panels of residuals against days post-injury. In the tissue area panel the day 3 residuals are much more spread out than at other days. In the GFAP panel the spread is tiny at day 0 and grows by about tenfold from day 7 onward.
 #| fig-width: 10
-#| fig-height: 4.5
+#| fig-height: 5
 
 # A second straight-line fit, for GFAP integrated density
 gfap_model <- lm(Gfap_IntDen ~ DPI, data = cell_data)
@@ -293,7 +293,7 @@ Here is a genuinely useful, slightly humbling thing to notice: the same `lineari
 #| fig-cap: Histogram (A) and Q-Q plot (B) of the residuals from the straight line through tissue area
 #| fig-alt: A roughly bell-shaped histogram of residuals in mm² next to a Q-Q plot whose points follow the diagonal line closely, with small departures at both ends.
 #| fig-width: 10
-#| fig-height: 4.5
+#| fig-height: 5
 
 # The residuals of the tissue-area line, in a table of their own
 res_df <- data.frame(residual = residuals(linearity_model))
@@ -468,7 +468,7 @@ The fit passes the three sampler checks from @sec-mcmc-model-checking: the large
 #| fig-cap: Posterior predictive checks by day. Pale bars are the distribution of the statistic across 1,000 replicated datasets from the fitted straight line, and the dark line is the real value. Panel A uses the mean (linearity), panel B the standard deviation (spread).
 #| fig-alt: Two rows of small histograms, one per day post-injury. In the top row, the observed mean falls in the far right tail at day 3 and in the far left tail at day 14. In the bottom row, the observed standard deviation falls in the far left tail at days 0, 7, 14 and 30.
 #| fig-width: 10
-#| fig-height: 8.5
+#| fig-height: 9
 
 # Fixed seed for the replicated datasets
 set.seed(123)

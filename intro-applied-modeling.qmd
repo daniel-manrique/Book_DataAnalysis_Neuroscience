@@ -94,8 +94,8 @@ A quick visualization already tells us most of the story (@fig-intro_gfap_points
 ```{r}
 #| label: fig-intro_gfap_points
 #| fig-cap: GFAP intensity by condition
-#| fig-width: 5
-#| fig-height: 5
+#| fig-width: 6
+#| fig-height: 5.5
 
 # One point per animal, nudged sideways so none hides behind another
 ggplot(
@@ -227,8 +227,8 @@ A table of quantiles makes that distribution easy to describe but easy to misrea
 ```{r}
 #| label: fig-intro_posterior_halfeye
 #| fig-cap: Posterior distribution for the MCAO effect on GFAP intensity
-#| fig-width: 6
-#| fig-height: 3.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 library(ggdist)
 library(posterior)

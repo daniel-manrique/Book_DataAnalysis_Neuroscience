@@ -133,7 +133,7 @@ That's odd, isn't it? GFAP alone has a modest negative association with tissue a
 #| label: fig-multiple_gfap_alone_vs_adjusted
 #| fig-cap: Posterior for the GFAP slope on tissue area, alone versus adjusting for DPI
 #| fig-width: 6.5
-#| fig-height: 3.5
+#| fig-height: 4.2
 
 library(ggdist)
 library(posterior)
@@ -161,7 +161,7 @@ The orange posterior leans negative; the blue one is centered on zero and is abo
 #| label: fig-multiple_gfap_by_dpi
 #| fig-cap: Tissue area against GFAP integrated density. The dashed line ignores DPI; the colored lines are fit within each day.
 #| fig-width: 6.5
-#| fig-height: 4.5
+#| fig-height: 4.2
 #| warning: false
 #| message: false
 
@@ -250,7 +250,7 @@ Now the linearity check itself. Two things have to share one plot: a straight-li
 #| label: fig-multiple_linear_vs_factor
 #| fig-cap: Straight-line fit (ribbon) versus a separate mean for each day (points and intervals)
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 #| warning: false
 
 # Helper: expected outcome for every posterior draw at every row of newdata,
@@ -354,8 +354,8 @@ A single number for an interaction is hard to feel, so I'll draw what it implies
 ```{r}
 #| label: fig-multiple_interaction_by_day
 #| fig-cap: Fitted GFAP–tissue area relationship on each day, from the interaction model
-#| fig-width: 7
-#| fig-height: 3.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # For each day, a grid of GFAP values inside the range observed on that day
@@ -407,8 +407,8 @@ I don't want to decide that from memory. Here is the predictor on its original a
 ```{r}
 #| label: fig-multiple_log_hist
 #| fig-cap: Distribution of GFAP integrated density, original and log2 scale
-#| fig-width: 7
-#| fig-height: 3.2
+#| fig-width: 10
+#| fig-height: 5
 
 library(patchwork)
 
@@ -513,8 +513,8 @@ The GFAP model is not the one I'd take forward as the best description of tissue
 ```{r}
 #| label: fig-multiple_ppcheck
 #| fig-cap: Posterior predictive check for the DPI + GFAP model
-#| fig-width: 6
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # 50 replicated datasets (thin lines) against the observed density (dark line);
 # the legend sits in the empty upper right of the panel
@@ -528,8 +528,8 @@ In @fig-multiple_ppcheck, the overall picture is close to last chapter's: replic
 ```{r}
 #| label: fig-multiple_ppcheck_sd
 #| fig-cap: Observed standard deviation of tissue area on each day (dark line) against replicates from the DPI + GFAP model
-#| fig-width: 7
-#| fig-height: 3.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| message: false
 
 library(bayesplot)

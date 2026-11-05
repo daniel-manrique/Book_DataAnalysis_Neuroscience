@@ -67,8 +67,8 @@ Both studies land right on the 0.05 boundary: one just under, one just over. Plo
 ```{r}
 #| label: fig-appendix_pvalue_sim
 #| fig-cap: Same significance boundary, opposite scientific story
-#| fig-width: 6
-#| fig-height: 3
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Estimate and interval of each study; the dashed line marks no difference
 ggplot(sim_results, aes(x = estimate, y = study, color = study)) +

@@ -130,8 +130,8 @@ Here's an idea we've already used once, back when we built a fake dataset from c
 ```{r}
 #| label: fig-priors_prior_predictive
 #| fig-cap: "Prior predictive check: simulated GFAP values from the priors alone, before seeing any real data"
-#| fig-width: 6
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # sample_prior = "only" ignores the likelihood: the draws come from the priors alone
 prior_check_fit <- brm(
@@ -208,7 +208,7 @@ Now the question we actually care about: did any of this matter? Let's put the p
 #| label: fig-priors_prior_posterior_overlay
 #| fig-cap: Prior, flat-prior posterior, and informed-prior posterior for the ischemia effect
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 
 # Reload the flat-prior fit from the first chapter (cached, not refitted)
 flat_fit <- brm(
@@ -394,7 +394,7 @@ gt(sweep_summary) |> fmt_number(columns = -prior_sd, decimals = 1)
 #| label: fig-priors_shrinkage
 #| fig-cap: Point estimate and 95% interval for the ischemia effect, from a wide frequentist fit to an aggressively tight prior
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 
 # One row per method: estimate and 95% interval, from lm to the tightest prior
 forest_df <- rbind(

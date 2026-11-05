@@ -33,7 +33,7 @@ If you have ever counted cells under a microscope, you have already measured an 
 #| label: fig-glm_counts_by_dpi
 #| fig-cap: PDGFR-$\beta$-positive cell counts per animal, by day after ischemia (day 0 is the sham group)
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 #| warning: false
 
 # Every animal as a point (colour and shape = condition) with each day's mean as a bar
@@ -84,8 +84,8 @@ That's a lot of new vocabulary for something you've been doing since @sec-linear
 ```{r}
 #| label: fig-glm_links
 #| fig-cap: Three inverse links, each translating an unbounded linear predictor into a valid mean
-#| fig-width: 7
-#| fig-height: 3
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # A range of linear-predictor values, from -4 to 4

@@ -49,8 +49,8 @@ Start with the most literal picture. `vis_miss()` draws the whole table as a gri
 #| label: fig-missing-vismiss
 #| fig-cap: "Every cell of `cell_data`, colored by whether it is present. Rows are the 49 animals, columns are the 20 variables. Exactly one cell is missing: `Pdgfrb_Neg` for animal `Td79`."
 #| fig-alt: "Grid of 49 rows and 20 columns. Almost every cell is the same pale color, indicating observed values. A single dark cell appears in the Pdgfrb_Neg column near the bottom of the grid."
-#| fig-width: 9
-#| fig-height: 6
+#| fig-width: 8
+#| fig-height: 4.5
 
 # The whole table as a grid: one cell per value, coloured by present or missing
 vis_miss(cell_data, show_perc = FALSE, show_perc_col = FALSE) +
@@ -75,8 +75,8 @@ The second view collapses the grid into a count per variable (@fig-missing-missv
 #| label: fig-missing-missvar
 #| fig-cap: "Number of missing values per variable, sorted. Nineteen variables have none; `Pdgfrb_Neg` has one."
 #| fig-alt: "Horizontal bar chart of the count of missing values for each variable in cell_data. Only the Pdgfrb_Neg bar has nonzero length, with a value of one."
-#| fig-width: 7
-#| fig-height: 5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # One bar per variable: how many values are missing in each
 gg_miss_var(cell_data) +
@@ -93,8 +93,8 @@ The third view is the one I would keep even for this dataset, because it asks a 
 #| label: fig-missing-misspoint
 #| fig-cap: "`Pdgfrb_Pos` against `Pdgfrb_Neg`. The animal with a missing `Pdgfrb_Neg` (orange, labeled `Td79`) is parked just left of the observed range, at the height of its known `Pdgfrb_Pos`. That position on the horizontal axis is not data: it is a place to put the point so you can see it."
 #| fig-alt: "Scatter plot of PDGFR-beta positive cell counts on the vertical axis against PDGFR-beta negative cell counts on the horizontal axis. Blue points are scattered across the plot. One orange point labeled Td79 sits slightly to the left of the lowest horizontal value, at a vertical position near 400."
-#| fig-width: 7
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Where geom_miss_point() parks the missing animal, so we can label it directly
 neg_range <- range(cell_data$Pdgfrb_Neg, na.rm = TRUE)
@@ -218,8 +218,8 @@ I show the spread across simulations as a dot with an interval, and the truth as
 #| label: fig-missing-mechanisms
 #| fig-cap: "Estimated mean of `y` (truth = 2, vertical line) over 1000 simulated datasets, for three missingness mechanisms and two estimators. Dots are the average estimate; bars cover the middle 95% of estimates across simulations. About 30% of `y` is deleted in each scenario."
 #| fig-alt: "Three stacked panels, one per mechanism: MCAR, MAR, and MNAR. In each, two estimators are shown as a dot with a horizontal bar. In the MCAR panel both estimators sit on the vertical line at 2. In the MAR panel the complete-case estimator sits well to the left of the line while the model-based estimator sits on it. In the MNAR panel both estimators sit to the left of the line."
-#| fig-width: 7
-#| fig-height: 5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Fixed seed so the simulation is identical on every render
 set.seed(2026)
@@ -279,6 +279,10 @@ Every missing value so far has been a value that *exists* and was not recorded. 
 
 `cell_data` has no example of this, so I borrow a real one. The R package `NeuroDataSets` [@neurodatasets] ships `OASIS_cross_tbl_df`, the cross-sectional release of the Open Access Series of Imaging Studies [@marcus2007]: structural MRI and clinical assessments of 416 people aged 18 to 96, plus 20 of them scanned a second time, for 436 rows. I use it only for this section. The columns that matter here are `Age`, `Educ` (education, in five categories), `SES` (socioeconomic status, five categories), `MMSE` (Mini-Mental State Examination, a cognitive screening score), `CDR` (Clinical Dementia Rating: 0 none, 0.5 very mild, 1 mild, 2 moderate), `nWBV` (the volume of the brain as a fraction of the intracranial volume) and `Delay` (days between the two scans of the same person).
 
+::: {.callout-note title="A word about NeuroDataSets"}
+`NeuroDataSets` [@neurodatasets] is a wonderful package, and for me a long-awaited one. For many years, as a neuroscientist, I hoped for a collection of real neuroscience datasets so that we could stop teaching with `mtcars` and `penguins`, the datasets everybody uses. Now it exists. I borrow from it here and in @sec-eda-ggplot, and I am grateful to its author, Renzo Caceres Rossi.
+:::
+
 ```{r}
 #| label: load-oasis
 
@@ -304,8 +308,8 @@ I look at it the way we looked at `cell_data`: first the whole table as a grid. 
 #| label: fig-missing-oasis-vismiss
 #| fig-cap: "The OASIS-1 table as a grid, rows clustered by their pattern of missingness. Dark cells are missing. Education, SES, MMSE and CDR are missing together in one large block of rows; SES alone is missing in a smaller set."
 #| fig-alt: "Grid of 436 rows and 12 columns. Most cells are pale. In the columns Educ, MMSE and CDR, a large block of about 200 rows at one end is dark; the SES column is dark for those same rows and for a short additional stretch of about twenty rows."
-#| fig-width: 9
-#| fig-height: 6
+#| fig-width: 8
+#| fig-height: 4.5
 
 # Whole table, rows grouped by missingness pattern; dark orange = missing
 vis_miss(oasis, cluster = TRUE, show_perc = FALSE) +
@@ -335,8 +339,8 @@ Read it from the bottom matrix up. Each column of dots is one *combination* of v
 #| label: fig-missing-oasis-upset
 #| fig-cap: "Combinations of missing variables in OASIS-1. The tall bar is the block of rows missing Educ, MMSE, CDR and SES together; the short bar is SES missing on its own."
 #| fig-alt: "UpSet plot. The tallest bar, about 200, joins four dots for the variables CDR, MMSE, Educ and SES. A much shorter bar of about 19 has a single dot for SES. Horizontal bars on the left show 220 missing for SES and 201 each for Educ, MMSE and CDR."
-#| fig-width: 7
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Count each combination of missing variables (drawn with the UpSetR package)
 gg_miss_upset(oasis, main.bar.color = okabe_ito[["observed"]],
@@ -349,8 +353,8 @@ Two combinations explain the whole table: a block of `r n_block` rows where four
 #| label: fig-missing-oasis-age
 #| fig-cap: "People in OASIS-1 by age band, split by whether the clinical rating (CDR) was recorded. Numbers inside the bars are counts (the two people in their thirties with a rating are too few to label). Every person under 30 lacks it; every person aged 60 or over has it."
 #| fig-alt: "Stacked bar chart with seven age bands from 18-29 to 80-96. In the 18-29 band all 157 people are in the orange group without a clinical rating. The orange share shrinks across the 30s, 40s and 50s, and from 60 onward all bars are entirely blue, meaning a rating was recorded."
-#| fig-width: 7.5
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Count people per age band, by CDR recorded or not
 age_bands <- oasis |>
@@ -611,7 +615,7 @@ Now the comparison that the whole section was building toward. The coefficient o
 #| label: fig-missing-compare
 #| fig-cap: "Coefficient for `Pdgfrb_Neg` (per 100 more negative cells, on the log scale of `Pdgfrb_Pos`) under six ways of treating the one missing value. Points are posterior medians or estimates; bars are 95% credible or confidence intervals. The two sensitivity rows plug in the smallest and largest observed value and are conditional on that guess."
 #| fig-alt: "Dot and interval plot with six rows, each giving an estimate of the same coefficient with a horizontal interval. All six dots sit between about 0.02 and 0.06 and all six intervals cross zero. The two sensitivity rows use a different shape."
-#| fig-width: 7.5
+#| fig-width: 6.5
 #| fig-height: 4.2
 
 # Pull the neg_100 coefficient and its interval from each of the four fits
@@ -673,8 +677,8 @@ I find the `mi()` approach the most instructive of the four, because it makes th
 #| label: fig-missing-imputed
 #| fig-cap: "Posterior distribution of the missing `Pdgfrb_Neg` of animal `Td79`, in hundreds of cells, from the `mi()` model. Orange triangles are the observed values for the other day-3 animals. The dashed line marks zero cells."
 #| fig-alt: "Half-eye plot of a wide, roughly symmetric distribution centered near 2.7 hundred cells, spanning from below zero to about 6. Seven small orange triangles at the bottom mark the observed day-3 values, which lie between about 0.6 and 5.4. A dashed vertical line sits at zero."
-#| fig-width: 7
-#| fig-height: 3.8
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Posterior draws of the imputed (missing) value
 imputed <- as_draws_df(fit_mi) |>
@@ -707,7 +711,7 @@ A last sanity check, as the earlier chapters taught: does the `mi()` model repro
 #| fig-cap: "Posterior predictive check for `log(Pdgfrb_Pos)` under the `mi()` model: observed data (dark line) against 100 replicated datasets (light lines)."
 #| fig-alt: "Density overlay plot. A dark curve for the observed log counts lies within a bundle of light blue curves drawn from the posterior predictive distribution, which have similar shape and range."
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 
 # Observed log counts (dark line) against 100 datasets simulated from the mi() model;
 # legend in the empty upper-left corner of the panel

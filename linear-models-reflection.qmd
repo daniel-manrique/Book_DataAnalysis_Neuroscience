@@ -177,8 +177,8 @@ Before the numbers, a picture of the data with what each model draws (@fig-refle
 #| label: fig-reflection_four_answers
 #| fig-cap: Tissue area by day after ischemia, with the observed mean of each day (black diamonds) and the two straight lines fitted in earlier chapters. The dashed line crosses the whole range, the solid one only the window from day 3 to day 14.
 #| fig-alt: Scatter of tissue area in mm² at 0, 3, 7, 14 and 30 days with a black diamond at each day's mean. A dashed orange line declines gently across the whole range and passes well below the diamonds at day 3 and above them at day 14. A solid blue line from day 3 to day 14 passes through the diamonds at days 3, 7 and 14.
-#| fig-width: 7
-#| fig-height: 4.8
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # The observed mean of each day, for the black diamonds
 means_df <- data.frame(DPI = as.numeric(names(mean_day)), area = as.numeric(mean_day))
@@ -215,7 +215,7 @@ The dashed line is the one that does not touch the diamonds where the interestin
 #| fig-cap: Change in tissue area between day 7 and day 14 under four models. Dots mark medians, thick and thin bars the 50% and 95% credible intervals; the dashed line is the difference of the observed means.
 #| fig-alt: Four half-eye plots. The straight line over the whole range is centered near minus 1.9 mm² with a narrow interval. The window line, the one-mean-per-day model and the mean-and-spread-per-day model are centered between minus 4.4 and minus 4.8 mm², with intervals that overlap each other and the dashed line at minus 4.5, and none overlap the whole-range line.
 #| fig-width: 8
-#| fig-height: 4.2
+#| fig-height: 4.5
 
 # The four models whose answer we plot, in display order
 model_levels <- c("Line, days 0 to 30",

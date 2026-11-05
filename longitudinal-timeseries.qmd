@@ -77,7 +77,7 @@ The histology data are the ones we have used since @sec-linear-regression-what, 
 #| fig-cap: "The course of three markers over 30 days, every animal as a point (49 animals, one per point). The black line joins the mean of each day. The shaded band is the window of days 3 to 14 of the earlier regression chapters, and the dashed line is what a straight line fitted only to that window says over the whole range."
 #| fig-alt: "Three panels with days after the lesion from 0 to 30 on the horizontal axis. Tissue area (left) is about 14.6 square millimeters at day 0, rises to about 17 at day 3 with a wide scatter, then falls to about 14, 9.5 and 8 at days 7, 14 and 30. PDGFR-beta positive cell counts (middle) are about 500 at days 0 and 3, then jump to about 2,100 at day 7, 3,000 at day 14 and 2,000 at day 30. GFAP integrated density (right) rises from about 70 at day 0 to 360, 670 and 700 at days 3, 7 and 14, then drops to about 550 at day 30, where the points split in two groups. A grey band marks days 3 to 14 and a dashed straight line crosses each panel."
 #| fig-width: 10
-#| fig-height: 3.9
+#| fig-height: 5
 #| warning: false
 
 # One long table with the three outcomes, so that one ggplot call draws the three panels
@@ -167,8 +167,8 @@ I drew both curves out to day 45, deliberately beyond the last day we measured (
 #| label: fig-lt_line_poly
 #| fig-cap: "A straight line and a cubic polynomial fitted to the tissue area of the whole 0 to 30 day range, with the median and the 95% credible band of the mean, drawn out to day 45. Points are the 49 animals; the dotted vertical line marks day 30, the last day measured."
 #| fig-alt: "Two panels with days after the lesion from 0 to 45. Left, a straight line falls from about 16 mm2 at day 0 to about 5 mm2 at day 45 with a narrow band, passing above the points at days 0, 14 and 30 and below the points at day 3. Right, a cubic curve follows the day means across the five measured days and then turns sharply after day 30, with a band that widens to cover a very large range by day 45."
-#| fig-width: 9
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Each model in its own panel: band, median line, and the animals underneath
@@ -192,7 +192,7 @@ Before I leave the line, the check that a fit should always pass: replicate the 
 #| fig-cap: "Posterior predictive check of the straight line by day. Each panel is one day: the histogram is the distribution of the mean tissue area in 500 replicated datasets, and the vertical line is the observed mean."
 #| fig-alt: "Five small panels, one for each day 0, 3, 7, 14 and 30. In each, a histogram of replicated means and a vertical line for the observed mean. At days 0, 14 and 30 the observed line sits in the tail or beyond the replicated histogram; at day 3 it lies far to the right of it; at day 7 it is near the center."
 #| fig-width: 10
-#| fig-height: 2.8
+#| fig-height: 5
 #| warning: false
 
 # Replicated tissue areas from the line, summarized as the mean of each day
@@ -271,7 +271,7 @@ fit_bump_prior <- brm(f_bump, data = cell_data, prior = pr_bump, sample_prior = 
 #| fig-cap: "Prior predictive check of the curve: 50 curves drawn from the priors alone (thin lines) and the 49 observed animals (points). The curves are allowed to be implausible in a few places, but not to be the same curve."
 #| fig-alt: "A plot of tissue area from 0 to about 25 square millimeters against days from 0 to 30. Fifty thin grey curves start near 14 at day 0 and show different shapes: some fall smoothly toward 5 to 12, some rise and then fall with a bump of varying height near day 3. The observed animals are black points lying inside the cloud of curves."
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 #| warning: false
 
 # Evaluate the curve of every prior draw on a grid of days, and keep 50 draws
@@ -355,7 +355,7 @@ nls_dec <- summary(fit_nls_decay)$coefficients
 #| fig-cap: "Posterior of the curve for tissue area (decay to a plateau plus a transient bump). Dark line and shaded band: median and 95% credible band of the mean. Thin lines: 40 curves from the posterior. Points: the 49 animals."
 #| fig-alt: "Tissue area in square millimeters against days from 0 to 30. A smooth curve starts at about 14.8 at day 0, rises to about 17 near day 4, then falls steadily, crossing day-0 level near day 6, reaching about 9.5 at day 14 and flattening near 8 at day 30. A light band around the curve is narrow at days 14 and 30 and wider at day 3. Forty thin curves lie within the band. The animals are black points scattered around the curve, widely at day 3."
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 #| warning: false
 
 # Band for the mean and 40 posterior curves on a grid of days
@@ -414,8 +414,8 @@ derived <- data.frame(
 #| label: fig-lt_derived
 #| fig-cap: "Posterior distributions of three derived quantities of the tissue-area curve: the day of the largest area, the day when the area returns to its day-0 level, and the rate of change at day 14. Dot and bars: median, 66% and 95% credible intervals. The horizontal axes show the central 99% of the draws."
 #| fig-alt: "Three half-eye plots. Day of the largest area: a distribution concentrated between about 2.6 and 4.6 days with a median near 4 and a thin tail toward day 0. Day when the area is back at its day-0 level: a distribution between about 4.4 and 7.3 days with a median near 6.5. Rate of change at day 14: a narrow distribution centered near minus 0.2 mm2 per day."
-#| fig-width: 9
-#| fig-height: 3
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # One half-eye per quantity: the shape of the posterior is the point, not only its interval
@@ -500,7 +500,7 @@ pulse_fun <- function(d, t) with(d, b_base_Intercept + b_amp_Intercept * (t / b_
 #| fig-cap: "Density of PDGFR-β+ cells (cells per mm²) over 30 days: the 49 animals (points) and the posterior curve of the pulse model (median and 95% credible band of the mean)."
 #| fig-alt: "Density in cells per square millimeter against days after the lesion from 0 to 30. Points at about 30 per square millimeter at days 0 and 3, about 150 at day 7, about 310 at day 14 and about 250 at day 30, with wide scatter at days 7 to 30. A curve is flat near 30 until day 3, rises steeply after day 5 to a top near day 19 at about 390 and falls slowly to about 300 at day 30, with a band that is widest near the top."
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # Curve of the mean density from each posterior draw, summarized on the grid
@@ -534,8 +534,8 @@ Suppose that I do not trust my own recipe. The decay and the bump are a story I 
 #| label: fig-lt_gp_draws
 #| fig-cap: "Curves drawn from a Gaussian process prior for three length-scales (columns, in days) and two amplitudes (rows, in mm²). Five draws in each panel; the same random numbers in every panel, so that only the two knobs change."
 #| fig-alt: "A grid of six panels, two rows by three columns. In the left column (length-scale 2 days) the curves wiggle quickly up and down several times between 0 and 30 days; in the middle column (8 days) they bend slowly a few times; in the right column (30 days) they are almost straight or have a single gentle bend. Curves in the bottom row (amplitude 4) travel about twice as far up and down as those of the top row (amplitude 2)."
-#| fig-width: 9
-#| fig-height: 4.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Draw curves from a zero-mean GP with a squared-exponential covariance, on a grid of days
@@ -616,7 +616,7 @@ The GP says that the length-scale is `r qs(d7$lscale_gpDPI, 1)` days and the amp
 #| label: fig-lt_gp_vs_mech
 #| fig-cap: "Two curves for the same data. Blue: the mechanistic curve (decay plus bump). Orange: the Gaussian process. Lines are medians and bands the 95% credible bands of the mean; points are the 49 animals; the dotted line marks day 30, the last day measured."
 #| fig-alt: "Tissue area against days from 0 to 45. At the measured days both curves agree closely: they rise to about 17 near day 3 to 4, fall to about 14 at day 7, 9.5 at day 14 and about 8 at day 30, with narrow bands at those days. Between days 14 and 30 and after day 30 the bands differ a great deal: the blue mechanistic curve flattens slowly toward 7 with a narrow band, while the orange Gaussian process curve wobbles and drifts up toward the middle of the plot, with a band that opens to cover about 3 to 15 mm2 between days 14 and 30 and about 2 to 20 mm2 at day 45."
-#| fig-width: 7.5
+#| fig-width: 6.5
 #| fig-height: 4.2
 #| warning: false
 
@@ -681,7 +681,7 @@ knitr::kable(loo_tab)
 #| fig-cap: "Spread of the animals around the curve of tissue area, for each day: posterior median and 66% and 95% credible intervals of sigma (mm²) in the model of the decay plus bump with one sigma per day."
 #| fig-alt: "Five horizontal intervals, one for each day 0, 3, 7, 14 and 30 on the vertical axis, with sigma in mm2 on the horizontal axis. Day 3 has the largest median, about 3, with a wide interval from about 2 to 5. Days 0, 7, 14 and 30 have medians between about 0.8 and 1.3 with narrower intervals; day 0 has the widest of them, from 0.5 to 1.6."
 #| fig-width: 6.5
-#| fig-height: 3.2
+#| fig-height: 4.2
 #| warning: false
 
 # Posterior draws of sigma for each day (the model uses a log link for sigma)
@@ -709,7 +709,7 @@ There is a loose thread from @sec-eda-summary, which noted that the GFAP of day 
 #| fig-cap: "The 11 animals of day 30. Left: GFAP integrated density, every animal as a point. Middle: its two factors, the area of GFAP-positive tissue and its mean intensity (point labels are the animal numbers). Right: GFAP integrated density against the area of the section."
 #| fig-alt: "Three panels. Left: eleven points on a vertical axis of GFAP integrated density from 100 to 900, forming a low group of five points between about 130 and 420 and a high group of six between about 650 and 870. Middle: the area of GFAP-positive tissue on the horizontal axis against mean intensity on the vertical axis; points of the low group lie to the left with areas below 0.9 and the high group to the right with areas above 1.1, while mean intensities overlap between 43 and 58. Right: integrated density against the tissue area from 6 to 10 mm2 with a loose positive relation and the two groups overlapping."
 #| fig-width: 10
-#| fig-height: 3.6
+#| fig-height: 5
 #| warning: false
 
 # The animals of day 30, with a low or high group defined by the gap in the integrated density
@@ -836,8 +836,8 @@ I do **not** use `Distance` in any model of this chapter. The same column mixes 
 #| label: fig-lt_distance_units
 #| fig-cap: "The unit problem of the distance travelled. Left: histogram of Distance on a logarithmic axis, all 394 rows; the two clouds are 1 to 8 and 396 to 981, with one row of 128 in between (the session with 3.6 s tracked). Right: for the rows with large values, the mean speed reported in the file against the distance divided by 300 seconds (both in millimeters per second); the line is the identity."
 #| fig-alt: "Two panels. Left: a histogram of the distance with a logarithmic axis from 0.5 to 1000, with a large mass of values between about 1 and 8 and a separate small group of 18 values between 400 and 1000, with a single value near 128 in between. Right: a scatter of 18 points of the reported mean speed on the vertical axis (1, 2 or 3) against the distance divided by 300 on the horizontal axis (1.3 to 3.3), close to a diagonal line."
-#| fig-width: 9
-#| fig-height: 3.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: two clouds, one mass at 1 to 8 and 18 rows at 400 to 981
@@ -867,7 +867,7 @@ The picture first, as in every chapter of this part. I want to see each mouse's 
 #| fig-cap: "Share of the tracked time spent in the center of the open field, every animal as a thin line (points mark the sessions that entered the analysis), in each of the four groups, over the six test days. The thick line joins the mean of each day. The horizontal axis is in days, so the spacing of the sessions is the real one."
 #| fig-alt: "Four panels, one per group (wild-type sham, wild-type ischemia, Klf4-KO sham, Klf4-KO ischemia), with days after ischemia from 0 to 22 on the horizontal axis and the share of time in the center from 0 to 0.7 on the vertical axis. In both sham panels the thin lines stay low, mostly between 0 and 0.15, and the mean line is nearly flat near 0.03 to 0.05. In the two ischemia panels the thin lines are low at day 0, a number of them rise sharply at day 1 up to 0.3 to 0.7 and fall back by day 4 or 8, so that the mean line has a peak at day 1, about 0.26 in wild-type and 0.15 in Klf4-KO mice, and returns to about 0.02 later."
 #| fig-width: 10
-#| fig-height: 4.2
+#| fig-height: 5
 #| warning: false
 
 # Mean share per group and day
@@ -1011,7 +1011,7 @@ Rung 2 deserves a sentence of its own, because it is the one that continues @sec
 #| fig-cap: "Spike and return, by group. Dots: observed mean share of time in the center of each group and day. Line and band: median and 95% credible band of the mean of rung 3 for the typical animal's group (the animal-level term set to zero); open circle: the model's baseline at day 0, before the lesion."
 #| fig-alt: "Four panels, one per group (wild-type sham, wild-type ischemia, Klf4-KO sham, Klf4-KO ischemia), with days from 0 to 22 on the horizontal axis and the share of time in the center on the vertical axis. In the two sham panels the curve is flat near 0.03 and the dots lie close to it. In the two ischemia panels the curve starts at day 1 at about 0.3 in wild-type and 0.25 in Klf4-KO mice, with a wide band, and decays back to about 0.03 by day 8; the dots follow it, and an open circle at day 0 marks the baseline."
 #| fig-width: 10
-#| fig-height: 3.6
+#| fig-height: 5
 #| warning: false
 
 # Mean of the group on a fine grid of days (animal-level term set to zero: the typical animal)
@@ -1047,7 +1047,7 @@ A model with a level for each animal gives every mouse its own curve, which is t
 #| fig-cap: "Twelve ischemic mice (six wild-type, six Klf4-KO, all with at least five sessions) against the model of rung 3. Dots: the animal's own sessions. Solid line: median of the fitted curve for that animal (its level plus the common spike and return). Dashed line: the curve of the typical animal of its genotype."
 #| fig-alt: "Twelve small panels, one per mouse, with days from 0 to 22 on the horizontal axis and the share of time in the center on the vertical axis. In each, a dashed curve (the typical animal) jumps at day 1 and decays; a solid curve of the same shape sits slightly above or below it, according to the animal's own level, and the dots lie near the solid curve, with the day-1 dot far above the other dots in most panels."
 #| fig-width: 10
-#| fig-height: 5.2
+#| fig-height: 5
 #| warning: false
 
 # Twelve ischemic animals with at least five sessions: six wild-type and six Klf4-KO (the first six of each in file order)
@@ -1108,8 +1108,8 @@ d_r4 <- as_draws_df(fit_r4)
 #| label: fig-lt_ppc_rungs
 #| fig-cap: "Posterior predictive check of the largest share and of the spread of the shares, for rung 3 (left) and rung 3 with a level for each session (right). Histograms: 500 replicated datasets; vertical line: the observed value."
 #| fig-alt: "Four small panels. Top row, the largest share of time in the center: for rung 3 the replicated maxima pile up between 0.4 and 0.7 and the observed 0.92 lies to the right of all of them; for the model with a level for each session the replicated maxima spread between 0.6 and 1 and the observed value sits inside. Bottom row, the standard deviation of the shares: for rung 3 the replicated values are about 0.08 and the observed 0.10 lies to the right of them; for the other model the observed value lies in the middle of the replicated ones."
-#| fig-width: 8
-#| fig-height: 4.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Largest share and standard deviation of the shares in replicated datasets from each model
@@ -1165,7 +1165,7 @@ cor_later <- pairs_df[!pairs_df$early, ]
 #| fig-cap: "Correlation between the leftovers of two sessions of the same animal (logit of the share of time in the center, after removing the mean of each group and day), against the gap in days between the two sessions. Each point is a pair of days (15 pairs); its size is the number of animals that have both. Orange: pairs that include day 0 or day 1. Blue: pairs of days 4 to 22, with a straight line fitted to them."
 #| fig-alt: "A scatter plot with the gap between the two days (1 to 22) on the horizontal axis and the correlation of the leftovers on the vertical axis, from about -0.1 to 0.6. Orange points (pairs that include day 0 or 1) lie between -0.1 and 0.55 with no clear pattern. Blue points (pairs among days 4, 8, 15 and 22) lie between 0.25 and 0.55 at gaps of 4 to 18 days, with a nearly flat fitted line. A horizontal line marks zero."
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # Pairs of days: correlation against the gap; point size is the number of animals behind each point
@@ -1336,8 +1336,8 @@ round(rbind("Change score" = est(m_chg, "isch"), "Baseline as covariate" = est(m
 #| label: fig-lt_baseline
 #| fig-cap: "The same question answered three ways: the difference between wild-type ischemic and sham mice on day 1, in log odds of being in the center, with the change score, the baseline as a covariate and both days in one model. Dot and bars: median, 66% and 95% credible intervals."
 #| fig-alt: "Three half-eye plots stacked, one for each way of using the baseline, on a horizontal axis of log odds from about -1 to 5. All three are centered near 2 to 3, to the right of zero. The change-score distribution is the widest and the covariate and all-days distributions are slightly narrower."
-#| fig-width: 7
-#| fig-height: 3.2
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Draws of the day-1 difference in each analysis
@@ -1367,8 +1367,8 @@ Not every animal has six sessions. There are two reasons, and they are different
 #| label: fig-lt_missing
 #| fig-cap: "Sessions of the animals of the four groups, one row per animal and one column per day. Blue: the session entered the analysis. Orange: recorded but tracked for less than 270 s (left out). Grey: no session in the file. Animals are ordered by group and then by the number of sessions used."
 #| fig-alt: "A grid with one row per animal (48 rows, grouped by the four groups) and six columns for days 0, 1, 4, 8, 15 and 22. Most cells are blue. Orange cells appear mostly in the columns of day 1, day 15 and day 22, and grey cells are few and scattered. Animals with several orange cells are in the ischemia groups."
-#| fig-width: 7
-#| fig-height: 6.5
+#| fig-width: 6
+#| fig-height: 5.5
 #| warning: false
 
 # Every animal against every day, with the status of the session

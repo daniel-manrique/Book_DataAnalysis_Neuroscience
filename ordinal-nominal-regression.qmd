@@ -124,8 +124,8 @@ Before any model, I draw every animal. @fig-score_raw has one line per mouse acr
 #| label: fig-score_raw
 #| fig-cap: "Neurological score of every mouse on days 1, 3 and 7 after ischemia (0 is no deficit, 15 the worst deficit the scale allows). Each thin line is one mouse; the points are its three scores, nudged apart a little where scores coincide. Left, wild type; right, tenascin-C knockout."
 #| fig-alt: "Two panels, wild type on the left and knockout on the right, with the trials on the horizontal axis and the score from 0 to 15 on the vertical axis. Thin lines join the three scores of each mouse. In both panels most lines start between 3 and 8 on day 1, and fall to between 1 and 4 on days 3 and 7. A few wild type mice start high, at 9 to 12."
-#| fig-width: 8
-#| fig-height: 4.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # One line per mouse; a small vertical jitter keeps equal scores from hiding each other
@@ -173,8 +173,8 @@ knitr::kable(tab, row.names = FALSE)
 #| label: fig-score_counts
 #| fig-cap: "How many mouse-trials received each score, by trial. Every grade from 0 to 15 is shown, including those that nobody received. Bars start at zero because they are counts."
 #| fig-alt: "Three panels, one per trial, each a bar chart with the score from 0 to 15 on the horizontal axis and the number of mice on the vertical axis. Day 1 is spread widely with a peak between 2 and 6 and a long tail up to 11. Days 3 and 7 are packed at 1 to 5, with almost nothing above 5. Several high grades have a bar of height 1 or no bar."
-#| fig-width: 8
-#| fig-height: 4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Counts of each grade within each trial, with empty grades kept (a count of zero is information)
@@ -284,8 +284,8 @@ out_of_range <- mean(round(rep1) < 0 | round(rep1) > max_score)
 #| label: fig-score_ppc
 #| fig-cap: "Posterior predictive check of three models for the score. Black dots are the observed number of mouse-trials at each score; the grey bars are the 95% interval of the number each model expects (500 simulated datasets). The first and last bins count simulated scores below 0 and above 15."
 #| fig-alt: "Three panels, one per model, with the bins below 0, 0 to 15 and above 15 on the horizontal axis and the number of mouse-trials on the vertical axis. For the Gaussian model the intervals are wide and flat across 0 to 6, there is an interval of about 5 to 15 below 0, and the observed dots at 0 and 1 and at 2 sit outside the intervals. For the beta-binomial and cumulative logit models the black dots lie within or close to the intervals, and the cumulative intervals are the narrowest."
-#| fig-width: 9
-#| fig-height: 5.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Interval = what the model expects; dot = what we saw
@@ -369,8 +369,8 @@ grade_labels <- data.frame(z = mid, grade = 0:12, trial = "D1")
 #| label: fig-score_latent
 #| fig-cap: "The hidden severity, drawn with the posterior medians of the pooled cumulative model. Each curve is the distribution of the latent severity of one genotype in one trial. The vertical dashed lines are the 12 thresholds; the grade a mouse receives is the number written between the two lines where its severity falls. To the right is worse."
 #| fig-alt: "Three stacked panels for days 1, 3 and 7, each with a horizontal axis of latent severity and vertical dashed lines at twelve thresholds. Grade numbers from 0 to 12 are written between the lines at the top of the first panel; the lines are far apart on the left (grades 0 to 3) and crowded between grades 6 and 10. Two bell shaped curves, orange for wild type and blue for knockout, sit in each panel. On day 1 the curves are centered over grade 5; on days 3 and 7 both are shifted to the left, over grades 2 and 3."
-#| fig-width: 8
-#| fig-height: 6.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Curves for the groups, thresholds as dashed lines, grade numbers along the top of the first panel
@@ -454,7 +454,7 @@ conc5 <- mean(apply(pp5, 1, max) > 0.5)
 #| label: fig-score_prior
 #| fig-cap: "Prior predictive check for the cumulative model. For a WT mouse on day 1, the probability that the prior gives to each grade; points are medians and bars the 95% interval over prior draws. Top, the prior I use; bottom, a very wide one."
 #| fig-alt: "Two panels with the grade from 0 to 12 on the horizontal axis and probability on the vertical axis. In the top panel every grade has a median of about 0.05 and an interval from near 0 to between 0.3 and 0.45. In the bottom panel the medians are near zero at the extreme grades and up to 0.1 in the middle, and the intervals reach 0.8 for grades 3 to 8: single draws put most of the probability on one grade."
-#| fig-width: 8
+#| fig-width: 10
 #| fig-height: 5
 #| warning: false
 
@@ -585,8 +585,8 @@ ints$width <- ints$hi95 - ints$lo95
 #| label: fig-score_compare
 #| fig-cap: "Seven contrasts of the latent severity (logit scale), under a model that treats the 69 scores as independent and under one with a varying intercept per mouse. Thick bars are 66% and thin bars 95% credible intervals. Top, comparisons between mice; bottom, comparisons within mice."
 #| fig-alt: "Two panels. The top panel has three rows for the KO minus WT difference at days 1, 3 and 7, with two intervals per row. The bottom panel has four rows for the changes from day 1 in each genotype, again with two intervals per row. Centers are between about minus 3 and 1 on the logit scale."
-#| fig-width: 8
-#| fig-height: 5.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Point range: thin line = 95% interval, thick line = 66% interval
@@ -626,7 +626,7 @@ A last check before we read anything. `bayesplot::ppc_bars_grouped()`, which `pp
 #| label: fig-score_ppc_final
 #| fig-cap: "Posterior predictive check of the main cumulative model, by trial. Bars are the median count the model expects at each grade (with a 95% interval) in 100 simulated datasets; dots are the observed counts. The grade axis counts from 1, so grade 1 is a score of 0."
 #| fig-alt: "Three panels for days 1, 3 and 7 with grades 1 to 13 on the horizontal axis and counts on the vertical axis. The observed dots lie inside or very near the intervals at nearly all grades in all three panels."
-#| fig-width: 9
+#| fig-width: 10
 #| fig-height: 5
 #| warning: false
 
@@ -675,8 +675,8 @@ grade_df$genotype <- factor(grade_df$genotype, levels = c("WT", "KO"))
 #| label: fig-score_probs
 #| fig-cap: "Probability of each grade by genotype and trial, averaged over the mice (main cumulative model). Points are posterior medians and bars are 95% credible intervals; WT in orange circles, KO in blue triangles."
 #| fig-alt: "Three panels for days 1, 3 and 7 with the score from 0 to 12 on the horizontal axis and the probability on the vertical axis. On day 1 the probabilities are spread over many scores and are low for every score, with wide intervals. On days 3 and 7 the probability is concentrated at scores 1 to 4, and the two genotypes have intervals that overlap at nearly every score."
-#| fig-width: 9
-#| fig-height: 6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Probabilities by grade; the two genotypes side by side at each grade
@@ -723,7 +723,7 @@ diff_le3 <- sapply(levels(mice$trial), function(tr) 100 * (get_le3("KO", tr) - g
 #| label: fig-score_le3
 #| fig-cap: "Probability of a score of at most 3, by genotype and trial, averaged over mice (main cumulative model). Each half-eye is the posterior distribution; the point is the median and the bars are the 66% and 95% credible intervals."
 #| fig-alt: "Six half-eye densities on a horizontal axis from 0 to 1, arranged in three rows for days 1, 3 and 7, with the two genotypes in each row. On day 1 both are far to the left and wide. On days 3 and 7 they are far to the right."
-#| fig-width: 8
+#| fig-width: 10
 #| fig-height: 5
 #| warning: false
 
@@ -747,8 +747,8 @@ To see the whole distribution in one picture, I stack the probabilities of the g
 #| label: fig-score_stacked
 #| fig-cap: "Expected distribution of the score by genotype and trial (posterior means, averaged over mice), with the grades grouped into five bands. Each column adds up to 100%."
 #| fig-alt: "Two panels, WT on the left and KO on the right, with three stacked columns each for days 1, 3 and 7. Each column is divided into five bands from the lightest (scores 0 to 1) to the darkest (scores 9 to 12). On day 1 a large share of each column is in the darker bands, and on days 3 and 7 the lighter bands take most of the column."
-#| fig-width: 8
-#| fig-height: 4.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Posterior mean probability of each grade, then summed into five bands
@@ -933,8 +933,8 @@ const_df <- data.frame(term = factor(levels(cs_df$term), levels = levels(cs_df$t
 #| label: fig-score_po
 #| fig-cap: "Does the shift depend on the cut? Effect of the genotype and of the trial on the latent severity, estimated separately at each of the four cuts of the five-grade score (points and 95% credible intervals), against the single constant effect of the proportional odds model (dashed line, posterior median)."
 #| fig-alt: "Three panels, one per effect, each with four intervals on the horizontal axis (cuts at 0 to 1, 2, 3 and 4) and the effect on the vertical axis. A horizontal dashed line shows the constant effect. The intervals are wide and the dashed line passes through all four of them in each panel."
-#| fig-width: 9
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # One panel per predictor; the dashed line is what proportional odds says
@@ -1118,8 +1118,8 @@ item_df$group <- factor(item_df$group, levels = c("RBD", "PD"))
 #| label: fig-pk_items
 #| fig-cap: "Share of patients at each grade of two items of the motor examination, by group. The number above each bar is the number of patients (RBD, n = 50; PD, n = 30). Bars start at zero because they are shares of a group."
 #| fig-alt: "Two panels, Gait with grades 0 to 2 and Posture with grades 0 to 3, each with paired bars for RBD in ochre and PD in pink. In both items RBD has most patients at grade 0 (84 percent for gait, 68 percent for posture) and PD has most at grade 1; the top grades have counts of 0 to 2 for gait and 1 to 3 for posture."
-#| fig-width: 8
-#| fig-height: 4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Bars of the share inside each group, with counts written on top
@@ -1226,8 +1226,8 @@ pk_probs$group <- factor(pk_probs$group, levels = c("RBD", "PD"))
 #| label: fig-pk_probs
 #| fig-cap: "Probability of each grade by group, from the cumulative models of gait and posture (adjusted for age and sex, averaged over the patients). Points are posterior medians and bars are 95% credible intervals."
 #| fig-alt: "Two panels, Gait with grades 0 to 2 and Posture with grades 0 to 3. In each, ochre circles for RBD and pink triangles for PD with vertical interval bars. For gait, RBD has a high probability at grade 0 and PD at grade 1, and the interval for grade 2 is wide for PD and close to zero for RBD. For posture, the PD intervals are wider and cover the RBD points at grades 1 to 3."
-#| fig-width: 8
-#| fig-height: 4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Probability of every grade, the two groups side by side
@@ -1267,8 +1267,8 @@ ppc_pk$model <- factor(ppc_pk$model, levels = c("Gaussian", "Cumulative logit"))
 #| label: fig-pk_ppc
 #| fig-cap: "Posterior predictive check of the gait models. Black dots are the observed number of patients at each grade (n = 80); the grey bars are the 95% interval of the number each model expects. The first and last bins count simulated grades below 0 and above 2."
 #| fig-alt: "Two panels, Gaussian and cumulative logit, with bins below 0, 0, 1, 2 and above 2 on the horizontal axis. In the Gaussian panel there are intervals in the bins below 0 and above 2 where the observed count is zero, and the intervals at grades 0 and 1 are wider than in the cumulative panel. In the cumulative panel the dots are inside narrow intervals and there are no impossible values."
-#| fig-width: 8
-#| fig-height: 4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # What each model expects (bar) against what we saw (dot)
@@ -1325,8 +1325,8 @@ cor_feat <- cor(pk$rate_read, pk$pause_read)
 #| label: fig-pk_features
 #| fig-cap: "Two speech features of the reading task, every participant. Each point is one person (130 in total); the thick bar is the median and the thin bars the 50% and 95% ranges of the points. Left, rate of speech timing; right, duration of pause intervals."
 #| fig-alt: "Two panels with the three groups on the horizontal axis (healthy controls in green, RBD in ochre, PD in pink). Left, rate of speech timing per minute: the healthy controls are highest (median near 345) and RBD and PD lower (near 320), with the three clouds overlapping a lot. Right, duration of pause intervals in milliseconds: healthy controls lowest (median near 150), RBD and PD higher (near 165 and 175), with a few PD and RBD points above 300."
-#| fig-width: 8
-#| fig-height: 4.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Long format: one row per participant and feature
@@ -1419,8 +1419,8 @@ pred_df$feature <- factor(pred_df$feature, levels = c("z_rate", "z_pause"),
 #| label: fig-pk_nominal_probs
 #| fig-cap: "Predicted probability of each group along each speech feature (categorical model; the other feature at its mean, a 65 year old man). Top, the three probabilities stacked (posterior means; they add up to 1); bottom, the same probabilities as lines with 95% credible bands."
 #| fig-alt: "Four panels in two rows and two columns. In the top row, stacked areas in green (healthy controls), ochre (RBD) and pink (PD) along the rate of speech timing (left) and the pause duration (right). In the left panel the green share falls and the ochre and pink shares grow as the rate decreases; in the right panel the pink share grows with the pause duration. The bottom row shows the same probabilities as lines with wide shaded bands that overlap a lot, especially for the RBD line."
-#| fig-width: 9
-#| fig-height: 6.5
+#| fig-width: 10
+#| fig-height: 7
 #| warning: false
 
 # Top: stacked probabilities (posterior means); bottom: each probability with its 95% band
@@ -1595,8 +1595,8 @@ coef_df$group <- factor(coef_df$group, levels = c("RBD", "PD"), labels = c("RBD 
 #| label: fig-pk_replic
 #| fig-cap: "Coefficients of the two speech features (log-odds per standard deviation, against healthy controls) in the categorical model, for the reading task and for the monologue. Points are posterior medians and bars 95% credible intervals."
 #| fig-alt: "Four panels (rate and pause duration, for RBD and PD against healthy controls), each with two intervals for the reading task and the monologue. For the rate of speech timing the intervals are mostly below zero; for the duration of pauses they are above zero in PD and straddle zero in RBD. The reading and monologue intervals overlap in each panel."
-#| fig-width: 8
-#| fig-height: 4.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Reading and monologue estimates side by side for each comparison

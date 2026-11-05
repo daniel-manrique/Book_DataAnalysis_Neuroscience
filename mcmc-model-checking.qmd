@@ -119,7 +119,7 @@ Numbers in a table are one kind of evidence; a rank overlay plot is a more direc
 #| label: fig-mcmc_rank_overlay
 #| fig-cap: Rank overlay plot for the informed model's three parameters (each colored line is one chain's ranked draws, and they should overlap like this)
 #| fig-width: 6.5
-#| fig-height: 4
+#| fig-height: 4.2
 
 # One panel per parameter; each line is one chain's ranked draws
 mcmc_plot(informed_fit, type = "rank_overlay", pars = c("b_Intercept", "b_ConditionMCAO", "sigma")) +
@@ -152,8 +152,8 @@ An honest posterior predictive check is, at its core, "compare two distributions
 ```{r}
 #| label: fig-mcmc_ppc_dens
 #| fig-cap: Posterior predictive check with simulated GFAP datasets from the fitted informed model (thin lines) against the real observed data (dark line)
-#| fig-width: 6
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # 100 simulated datasets (thin lines) against the observed data (dark line);
 # the legend sits in the empty upper right of the panel
@@ -213,8 +213,8 @@ A word on where that number comes from, because it is easy to misread. Each of t
 ```{r}
 #| label: fig-mcmc_ppc_min
 #| fig-cap: Posterior predictive check on the minimum simulated value, with the observed minimum (dark line) against the distribution of minimums from 2,000 simulated datasets
-#| fig-width: 6
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # For each of 2,000 simulated datasets, take its minimum and draw their histogram;
 # the observed minimum is the dark line
@@ -228,8 +228,8 @@ The real minimum, `r round(min_obs, 1)`, is not out in an extreme tail of the si
 ```{r}
 #| label: fig-mcmc_ppc_sd_grouped
 #| fig-cap: Posterior predictive check on the standard deviation within each group, with the observed value (dark line) against the distribution of standard deviations from 2,000 simulated datasets
-#| fig-width: 7
-#| fig-height: 3.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Same idea as the minimum, but the summary is the standard deviation and it is
 # computed separately for the sham and the ischemic animals
@@ -261,8 +261,8 @@ The structurally equivalent step on the frequentist side is residual diagnostics
 ```{r}
 #| label: fig-mcmc_lm_diagnostics
 #| fig-cap: Frequentist residual diagnostics for the same ischemia model
-#| fig-width: 7
-#| fig-height: 3.5
+#| fig-width: 10
+#| fig-height: 5
 
 library(parsnip)
 library(broom)

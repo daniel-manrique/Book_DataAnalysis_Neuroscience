@@ -118,8 +118,8 @@ The question that I think every bench scientist has asked of a marker is the one
 #| label: fig-cis_hook
 #| fig-cap: "Tissue area against GFAP integrated density, every animal (49), colored and shaped by the day after the lesion. Left: one line through everybody. Right: one line within each day, so that each line compares animals that were given the same time."
 #| fig-alt: "Two scatter panels of tissue area in square millimeters (vertical, 5 to 22) against GFAP integrated density per 100 units (horizontal, 0 to 12). Left panel: five colored groups of points, a dashed black line sloping gently downward through all of them. Day 0 points (black) sit at the far left near 15; day 3 (orange) at 2 to 5 and tissue area from 12 to 22; day 7 and day 14 (blue and vermillion) toward the right, with tissue area about 14 and 9; day 30 (dark blue) near 8. Right panel: the same points with a short colored line through each day; every line is nearly flat or slightly rising."
-#| fig-width: 9
-#| fig-height: 4.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -166,7 +166,7 @@ The books give each shape a favorite example. @mcelreath2020 uses the correlatio
 #| fig-cap: "The three shapes with variables of this book. Left, a fork: the ischemia raises both markers, so the markers are correlated without either acting on the other. Middle, a pipe: the ischemia reaches the tissue through a marker. Right, a collider: a mouse completes the wire crossing, or not, depending on its genotype and on its strength, which are independent of each other. Orange: the exposure; blue: the outcome (or the variable we treat as one); white: the third variable."
 #| fig-alt: "Three small diagrams side by side. Left: a box labeled Ischemia with two arrows, one to a box labeled GFAP and one to a box labeled PDGFR-beta. Middle: three boxes in a row, Ischemia, GFAP and Tissue area, joined by two arrows from left to right. Right: two boxes, Genotype and Strength, at the top with arrows pointing down to one box labeled Completed the crossing."
 #| fig-width: 10
-#| fig-height: 2.8
+#| fig-height: 5
 #| warning: false
 
 # Fork: one common cause of two markers
@@ -277,7 +277,7 @@ One more thing about the design, and it is the one that I flagged when I wrote @
 #| fig-cap: "A causal diagram of the ischemia experiment. Solid arrows: the effect of the lesion on each variable. Dashed arrows: the claims that this chapter tests (does GFAP, as a barrier, or PDGFR-β, in the center of the lesion, change how much tissue is left?). Grey box: the size of each animal's lesion, which nobody measured. Nothing points into the group because the assignment was random. Orange: the exposure (the group); blue: the outcome."
 #| fig-alt: "A diagram with a box on the left, Group (sham at day 0, ischemia at days 3 to 30), colored orange, and a box on the right, Tissue area, colored blue. Between them, in the middle, two white boxes, GFAP above and PDGFR-beta below. Solid arrows go from the group to GFAP, to PDGFR-beta and straight to the tissue area. Dashed arrows go from GFAP and from PDGFR-beta to the tissue area. A grey box above, Lesion size per animal (not measured), has solid arrows to GFAP, PDGFR-beta and the tissue area."
 #| fig-width: 8
-#| fig-height: 4.4
+#| fig-height: 4.5
 #| warning: false
 
 # The graph with the unmeasured lesion size U (the arrows of the design are solid, the claims dashed)
@@ -417,8 +417,8 @@ The first table is the total effect. Against the sham group, the mean tissue are
 #| label: fig-cis_total_direct
 #| fig-cap: "Difference in mean tissue area between each day and the sham group (mm²), under four ways of choosing what to hold fixed. Points: posterior medians; thick and thin bars: 66% and 95% credible intervals. The top row of each panel is the total effect (nothing held fixed); the others hold one or both markers fixed."
 #| fig-alt: "Four panels, one for each day (3, 7, 14 and 30) against the sham group, with the difference in tissue area in square millimeters on the horizontal axis. Within each panel four rows: none, GFAP, PDGFR-beta, both. At day 3 the intervals sit at about plus 2, at day 7 around minus 0.6 to minus 1.2, at day 14 around minus 5 to minus 6 and at day 30 around minus 6 to minus 7. In every panel the four rows are close to each other and their intervals overlap almost completely, the GFAP-only row being slightly lower and the PDGFR-beta-only row slightly higher than the rest."
-#| fig-width: 8.5
-#| fig-height: 4.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # One row per way of holding variables fixed, one panel per day
@@ -502,7 +502,7 @@ A mouse crosses the wire in a time that depends on its genotype and on its stren
 #| fig-cap: "The wire test as a causal diagram, and what the collider does to the estimate. Left: genotype and strength both decide whether the attempt is completed (green: the variable held fixed when only completed attempts are analyzed, a collider). Right: ratio of the typical crossing time of a knockout to that of a control mouse (posterior medians and 95% credible intervals), when the capped attempts are dropped, entered as exact times of 60 seconds, or kept as censored times."
 #| fig-alt: "Left: a square diagram with four boxes. Genotype (orange) at the top left and Completed the crossing (green) at the top right, joined by an arrow from genotype to completed; Strength (grey, not measured) at the bottom right with an arrow up to completed the crossing and an arrow left to Crossing time (blue) at the bottom left; and an arrow from genotype down to crossing time. Right: three horizontal intervals for the ratio of crossing times, with a dashed vertical line at 1. The top interval, capped attempts dropped, is centered near 1.28 with limits near 1.08 and 1.51; the middle one, capped attempts entered as 60 seconds, near 1.40; the bottom one, censored, near 1.44 with limits near 1.13 and 1.80."
 #| fig-width: 10
-#| fig-height: 3.6
+#| fig-height: 5
 #| warning: false
 
 # Left: the diagram of the wire test
@@ -610,7 +610,7 @@ How does a computer build a bendy line from a regression? With the machinery you
 #| fig-cap: "A spline built in three steps, for the rate of speech timing against age (130 participants). A: six hill-shaped basis functions (B-splines); each is non-zero only over a stretch of the age axis. B: the same functions multiplied by the weights that a least-squares fit gives them. C: the sum of the weighted functions (black line) and the participants (grey points)."
 #| fig-alt: "Three panels with age in years on the horizontal axis, from 34 to 83. Panel A: six colored hill-shaped curves, each peaking at a different age and overlapping the next, their height between 0 and 1. Panel B: the same six colored curves scaled up or down by weights, some negative and some positive, between about minus 0.9 and plus 0.9. Panel C: grey points of the participants, scattered between minus 2.5 and plus 2.5, and a black curve that is the sum of the colored curves: it starts near minus 0.5 at age 34, peaks at about plus 0.7 near age 45, stays close to zero between 55 and 70 and falls to about minus 1.4 at age 83."
 #| fig-width: 10
-#| fig-height: 3.6
+#| fig-height: 5
 #| warning: false
 
 # Six cubic B-spline basis functions of age; they add up to 1 at every age
@@ -660,7 +660,7 @@ That last sentence is the part that connects splines to the rest of this book. T
 #| fig-cap: "The same 130 participants, the same ten building blocks, three levels of penalty on wiggliness (thin-plate splines, `mgcv`), in the model with group and sex. Curve: the age smooth for a healthy man; points: every participant after removing the group and sex parts. Left: no penalty. Middle: the penalty chosen by the data (REML). Right: a penalty so strong that only a straight line survives. In brackets, the effective degrees of freedom (1 is a straight line)."
 #| fig-alt: "Three panels of the age effect on the rate of speech timing in standard deviations, age from 34 to 83 on the horizontal axis, with the same grey points. Left: a black curve that wiggles up and down several times, passing near many points. Middle: a smooth curve with one broad bend that falls gently with age. Right: a straight descending line."
 #| fig-width: 10
-#| fig-height: 3.6
+#| fig-height: 5
 #| warning: false
 
 # Three fits that differ only in the smoothing parameter: nearly zero, estimated by REML, and enormous
@@ -730,8 +730,8 @@ fit_p_prior <- brm(
 #| label: fig-cis_prior_curves
 #| fig-cap: "Curves proposed by the prior of the smooth of age before the data are seen: 60 draws of the expected rate of speech timing (z) for men of the control group, over the age range of the study (grey points: the 50 healthy controls). The prior is Normal(0, 1) for the coefficients and Exponential(1) for the standard deviation of the smooth."
 #| fig-alt: "Sixty thin curves of the rate of speech timing in standard deviations against age from 34 to 83, spread between about minus 3 and plus 3. Most curves bend gently once or twice and some are nearly straight; a few turn more sharply. Grey points of the healthy controls lie in a band between minus 1.5 and plus 2."
-#| fig-width: 7
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # The prior curve for a healthy man at every age, for 60 prior draws
@@ -770,7 +770,7 @@ The Parkinson data are the ones of @sec-ordinal-nominal-regression [@hlavnicka20
 #| fig-cap: "A causal diagram for the comparison of speech between groups. Age and sex affect speech, and sex (and, weakly, age) are related to the group. The medication is a consequence of the diagnosis, and it may affect speech too. Orange: the exposure (the group); blue: the outcome (the rate of speech timing). Dashed arrows are claims of the diagram that I am less sure of."
 #| fig-alt: "A diagram with a box Group on the left (orange) and a box Rate of speech timing on the right (blue), joined by an arrow from the group to the rate. Two boxes between them, Age above and Sex below, each with an arrow to the rate and an arrow to the group; the arrow from age to the group is dashed. A box Medication at the top, with an arrow from the group to the medication and a dashed arrow from the medication to the rate."
 #| fig-width: 8
-#| fig-height: 4.6
+#| fig-height: 4.5
 #| warning: false
 
 # The graph: age and sex as causes of speech and as possible differences between groups; medication as a consequence
@@ -907,8 +907,8 @@ The smooth says that the rate of speech timing falls with age, with a bend that 
 #| label: fig-cis_pk_age
 #| fig-cap: "Left: the age curve of the rate of speech timing for a healthy man, as a straight line (orange) and as a smooth (blue), with the 95% credible bands, over every participant after removing the group and sex parts of the model (points: control, RBD, PD). Right: the difference in the rate (standard deviations) between each group and the controls under four choices of what to hold fixed; points are posterior medians, thick and thin bars 66% and 95% credible intervals."
 #| fig-alt: "Left panel: age in years from 34 to 83 on the horizontal axis and rate of speech timing in standard deviations on the vertical axis. Colored points of the 130 participants in three colors, and two bands: a descending straight line with a narrow band and a smooth curve with a wider band that is nearly straight with a slight bend. Right panel: two columns of interval plots, PD minus controls and RBD minus controls, each with four rows: no adjustment, sex and age with a line, sex and age with a smooth, and smooth plus benzodiazepine. PD intervals are all below zero, near minus 0.8 for the adjusted rows."
-#| fig-width: 11
-#| fig-height: 4.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: the two ways of adjusting for age, over the participants
@@ -963,7 +963,7 @@ The NeuN sections are the first case. Daniel's account of why the posterior sect
 #| fig-cap: "Two missingness diagrams. Left: the NeuN sections. Position and the injury decide the density; position (and perhaps the injury) decide whether the section exists; an unmeasured tissue condition would make the loss depend on the density itself. Right: the open-field sessions lost by the tracker. What the animal does (unmeasured) decides both its time in the center and whether the tracker keeps it. Orange: the exposure; blue: the outcome; green: the variable that decides what we see; grey: not measured; dashed: a claim that the data cannot confirm."
 #| fig-alt: "Left diagram: boxes Injury (orange), Position, Density of neurons (blue), Section present (green) and a grey box Tissue condition (not measured). Solid arrows from Injury and Position to Density, and from Position to Section present; dashed arrows from Injury to Section present and from Tissue condition to both Section present and Density. Right diagram: boxes Ischemia (orange), Time in the center (blue), Session kept (green) and a grey box What the animal does (not measured). Solid arrows from Ischemia to Time in the center; arrows from What the animal does to Time in the center and to Session kept, and a dashed arrow from Ischemia to Session kept."
 #| fig-width: 10
-#| fig-height: 4
+#| fig-height: 5
 #| warning: false
 
 # Left: sections of the NeuN experiment
@@ -1128,8 +1128,8 @@ n_pos_mice <- table(unique(cortex[, c("mouse", "position")])$position)
 #| label: fig-cis_neun
 #| fig-cap: "Left: density of NeuN-positive cells along the anterior-posterior axis (section 1 is the most anterior), for each hemisphere: smooth with its 95% credible band (a typical mouse at 15 days) over every section (points, with the day part of the model removed). Right: what the smooth does to the effects of interest: posterior medians and 66% and 95% credible intervals, without and with the smooth of position."
 #| fig-alt: "Left: section position 1 to 7 on the horizontal axis, density in cells per square millimeter on a logarithmic vertical axis from about 400 to 1500. Two bands: the right hemisphere (blue) rises from about 650 at section 1 to about 950 at sections 4 and 5 and stays high, and the left hemisphere (orange) lies below it, lower at the posterior sections. Points scatter around both. Right: two panels of interval plots, between-mouse day effects and left-minus-right differences, each with two rows, without and with the smooth; the pairs of intervals overlap almost entirely."
-#| fig-width: 11
-#| fig-height: 4.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left: the position curves of the two hemispheres over every section
@@ -1237,8 +1237,8 @@ pts_s$x <- ifelse(pts_s$marker == "GFAP", mu_g + pts_s$z * sd_gfap / 100, mu_p +
 #| label: fig-cis_smooth_markers
 #| fig-cap: "Tissue area against each marker in the 42 ischemic animals, with the day held fixed: the smooth (median and 66% and 95% credible bands, the other marker at its mean, day 14) over every animal (points, with the day part of the model removed). Left: GFAP. Right: PDGFR-β."
 #| fig-alt: "Two panels. Left: GFAP integrated density per 100 units from 0 to 12 on the horizontal axis, tissue area in square millimeters from 4 to 16 on the vertical axis; a nearly flat line with a wide band that includes flat lines everywhere, with points scattered around it. Right: the same for PDGFR-beta from 0 to 16, a nearly flat line gently descending with a wide band, with points scattered around it, and the band widening at both ends where the points are few."
-#| fig-width: 9.5
-#| fig-height: 4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Each marker's smooth, with graded bands and the animals underneath
@@ -1407,8 +1407,8 @@ A check of the fit is a different thing, and the two models with a smooth (the P
 #| label: fig-cis_ppc
 #| fig-cap: "Posterior predictive checks of the two models with a smooth. Dark line: the observed outcome; light lines: 50 datasets simulated from the model. Left: rate of speech timing (z), 130 participants. Right: log density of NeuN-positive cells, 396 cortex regions."
 #| fig-alt: "Two density plots. Left: the observed distribution of the standardized rate of speech timing, a single hump centered near zero with a slightly longer left tail, and 50 light blue simulated densities that follow it closely. Right: the observed distribution of log density of neurons, with a sharp peak near 6.8 that stops abruptly near 7, and a long left tail; the 50 simulated densities are wider and more symmetric, extend past 7 and have a lower peak."
-#| fig-width: 9
-#| fig-height: 3.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Overlay of the observed density on simulated ones, for each model with a smooth

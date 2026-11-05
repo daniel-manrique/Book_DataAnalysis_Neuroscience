@@ -135,8 +135,8 @@ To see how much the pooled summary swallows, here is the one figure I allow myse
 #| label: fig-first-look-pooled
 #| fig-cap: "Each dot is one animal. The dashed line is the pooled MCAO median that a Table 1 split by `Condition` reports; it sits well above the day 3 animals and says nothing about how widely the later days scatter around it."
 #| fig-alt: "Scatter plot of GFAP integrated density against days post-ischemia. SHAM animals at day 0 are low and tightly clustered. MCAO animals rise to a wide cloud at days 7 and 14 and remain high at day 30. A horizontal dashed line marks the pooled MCAO median, which lies above the day 3 animals and in the middle of the day 7 cloud."
-#| fig-width: 7
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Colour-blind-safe pair (Okabe-Ito), one colour per condition
 okabe_ito <- c(SHAM = "#E69F00", MCAO = "#0072B2")
@@ -192,8 +192,8 @@ The second is its missing-data profile. I include it because it is where a repor
 #| label: fig-first-look-plot-missing
 #| fig-cap: "`DataExplorer::plot_missing()` on `cell_data`, default settings."
 #| fig-alt: "Horizontal bar chart listing every column of cell_data with the percentage of missing values. Only Pdgfrb_Neg shows a non-zero bar, at about two percent; all other columns show zero."
-#| fig-width: 7
-#| fig-height: 5.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Percentage of missing values per column, default settings
 plot_missing(cell_data)
@@ -205,7 +205,7 @@ The third is a histogram of every numeric column. This is the same job as the mi
 #| label: fig-first-look-plot-histogram
 #| fig-cap: "`DataExplorer::plot_histogram()` on all numeric columns of `cell_data`, default settings."
 #| fig-alt: "Grid of eighteen histograms, one per numeric column of cell_data, each with its own axis range. The panels for Tissue_Area and Tisue_Area have identical shapes, with the second labeled on a scale of millions."
-#| fig-width: 9
+#| fig-width: 10
 #| fig-height: 9
 #| message: false
 #| warning: false

@@ -99,6 +99,9 @@ format:
     author-meta: "Daniel Manrique-Castano"
     callout-appearance: simple
     highlight-style: a11y
+    fig-align: center
+    fig-width: 6.5
+    fig-height: 4.2
 
   pdf:
     documentclass: scrbook
@@ -115,6 +118,9 @@ format:
     highlight-style: a11y
     colorlinks: true
     fig-pos: "H"
+    fig-align: center
+    fig-width: 6.5
+    fig-height: 4.2
     include-in-header:
       - text: |
           \usepackage{makeidx}
@@ -122,6 +128,7 @@ format:
 
 filters:
   - filters/ix.lua
+  - filters/figsize.lua
 
 editor: source
 

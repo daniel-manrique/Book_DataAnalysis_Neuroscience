@@ -198,7 +198,7 @@ I draw every row before any model, with the mouse averages on top, because the s
 #| fig-cap: "NeuN-positive density in the cortex by day after ischemia and hemisphere. Small faint points are individual regions (a section's cortex in one hemisphere); large points are the average of one mouse in that hemisphere. The vertical axis is on a log scale."
 #| fig-alt: "Four groups of paired points along days 0, 5, 15 and 30. In each group the blue points are the right hemisphere and the orange triangles the left. Right hemisphere densities stay around 850 cells per mm2 on every day. Left hemisphere densities are about 950 at day 0 and fall to roughly 650 at day 5, 550 at day 15 and 680 at day 30. Large points for mouse averages sit inside clouds of small points for single regions."
 #| fig-width: 8
-#| fig-height: 4.6
+#| fig-height: 4.5
 #| warning: false
 
 # Average of each mouse in each hemisphere (62 large points)
@@ -254,8 +254,8 @@ Before the real data enter, a prior predictive check (@sec-priors-regularization
 #| label: fig-neun_prior_pred
 #| fig-cap: "Prior predictive check on the log scale. Faint curves are datasets simulated from the priors alone; the dark curve is the observed log density."
 #| fig-alt: "Density plot of log density. About a hundred faint light-blue curves are much wider than the dark observed curve, which is a narrower curve with its peak near 6.8 and a thin tail to the left.The faint curves are centered on the same value and extend from about 4 to 9."
-#| fig-width: 6
-#| fig-height: 3.8
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 #| message: false
 
@@ -363,8 +363,8 @@ The share of each level has a posterior distribution like any other parameter, s
 #| label: fig-neun_variance
 #| fig-cap: "Share of the variance of the log density that lies at each level, from a model with no predictors. Each half-eye is the posterior of the share; the point is the median and the thick and thin bars are the 66% and 95% credible intervals."
 #| fig-alt: "Three half-eye densities on a horizontal axis from 0 to 1. The share within a section is far to the right, centered near 0.77. The share between mice is centered near 0.15 and the share between sections of the same mouse near 0.08, piled up against zero. The two small shares are broad, and the between-mice share spans from about 0.06 to 0.27."
-#| fig-width: 7
-#| fig-height: 3.4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Half-eye of each share: shape, median and intervals in one glyph
@@ -522,8 +522,8 @@ ints$width <- ints$hi95 - ints$lo95
 #| label: fig-neun_compare
 #| fig-cap: "Estimates and credible intervals (thick: 66%, thin: 95%) for the change in log density at each day, under three models. Top: comparisons between mice (the uninjured right cortex relative to 0 D). Bottom: comparisons within sections (the injury effect). The model that treats rows as independent is too confident in the top panel and too cautious in the bottom one."
 #| fig-alt: "Two panels with the days 30, 15 and 5 on the vertical axis and the log ratio on the horizontal axis. In the top panel the intervals of the naive model (grey squares) are the narrowest, those with a mouse intercept (blue triangles) are wider, and those with mouse and section (orange circles) are similar to the mouse model; all are centered near zero. In the bottom panel the intervals are centered between -0.4 and -0.65 and the naive model's intervals are the widest, those with mouse and section the narrowest."
-#| fig-width: 8
-#| fig-height: 5.6
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Point range: thin line = 95% interval, thick line = 66% interval
@@ -602,7 +602,7 @@ cat_df$rank <- seq_len(nrow(cat_df))
 #| fig-cap: "Intercept of each mouse (deviation from the average mouse, log scale) with its 95% credible interval, ordered from lowest to highest. Color and shape give the day of the mouse."
 #| fig-alt: "Thirty-one points in increasing order from left to right, each with a vertical line for its 95 percent interval, around a dashed horizontal line at zero. The estimates run from about -0.3 to +0.15. Most intervals cross zero and the intervals are about as long as the range of the points; only the lowest mouse has an interval that lies entirely below zero. Colors and shapes for the four days are mixed along the whole range."
 #| fig-width: 8
-#| fig-height: 4.2
+#| fig-height: 4.5
 #| warning: false
 
 # One interval per mouse, in order of the estimate; colors and shapes are the four days
@@ -665,8 +665,8 @@ mv_few <- abs(shr_mouse$pooled[shr_mouse$n < 12]) / abs(shr_mouse$raw[shr_mouse$
 #| label: fig-neun_shrinkage
 #| fig-cap: "Raw deviation (open circles) and partially pooled estimate (filled circles) of each mouse (left) and each section (right), on the log scale. Arrows run from raw to pooled and all point toward zero, the average. Orange arrows are mice with fewer than 12 rows."
 #| fig-alt: "Two panels. On the left, 31 mice ordered by raw deviation from about -0.6 to +0.25, each with an open circle and a filled circle connected by an arrow pointing toward zero; most arrows are short and the one at the far left, an orange arrow for a mouse with fewer rows, is the longest. On the right, 198 sections ordered the same way with raw deviations from about -1.8 to +0.5; the arrows are short in the middle and long at the low end, where a few sections lie far below the rest and are pulled up substantially but remain the lowest."
-#| fig-width: 9
-#| fig-height: 4.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Arrows from the raw deviation (open) to the partially pooled one (filled)
@@ -720,7 +720,7 @@ knitr::kable(neun_checks, row.names = FALSE)
 #| fig-cap: "Posterior predictive checks of the model with mouse and section. Left: 100 replicated datasets (faint) against the observed log density (dark). Right: the same by day, for 50 replicated datasets."
 #| fig-alt: "Left panel: an observed density curve for log density, a bell-shaped curve with a slightly heavy left tail, inside a band of about a hundred faint replicated curves that match it closely. Right panel: four small panels, one per day, each with the observed curve inside the replicated curves; the 15 D panel is lower and broader than the 0 D panel, and the replicated curves follow."
 #| fig-width: 10
-#| fig-height: 4
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -740,8 +740,8 @@ A predictive check (@sec-mcmc-model-checking) asks whether datasets simulated fr
 #| label: fig-neun_levels
 #| fig-cap: "Normal quantile plots for each level of the model: the intercepts of the mice, the intercepts of the sections and the residuals of the regions. Points close to the line mean that the level is close to normal."
 #| fig-alt: "Three panels of normal quantile-quantile plots with a diagonal reference line. The mouse intercepts (31 points) and the section intercepts (198 points) fall close to the line. The residuals (396 points) also follow the line, with a slight departure of a few points at the low end."
-#| fig-width: 9
-#| fig-height: 3.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Mouse and section intercepts and region residuals of the nested model, one table for the three levels
@@ -789,8 +789,8 @@ f_inj_t <- sprintf("%.2f", median(as_draws_df(fit_t)$`b_dpi15D:hemiLeft`))
 #| label: fig-neun_ppc_t
 #| fig-cap: "Posterior predictive check of the same model with a Student-t likelihood: 100 replicated datasets (faint) against the observed log density (dark)."
 #| fig-alt: "A density plot of log density like the left panel of the previous predictive check, with a dark observed curve peaking near 6.8 with a tail to the left, and faint replicated curves that are now narrower and more peaked than before, with heavier tails on both sides."
-#| fig-width: 5.5
-#| fig-height: 3.6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 #| message: false
 

@@ -42,6 +42,19 @@ legend_none <- function() {
   theme(legend.position = "none")
 }
 
+# Interactive figures (ggiraph) follow the same size rule as static ones: the
+# widget is shown at width_svg / 10 of the text column, so a 6-inch widget fills
+# 60% of it (see filters/figsize.lua). Use this instead of girafe().
+girafe_book <- function(ggobj, width_svg = 6.5, height_svg = 4.2) {
+  ggiraph::girafe(
+    ggobj = ggobj,
+    width_svg = width_svg,
+    height_svg = height_svg,
+    options = list(ggiraph::opts_sizing(rescale = TRUE,
+                                        width = min(1, max(0.35, width_svg / 10))))
+  )
+}
+
 # Default theme. Default legend sits above the plot, horizontal; override per
 # figure with one of the helpers above. This object must stay the LAST
 # expression in the file, because chapters read it with source(...)$value.

@@ -103,7 +103,7 @@ Third, the plot. @fig-workflow_credibility_reallocation draws each curve with `g
 #| label: fig-workflow_credibility_reallocation
 #| fig-cap: Prior, likelihood, and posterior for the ischemia effect on GFAP intensity
 #| fig-width: 6
-#| fig-height: 5
+#| fig-height: 5.5
 
 # Okabe-Ito colors and a distinct dash pattern for every curve
 curve_colors <- c(
@@ -257,8 +257,8 @@ The numbers come straight from the draws: the median, and the 2.5% and 97.5% qua
 ```{r}
 #| label: fig-workflow_sbc_recovery
 #| fig-cap: Recovered posterior for the ischemia effect, against the planted true value
-#| fig-width: 5
-#| fig-height: 4
+#| fig-width: 6
+#| fig-height: 5.5
 
 library(ggdist)
 

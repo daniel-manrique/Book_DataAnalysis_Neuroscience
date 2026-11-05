@@ -68,6 +68,8 @@ A table of coefficients is honest, but it's also easy to read past. So let's put
 
 ```{r}
 #| label: fig-what_intercept_slope
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| fig-cap: A least-squares line through tissue area and days post-injury. The dot marks the intercept (the line's height at day 0) and the triangle shows how much the line drops over ten days, which is ten times the slope.
 
 # Ordinary least-squares line: tissue area as a function of the day

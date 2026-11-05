@@ -83,6 +83,10 @@ If the word *distribution* feels abstract, picture the measurements of all the a
 
 Before the first plot, one piece of housekeeping. Every figure in this book uses the same theme, `Plot_theme`, built once with ggplot2's `theme()` function and stored in `functions/plot_theme.R`. We load it at the top of each chapter so the typography and axes look the same everywhere instead of coming from a different author each time. It sits in the hidden setup chunk of this chapter, together with the legend helpers explained in @sec-appendix-figures.
 
+::: {.callout-note title="Where the look of these figures comes from"}
+A great deal of how I think about showing data comes from Yan Holtz, through his work on [GitHub](https://github.com/holtzy) and his data visualization project, [Dataviz Inspiration](https://www.dataviz-inspiration.com/). AI assistants then helped me improve the graphics and discover new tools to build them, in an ecosystem that changes quickly.
+:::
+
 For a first look I choose a density over a histogram because its outline does not depend on where the bars happen to start (it does have a smoothing setting of its own, the bandwidth, which we turn on purpose near the end of this chapter), and I choose either over a bar with an error whisker because a whisker cannot show that a distribution has two humps. We use `ggplot2::geom_density()` and place the two markers side by side with `patchwork` [@patchwork], whose `+` operator joins plots and whose `plot_annotation()` adds the A and B tags you see in papers. Each plot is a short recipe: `data` names the table, `aes()` says which column goes on the x axis (density supplies the y axis itself), `geom_density()` draws the outline, `labs()` writes the labels and `Plot_theme` dresses it.
 
 One decision about color deserves a sentence, because it will repeat all chapter. PDGFR-β is always vermillion and GFAP always blue (Okabe-Ito colors, as in @wilke2019). The same marker keeps the same color in every figure, so you never need a legend to remember who is who, and the pair stays distinguishable for readers with the most common forms of color blindness and in a grayscale print of the PDF, which a red-green pair does not.
@@ -132,8 +136,8 @@ The question every reviewer eventually asks. It is worth answering with a pictur
 #| label: fig-cell_data_normal_EDA
 #| fig-cap: Observed GFAP density (blue) against the normal curve with the same mean and standard deviation (vermillion line)
 #| fig-alt: A blue density of GFAP integrated density with a long right tail, and a symmetric vermillion bell curve drawn over it. The bell curve extends below zero, where there are no observations, and misses the peak of the data.
-#| fig-width: 6
-#| fig-height: 6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 #| message: false
 
@@ -314,8 +318,8 @@ This is also the first figure in the book where the web and PDF editions truly d
 #| label: fig-cell_data_scatter_covariance_EDA
 #| fig-cap: GFAP against PDGFR-β integrated density, colored by day post-ischemia (interactive; hover over a point to see its values)
 #| fig-alt: Scatter plot of PDGFR-β against GFAP integrated density with points colored from dark purple (day 0) to yellow (day 30) and one black straight line. Day 0 and day 3 points are near the origin and tightly packed; later days spread widely and mostly lie above the line at the upper end.
-#| fig-width: 4
-#| fig-height: 4
+#| fig-width: 6
+#| fig-height: 5.5
 #| warning: false
 #| message: false
 
@@ -346,8 +350,8 @@ Pdgfrb_Gfap_scatter <- ggplot(
   # Legend above the plot, in one row
   legend_top()
 
-# Turn the ggplot into a hoverable widget
-girafe(ggobj = Pdgfrb_Gfap_scatter, width_svg = 5, height_svg = 5)
+# Turn the ggplot into a hoverable widget (girafe_book keeps the book's figure size rule)
+girafe_book(Pdgfrb_Gfap_scatter, width_svg = 6, height_svg = 5.5)
 ```
 
 Hover over any point in @fig-cell_data_scatter_covariance_EDA to read its exact values and day.
@@ -360,8 +364,8 @@ Hover over any point in @fig-cell_data_scatter_covariance_EDA to read its exact 
 #| label: fig-cell_data_scatter_covariance_EDA-pdf
 #| fig-cap: GFAP against PDGFR-β integrated density, colored by day post-ischemia (static edition; the web edition lets you hover over each point)
 #| fig-alt: Scatter plot of PDGFR-β against GFAP integrated density with points colored from dark purple (day 0) to yellow (day 30) and one black straight line. Day 0 and day 3 points are near the origin and tightly packed; later days spread widely.
-#| fig-width: 5
-#| fig-height: 5
+#| fig-width: 6
+#| fig-height: 5.5
 #| warning: false
 #| message: false
 
@@ -536,8 +540,8 @@ For one last look, the scatter of the two markers, split by region (@fig-eda-ggp
 #| label: fig-eda-ggplot-aba-scatter
 #| fig-cap: GFAP against IBA1 in each brain region (one point per sample; the line is a straight-line fit)
 #| fig-alt: Four scatter plots, one per region (TCx, PCx, HIP, FWM), of GFAP against IBA1. The clouds are broad and sit at different heights in different regions. The straight lines are nearly flat in three regions and slope downward in FWM.
-#| fig-width: 8
-#| fig-height: 6
+#| fig-width: 10
+#| fig-height: 7
 #| warning: false
 #| message: false
 

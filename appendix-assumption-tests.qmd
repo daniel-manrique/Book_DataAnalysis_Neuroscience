@@ -44,8 +44,8 @@ The setup is a straight line with a true slope of 0.5 and errors that are not no
 #| label: fig-appendix_alarm_vs_n
 #| fig-cap: Shapiro-Wilk alarm rate and actual coverage of the 95% interval for the slope, as sample size grows. Errors are heavy-tailed (t with 5 df), 1,000 simulated datasets per sample size.
 #| fig-alt: Line plot against sample size on a log axis. The alarm rate climbs from about 9 percent at n of 10 to 100 percent from n of 1,000. Coverage of the 95 percent interval stays flat at about 95 percent at every sample size.
-#| fig-width: 7
-#| fig-height: 4.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Fixed seed so the simulation is the same on every render
 set.seed(101)
@@ -282,7 +282,7 @@ All three fits pass the sampler checks (the largest Rhat across them is `r sprin
 #| fig-cap: Posterior distribution of the change in tissue area between day 7 and day 14 under three models. Dots mark the median, thick and thin bars the 50% and 95% credible intervals.
 #| fig-alt: Three half-eye plots of the change in tissue area from day 7 to day 14. The two straight-line models, with normal and with Student-t errors, are centered near minus 1.9 square millimeters with narrow intervals. The model with free means and spreads is centered near minus 4.5 with an interval that does not overlap the other two.
 #| fig-width: 8
-#| fig-height: 4
+#| fig-height: 4.5
 
 # Order and labels of the three models
 model_levels <- c("Straight line, normal errors", "Straight line, Student-t errors", "Free mean and spread per day")

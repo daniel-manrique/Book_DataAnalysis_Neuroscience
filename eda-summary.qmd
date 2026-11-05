@@ -112,8 +112,8 @@ Each row of `yrep` is one complete fake dataset, simulated from one draw of the 
 #| label: fig-eda_summary_ppc_rebuild
 #| fig-cap: "A posterior predictive check for the informed ischemia model, rebuilt by hand: 100 simulated datasets (grey) against the observed GFAP intensities (orange)."
 #| fig-alt: "Density plot. One hundred thin grey curves from simulated datasets form a broad cloud with two humps. A thicker orange curve for the observed data lies inside the cloud."
-#| fig-width: 6
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 #| message: false
 
@@ -161,8 +161,8 @@ ci_rep <- quantile(sd_ratio_rep, c(0.025, 0.975))
 #| label: fig-eda_summary_ppc_sd
 #| fig-cap: "Ratio of the standard deviation of MCAO animals to that of SHAM animals, in 1000 simulated datasets (histogram) and in the real data (orange line)."
 #| fig-alt: "Histogram of simulated standard deviation ratios, centered near one and spanning roughly zero to four. A vertical orange line for the observed ratio, about 3.4, sits far out in the right tail, beyond almost every bar."
-#| fig-width: 6
-#| fig-height: 3.8
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 #| message: false
 

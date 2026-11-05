@@ -116,7 +116,7 @@ Before we go deeper, I want you to see how much variety is on offer, because mos
 #| label: fig-eda-intro-gallery
 #| fig-cap: "Four ways of looking at `cell_data`. A: scatter plot of PDGFR-β against tissue area, one point per animal. B to D: GFAP integrated density by day post-ischemia drawn as a boxplot (B), a violin plot (C) and a raincloud plot (D)."
 #| fig-alt: "Four panels. A: scatter plot in which ischemic animals, drawn as blue triangles, show higher PDGFR-β integrated density at smaller tissue areas, while sham animals, drawn as orange circles, sit at large tissue area and low PDGFR-β. B: boxplots of GFAP integrated density rising from day 0 to day 7 and staying high through day 30, with a much wider box at day 7. C: violin plots of the same data; day 30 narrows in the middle, hinting at two humps. D: raincloud plots combining half-densities, boxplots and individual animals for each day."
-#| fig-width: 9
+#| fig-width: 10
 #| fig-height: 7
 
 # Colorblind-safe colours (Okabe-Ito); the scatter also uses shape, so it reads in grayscale

@@ -52,8 +52,8 @@ Think of the hanging wire test again: a mouse is put on a wire and has to reach 
 #| label: fig-multilevel_clusters
 #| fig-cap: Completed crossing times (log scale) of twelve mice in the hanging wire test. Each row is one mouse and each dot one attempt; the black tick is the mouse's own average and the dashed line is the average of all attempts of all mice.
 #| fig-alt: "Twelve horizontal strips, one per mouse, ordered from the fastest mouse at the bottom to the slowest at the top. Each strip holds up to nine grey dots and one black tick at the mouse's own average. A dashed vertical line marks the overall average. The ticks drift from left to right going up the figure, and the dots of each mouse huddle around its own tick, mostly on one side of the dashed line."
-#| fig-width: 7
-#| fig-height: 4.6
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Each mouse's own average (log scale) and its number of completed attempts
@@ -162,8 +162,8 @@ n_short <- sum(mice$n < 9)
 #| label: fig-multilevel_shrinkage
 #| fig-cap: "Average crossing time of each mouse without pooling (open circles) and with partial pooling (filled circles). Arrows point toward the overall average (dashed line). Orange arrows mark mice with fewer than nine completed attempts, which are pulled the furthest."
 #| fig-alt: "Sixty-three mice along the horizontal axis ordered by their own average crossing time, with a dashed horizontal line at the overall average. Each mouse has an open circle at its own average and a filled circle closer to the dashed line, joined by an arrow. Most arrows are short and grey. A handful of orange arrows, for mice with fewer than nine attempts, are noticeably longer, and some of the most extreme open circles sit far from the line."
-#| fig-width: 9
-#| fig-height: 4.2
+#| fig-width: 8
+#| fig-height: 4.5
 #| warning: false
 
 # Order mice by their own average and flag those with fewer than nine attempts
@@ -243,7 +243,7 @@ In @eq-multilevel-intro-shrink the quantity $\tau$, the spread of the mice aroun
 #| fig-cap: Weight a mouse's own average receives (B in the text) as a function of its number of attempts, for the between-mouse spread estimated from the wire data and for half and twice that spread. Dots mark the nine attempts most mice have.
 #| fig-alt: "Three rising curves of the weight on a mouse's own average against the number of attempts from one to twelve. The curve for twice the estimated spread is highest and rises quickest, the one for the estimated spread is in the middle and the one for half the spread is lowest. A dot on each curve marks nine attempts."
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # Weight on the mouse's own average for 1 to 12 attempts, three group spreads

@@ -252,8 +252,8 @@ Now the check (@fig-beta_ppc_counts_both). The same picture as before, for both 
 ```{r}
 #| label: fig-beta_ppc_counts_both
 #| fig-cap: How many mice completed each number of attempts (bars), against the range each model expects in a new sample of 63 mice (points and lines are the median and 95% predictive interval). The binomial (left) expects a crowd of mice at 7 or 8 completed attempts that isn't there, and has no room for the many perfect scores; the beta-binomial (right) covers both.
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Predictive band of each model, side by side
@@ -295,8 +295,8 @@ share_sd_bb <- mean(apply(posterior_predict(fit_bb, ndraws = 1000), 1, sd) >= sd
 ```{r}
 #| label: fig-beta_ppc_sd
 #| fig-cap: Standard deviation of the number of completed attempts across mice, in replicated data (histograms) against the observed value (line). Left, binomial; right, beta-binomial.
-#| fig-width: 8
-#| fig-height: 3.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -361,8 +361,8 @@ Now for a different kind of trouble, one that has nothing to do with proportions
 ```{r}
 #| label: fig-beta_rt_raw
 #| fig-cap: Distribution of the completed crossing times, in seconds (left) and on the log scale (right). The vertical line marks the median.
-#| fig-width: 8
-#| fig-height: 3.4
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Histogram of the times in seconds and of their logs
@@ -454,8 +454,8 @@ Sampling is healthy and the coefficients are reasonable. The trouble, as always,
 ```{r}
 #| label: fig-beta_rt_ppc_gauss
 #| fig-cap: Posterior predictive checks for the Gaussian model of log crossing times. Left, densities of replicated data (light lines) against the observed density (dark line). Right, fastest crossing in replicated data (histogram) against the observed fastest crossing (line).
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -560,8 +560,8 @@ share_min_g <- mean(min_rep_g <= min(crossings$log_wire))
 ```{r}
 #| label: fig-beta_rt_ppc_t
 #| fig-cap: Posterior predictive checks for the Student-t model of log crossing times (same layout as the Gaussian check)
-#| fig-width: 8
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -798,7 +798,7 @@ oft_pos <- oft[oft$share > 0, ]
 #| label: fig-beta_tracked
 #| fig-cap: Tracked time of each day-1 session (the sum of the center, arena and borders times). The dashed line marks the 270 s below which a session is excluded.
 #| fig-width: 6.5
-#| fig-height: 3.2
+#| fig-height: 4.2
 #| warning: false
 
 # All day-1 sessions, before applying the tracked-time threshold
@@ -833,7 +833,7 @@ That leaves `r nrow(oft)` animals: `r group_n["WT sham"]` wild-type and `r group
 #| label: fig-beta_share_raw
 #| fig-cap: Share of the tracked time that each mouse spent in the center of the open field on day 1, by group (the bar marks the mean)
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 #| warning: false
 
 # Every mouse as a point with each group's mean as a bar
@@ -862,8 +862,8 @@ This is @eq-glm with a beta family and the logit link of @sec-logistic-regressio
 ```{r}
 #| label: fig-beta_shapes
 #| fig-cap: Beta distributions with the same precision ($\phi$ = 15) and four different means. The shape, and not only the location, changes with the mean.
-#| fig-width: 8
-#| fig-height: 2.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Beta densities at four means with the same precision (phi = 15)
@@ -892,8 +892,8 @@ The intercept is the logit of the mean share for a sham-operated wild-type mouse
 ```{r}
 #| label: fig-beta_prior_predictive
 #| fig-cap: What the priors say about the share of time in the center, before seeing data (draws from the prior predictive distribution of a sham-operated wild-type mouse)
-#| fig-width: 6
-#| fig-height: 3.2
+#| fig-width: 6.5
+#| fig-height: 4.2
 #| warning: false
 
 # Prior predictive: draw mean and precision from the priors, then a share from the beta
@@ -974,8 +974,8 @@ Sampling is healthy. The `Intercept` (`r round(fixef(fit_share)["Intercept", "Es
 ```{r}
 #| label: fig-beta_share_ppc
 #| fig-cap: Posterior predictive check for the beta model with one precision. Standard deviation of the share in replicated data (histograms) against the observed value (line), in each group.
-#| fig-width: 8
-#| fig-height: 4.2
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 #| message: false
 
@@ -1178,8 +1178,8 @@ diff_diff <- diff_ko - diff_wt
 ```{r}
 #| label: fig-beta_share_effect
 #| fig-cap: The effect of ischemia on the share of time in the center on day 1. Left, the expected share of each group (half-eyes with 50% and 95% intervals) with the observed mice. Right, the difference between ischemic and sham mice within each genotype, and the difference between those two differences.
-#| fig-width: 8.5
-#| fig-height: 3.8
+#| fig-width: 10
+#| fig-height: 5
 #| warning: false
 
 # Left panel: expected share per group with the observed mice on top

@@ -34,7 +34,7 @@ Before cutting anything, I want you to see what we are cutting. `DPI` takes only
 #| label: fig-single_continuous_full_range
 #| fig-cap: "Tissue area by day after ischemia, with the straight line fitted across all days. Orange diamonds mark each day's mean; the shaded band is the window we keep."
 #| fig-width: 6.5
-#| fig-height: 4.5
+#| fig-height: 4.2
 
 # Mean tissue area per day, kept as a named vector for the text below
 means_full <- aggregate(Tissue_Area ~ DPI, data = cell_data, FUN = mean)
@@ -248,7 +248,7 @@ A table of coefficients is easy to read past, so let me draw the line itself (@f
 #| label: fig-single_continuous_fit
 #| fig-cap: Posterior mean line for tissue area against days post-ischemia (50%, 80% and 95% credible bands), with the animals behind it
 #| fig-width: 6.5
-#| fig-height: 4.5
+#| fig-height: 4.2
 
 library(ggdist)
 
@@ -280,7 +280,7 @@ A prior is only honest if you show how much it mattered. @fig-single_continuous_
 #| label: fig-single_continuous_prior_posterior
 #| fig-cap: Prior and posterior for the slope (mm² per day)
 #| fig-width: 6.5
-#| fig-height: 3.8
+#| fig-height: 4.2
 
 # Stack prior draws and posterior draws of the slope
 overlay <- data.frame(
@@ -363,8 +363,8 @@ Now the promise I made at the table of days: the spread at day 3. The model has 
 ```{r}
 #| label: fig-single_continuous_residuals
 #| fig-cap: Residuals of the tissue-loss model by day (mm²)
-#| fig-width: 5.5
-#| fig-height: 4
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 # Residual of every animal (posterior mean prediction subtracted), by day
 resid_df <- data.frame(
@@ -392,8 +392,8 @@ The residuals at day 3 spread with a standard deviation of about `r f1(res_sd["3
 ```{r}
 #| label: fig-single_continuous_ppcheck
 #| fig-cap: Posterior predictive check of the standard deviation by day (observed value as a line, replicated datasets as histograms)
-#| fig-width: 7
-#| fig-height: 3.5
+#| fig-width: 6.5
+#| fig-height: 4.2
 
 library(bayesplot)
 
