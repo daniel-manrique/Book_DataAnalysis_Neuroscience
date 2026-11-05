@@ -16,7 +16,7 @@ Plot_theme <- Plot_theme$value
 
 You've probably done this already, or watched a labmate do it: paste a spreadsheet of fluorescence intensities into a chat window and ask "what statistical test should I run?" Back comes a confident answer, a t-test, maybe an ANOVA if there are more than two groups, often with a line like "a p-value below 0.05 would indicate a significant difference." It reads like expertise. It even runs without errors. And it quietly hands you back exactly the ritual this whole book has been trying to talk you out of: a single threshold standing in for a scientific judgment nobody actually made.
 
-That's not a reason to avoid these tools. It's a reason to be precise about what they're actually good at, because "precise" is not the same as "cautious to the point of uselessness." I use an AI assistant most days I write R code, and this book itself was partly built with one, in a very specific and disciplined way I'll describe near the end of this appendix. The goal here isn't to warn you off the tool. It's to draw the line in the right place, so you keep the part that genuinely saves you time and lose the part that quietly does your thinking for you.
+That's not a reason to avoid these tools. It's a reason to be precise about what they're actually good at, because "precise" is not the same as "cautious to the point of uselessness." I use an AI assistant most days I write R code, and AI helped in the making of this book too, in specific places that I describe near the end of this appendix. The goal here isn't to warn you off the tool. It's to draw the line in the right place, so you keep the part that genuinely saves you time and lose the part that quietly does your thinking for you.
 
 ## The loop again: where delegation is safe and where it isn't
 
@@ -56,7 +56,7 @@ The "infer" row is the real win, and it's worth being specific about what that c
 -   **Debugging.** Pasting a cryptic Stan warning or an R error message into an assistant and getting a plain-language explanation of what it means is a legitimate, low-risk use. You're not asking it to decide anything; you're asking it to translate.
 -   **Explaining unfamiliar output.** "What does Rhat mean" or "why would adapt_delta fix this" are exactly the kind of question @sec-mcmc-model-checking spent a whole chapter answering properly. An assistant can give you a reasonable first-pass explanation of a diagnostic faster than searching through documentation, as long as you then hold that explanation to the same standard as anything else you read: does it match what the textbooks actually say.
 -   **Literature retrieval, done the right way.** More on this in a moment, because it's different enough from the other items on this list to deserve its own section.
--   **Catching the exact bug this project has made before.** A chunk copied from one chapter into another without updating the variable names is a real, documented failure mode of writing a book like this one across many forked sessions. Asking an assistant to check whether a chunk actually executes against the variables defined earlier in the same file is a genuinely useful, low-stakes review step, not a judgment call at all.
+-   **Catching the exact bug this project has made before.** A chunk copied from one chapter into another without updating the variable names is a real, documented failure mode of writing a long book with hundreds of code chunks. Asking an assistant to check whether a chunk actually executes against the variables defined earlier in the same file is a genuinely useful, low-stakes review step, not a judgment call at all.
 
 ## Where it quietly fails: a worked example
 
@@ -73,9 +73,13 @@ Ask an assistant for a citation supporting some claim, and it will frequently gi
 :::
 
 ::: callout-tip
-### How this book uses AI, and why that's the model to copy
+### How AI was used in this book
 
-This book was partly written with AI assistance, under a specific rule laid out in its own project instructions: when a claim needs the authority of an actual textbook, the assistant is told exactly what to ask a source library of Daniel's reference books (through a retrieval tool, NotebookLM), the excerpt comes back as a direct quote, and only then does it get integrated and cited. The assistant never invents the citation from memory. It retrieves a passage from a known, checkable source and waits to be handed the real text. That's the general shape worth copying into your own work: use the tool to *find and retrieve*, not to *recall and assert*. The difference sounds small. It's the entire difference between a citation you can defend and one you can't.
+AI assistants helped with parts of this book, and I would rather say where than leave it vague.
+
+-   **Documentation, errors and figure code.** They helped me write documentation, solve errors, and optimize the code for the figures. For the figures my most important guide was Yan Holtz ([GitHub](https://github.com/holtzy); [Dataviz Inspiration](https://www.dataviz-inspiration.com/)). The AI was very useful for improving the graphics and for finding new tools to build them, in an environment that changes quickly.
+-   **Checking concepts against textbooks.** I have been looking things up in statistics books since long before AI existed. NotebookLM makes that search much easier: loaded with the books, it lets me verify a concept or find a specific passage in a large document. When a claim needs the authority of a textbook, the passage comes from the book and the citation points to the book, never to the tool. That is the general shape worth copying into your own work: use the tool to *find and retrieve*, not to *recall and assert*. It is the difference between a citation you can defend and one you cannot.
+-   **Language.** English is not my first language, so I used AI-based text correctors to keep the writing fluent, accessible and natural.
 :::
 
 ## A short checklist for your own analysis

@@ -66,6 +66,18 @@ My current job makes this concrete for me daily: I spend my time helping researc
 Read it in order the first time. The chapters build on one another, and the datasets return with more complicated questions, so a later chapter will sometimes ask you to remember what we learned about the same data earlier. After that, treat it like a reference and jump around.
 :::
 
+## The tools behind the book
+
+A book like this one leans on many tools, and I would rather name them than leave you guessing. AI has been part of the workflow, and this is where it showed up.
+
+**Checking what I write against the literature.** Long before anyone talked about AI, I read statistics textbooks with a pencil in hand, hunting for a definition, an assumption, or the page where an author explains why a choice is reasonable. That habit has not changed. What changed is that NotebookLM, loaded with the statistics books I trust, finds the passage I am looking for in seconds instead of an afternoon. I used it to verify concepts and to locate specific information inside very large documents, and it made it much easier to develop the ideas I wanted to cover. The books remain the authority; the claims in these chapters rest on the references, not on the tool.
+
+**Documentation, errors and figures.** AI assistants helped me write documentation, track down errors, and optimize the code that draws the figures. For the figures, my most important guide was Yan Holtz: his work on [GitHub](https://github.com/holtzy) and his data visualization project, [Dataviz Inspiration](https://www.dataviz-inspiration.com/), shaped how I think about showing data. The AI was very useful for improving my graphics and for discovering new tools to make them, in an environment that changes as fast as this one does.
+
+**Language.** English is not my first language, and a helping hand is always welcome when the goal is prose that is fluent, accessible and natural. I used AI-based text correctors to improve my writing.
+
+@sec-appendix-ai-assisted-modeling says more about how I think these tools should and should not be used in your own analyses. Any error that remains in these pages is mine.
+
 ## A quick look at where we're going
 
 The book has six parts, plus a web-only collection of exercises and a back section with appendices, a glossary and an index. I'll keep this brief, because each part opens with its own introduction that tells the story properly.
