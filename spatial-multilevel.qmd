@@ -5,4 +5,4 @@ subtitle: Hierarchical spatial models
 
 # Comparing tissue patterns across animals {#sec-spatial-multilevel}
 
-<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->
+<!-- STUB: not written yet. -->

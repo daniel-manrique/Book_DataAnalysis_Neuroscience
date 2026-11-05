@@ -1,4 +1,4 @@
--- Index marker filter (see planning/glossary-index-method.md).
+-- Index marker filter: marks key terms for the glossary and the index (see scripts/build-index.R).
 -- A span is an index mark when it has the class "ix" or when it is one of the
 -- green key-term spans that introduce a term. It gets a stable anchor id
 -- (ix-<slug>-<n>, n counted per document) so the generated index can link to

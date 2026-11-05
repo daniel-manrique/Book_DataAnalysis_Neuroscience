@@ -5,4 +5,4 @@ subtitle: Point process models and Gaussian processes
 
 # Modeling where cells are likely to be {#sec-spatial-point-process-models}
 
-<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->
+<!-- STUB: not written yet. -->

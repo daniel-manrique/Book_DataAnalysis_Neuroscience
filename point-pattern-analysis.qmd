@@ -5,4 +5,4 @@ subtitle: Point pattern analysis
 
 # Asking whether cells cluster, avoid or follow structures {#sec-point-pattern-analysis}
 
-<!-- STUB: content to be written in its own chat. See planning/roadmap.md. -->
+<!-- STUB: not written yet. -->

@@ -4,7 +4,7 @@ subtitle: Exercises (web edition only)
 bibliography: references.bib
 ---
 
-<!-- STUB: this part is intentionally empty for now. It will collect reanalyses of published datasets and is updated continuously, so it lives in the web edition only. See planning/roadmap.md. -->
+<!-- STUB: this part is intentionally empty for now. It will collect reanalyses of published datasets and is updated continuously, so it lives in the web edition only. -->
 
 ::: {.content-visible when-format="pdf"}
 ::: callout-note

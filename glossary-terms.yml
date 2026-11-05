@@ -3,7 +3,7 @@
 # chapters. Fields: term (required), definition (required, 1 to 3 sentences),
 # analogy (one everyday picture), see_also (list of other terms).
 # status: draft means the definition still has to be checked against the
-# textbooks (NotebookLM) before the book is published.
+# textbooks before the book is published.
 
 - term: prior
   status: draft
